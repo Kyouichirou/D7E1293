@@ -244,13 +244,13 @@
             Object.defineProperty(HTMLAnchorElement.prototype, "href", {
                 ...hrefs,
                 get() {
-                    const href = decodeURIComponent(hrefs.get.call(this));
-                    if (href.startsWith("https://link.zhihu.com/?target=")) {
-                        const ohref = href.slice(31);
-                        this.href = ohref;
-                        return ohref;
+                    let href = decodeURIComponent(hrefs.get.call(this));
+                    href = href.split("link.zhihu.com/?target=");
+                    if (href.length > 1) {
+                        this.href = href[1];
+                        return href[1];
                     }
-                    return href;
+                    return href[0];
                 },
             });
         },
