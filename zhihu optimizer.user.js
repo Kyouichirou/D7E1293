@@ -203,7 +203,7 @@
                 const target = document.getElementById("screen_shade_cover");
                 target &&
                     opacity &&
-                    target.style.opacity !== opactiy &&
+                    target.style.opacity !== opacity &&
                     (target.style.opacity = opacity);
             },
             start() {
