@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      1.2
+// @version      2.0
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -33,7 +33,7 @@
     "use strict";
     const blackID = ["zhujiangren", "gu-shi-dang-an-ju-71"];
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
-    const blackKey = ["留学中介", "肖战"];
+    const blackKey = ["留学中介", "肖战", "卡特尔联盟"];
     const zhihu = {
         shade: {
             Support: {
@@ -258,7 +258,7 @@
         antiLogin() {
             /*
             note:
-            the timing of the js injection is uncertain, and for some reason the injection maybe late, 
+            the timing of the js injection is uncertain, and for some reason the injection maybe late,
             so that the occurrence of the event cannot be accurately captured
             don't use dom load event =>
             */
@@ -425,50 +425,45 @@
                 const href = location.href;
                 return targetElements.zone.some((e) => href.includes(e));
             },
+            clickCheck(item, targetElements) {
+                // user without userid when in the search page, if the answer is not expanded
+                if (targetElements.index === 3) {
+                    const result = this.userCheck(item, targetElements);
+                    if (result) return;
+                }
+                setTimeout(
+                    () => this.contentCheck(item, targetElements, 2),
+                    300
+                );
+            },
+            //check the content when the content expanded
             clickMonitor(node, targetElements) {
                 node.onclick = (e) => {
                     const target = e.target;
-                    if (target.className === targetElements.buttonClass) {
-                        const item = this.getiTem(target, targetElements);
-                        item &&
-                            setTimeout(
-                                () =>
-                                    this.contentCheck(item, targetElements, 2),
-                                300
-                            );
+                    const className = target.className;
+                    let item = null;
+                    //click the expand button
+                    if (className === targetElements.buttonClass) {
+                        item = this.getiTem(target, targetElements);
+                        //click the ico of expand button
                     } else if (target.localName === "svg") {
                         const button = this.svgCheck(target, targetElements);
-                        if (button) {
-                            const item = this.getiTem(button, targetElements);
-                            if (!item) return;
-                            if (targetElements.index === 3) {
-                                const result = this.userCheck(
-                                    item,
-                                    targetElements
-                                );
-                                !result &&
-                                    setTimeout(
-                                        () =>
-                                            this.contentCheck(
-                                                item,
-                                                targetElements,
-                                                2
-                                            ),
-                                        300
-                                    );
-                            } else {
-                                setTimeout(
-                                    () =>
-                                        this.contentCheck(
-                                            item,
-                                            targetElements,
-                                            2
-                                        ),
-                                    300
-                                );
+                        button && (item = this.getiTem(button, targetElements));
+                        //click the answser, the content will be automatically expanded
+                    } else {
+                        if (className !== targetElements.expand) return;
+                        for (const node of e.path) {
+                            const className = node.className;
+                            if (
+                                className === targetElements.itemClass ||
+                                className === targetElements.answerID
+                            ) {
+                                item = node;
+                                break;
                             }
                         }
                     }
+                    item && this.clickCheck(item, targetElements);
                 };
             },
             monitor(targetElements) {
@@ -554,6 +549,8 @@
                     userID: "UserLink-link",
                     backupClass: "Question-main",
                     header: "ContentItem AnswerItem",
+                    expand: "RichText ztext CopyrightRichText-richText",
+                    answerID: "ContentItem AnswerItem",
                     index: index,
                 };
                 return targetElements;
@@ -568,6 +565,7 @@
                     itemClass: "Card SearchResult-Card",
                     mainID: "SearchMain",
                     contentID: "RichText ztext CopyrightRichText-richText",
+                    expand: "RichContent-inner",
                     userID: "UserLink-link",
                     zone: ["type=content"],
                     index: index,
@@ -581,6 +579,7 @@
                     mainID: "TopicMain",
                     userID: "UserLink-link",
                     contentID: "RichText ztext CopyrightRichText-richText",
+                    expand: "RichContent-inner",
                     zone: ["/top-answers", "/hot"],
                     index: index,
                 };
@@ -588,6 +587,7 @@
             },
         },
         addStyle(index) {
+            const common = "body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}";
             const contentstyle = `
                 html{overflow: auto !important;}
                 div.Question-mainColumn{margin: auto !important;width: 100% !important;}
@@ -600,6 +600,7 @@
                     border: 6px dashed rgba(133,144,166,0.2) !important;
                     border-radius: 6px !important;
                 }
+                span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
                 .Pc-word,
                 .RichText-MCNLinkCardContainer{display: none !important;}
                 .Comments{padding: 12px !important; margin: 60px !important;}`;
@@ -610,11 +611,12 @@
                 }`;
             const hotsearch = ".Card.TopSearch{display: none !important;}";
             GM_addStyle(
-                index < 2
-                    ? contentstyle + inpustyle
-                    : index === 3
-                    ? inpustyle + hotsearch
-                    : inpustyle
+                common +
+                    (index < 2
+                        ? contentstyle + inpustyle
+                        : index === 3
+                        ? inpustyle + hotsearch
+                        : inpustyle)
             );
         },
         clearStorage() {
@@ -728,6 +730,128 @@
                 mo.observe(target, { childList: true, subtree: true });
             },
         },
+        zhuanlanStyle(mode) {
+            const article = `
+                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
+                .Post-Main .Post-RichText{text-align: justify !important;}
+                .Post-SideActions{left: calc(50vw - 560px) !important;}
+                .Comments-container,
+                .Post-RichTextContainer{width: 900px !important;}`;
+            const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
+            GM_addStyle(mode ? article : list);
+            mode && (window.onload = () => this.colorAssistant.main());
+        },
+        colorIndicator() {
+            let lasttarget = null;
+            const colors = ["green", "red", "blue", "purple"];
+            let i = 0;
+            let change = false;
+            const tags = ["blockquote", "p", "br", "li"];
+            document.onclick = (e) => {
+                const target = e.target;
+                const localName = target.localName;
+                if (!tags.includes(localName)) return;
+                if (target.style.color) return;
+                if (lasttarget) {
+                    lasttarget.style.color = "";
+                    lasttarget.style.fontSize = "";
+                    lasttarget.style.letterSpacing = "";
+                    if (change) lasttarget.style.fontWeight = "normal";
+                }
+                target.style.color = colors[i];
+                target.style.fontSize = "16px";
+                target.style.letterSpacing = "0.3px";
+                if (target.style.fontWeight !== 600) {
+                    target.style.fontWeight = 600;
+                    change = true;
+                } else {
+                    change = false;
+                }
+                i = i > 2 ? 0 : ++i;
+                lasttarget = target;
+            };
+        },
+        colorAssistant: {
+            index: 0,
+            arr: null,
+            blue: true,
+            get rgbRed() {
+                this.index -= 5;
+                if (this.index < 0) {
+                    this.index = 0;
+                    this.blue = true;
+                }
+                const s =
+                    this.index > 233
+                        ? 5
+                        : this.index > 182
+                        ? 4
+                        : this.index > 120
+                        ? 3
+                        : this.index > 88
+                        ? 2
+                        : this.index > 35
+                        ? 1
+                        : 0;
+                return `rgb(${this.index}, ${s}, 0)`;
+            },
+            get rgbBlue() {
+                this.index += 6;
+                if (this.index > 255) {
+                    this.index = 255;
+                    this.blue = false;
+                }
+                return `rgb(0, 0, ${this.index})`;
+            },
+            get textColor() {
+                return this.blue ? this.rgbBlue : this.rgbRed;
+            },
+            setColor(text, color) {
+                return `<colorspan class="color-node" style="color: ${color} !important;">${text}</colorspan>`;
+            },
+            getItem(items) {
+                //the bold font text, or text of "a" tag will be ignored
+                const localName = items.localName;
+                if (localName && (localName === "b" || localName === "a")) {
+                    this.arr.push(items.outerHTML);
+                    return;
+                }
+                if (items.childNodes.length === 0) {
+                    const text = items.nodeValue;
+                    if (text) {
+                        for (let t of text) {
+                            t = t.trim();
+                            t &&
+                                this.arr.push(this.setColor(t, this.textColor));
+                        }
+                    }
+                } else {
+                    for (const item of items.childNodes) this.getItem(item);
+                    this.arr.length > 0 &&
+                        (items.innerHTML = this.arr.join(""));
+                    this.arr = [];
+                }
+            },
+            main() {
+                const holder = document.getElementsByClassName(
+                    "RichText ztext Post-RichText"
+                );
+                if (holder.length === 0) {
+                    console.log("gete content fail");
+                    return;
+                }
+                this.arr = [];
+                const tags = ["p", "ul", "ol"];
+                tags.forEach((e) => {
+                    const items = holder[0].getElementsByTagName(e);
+                    for (const item of items) {
+                        this.getItem(item);
+                        this.arr = [];
+                    }
+                });
+                this.arr = null;
+            },
+        },
         start() {
             //global
             this.shade.start();
@@ -738,17 +862,25 @@
                 "/topic/",
                 "/search",
                 "/www",
+                "/zhuanlan",
             ];
             const href = location.href;
             const index = pos.findIndex((e) => href.includes(e));
-            if (index < 0) return;
+            if (index < 0) {
+                return;
+            } else if (index > 4) {
+                this.zhuanlanStyle(href.includes("/p/"));
+                return;
+            }
             this.addStyle(index);
             index < 2 && this.antiLogin();
             this.clearStorage();
             window.onload = () => {
                 (index < 4
                     ? !(index === 1 && href.endsWith("/waiting"))
-                    : false) && setTimeout(() => this.Filter.main(index), 100);
+                    : false) &&
+                    (setTimeout(() => this.Filter.main(index), 100),
+                    this.colorIndicator());
                 this.inputBox.monitor();
             };
         },
