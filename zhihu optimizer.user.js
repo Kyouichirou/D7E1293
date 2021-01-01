@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.2
+// @version      2.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -876,6 +876,10 @@
                     this.arr = [];
                 }
             },
+            resetColor() {
+                this.blue = !this.blue;
+                this.index = this.blue ? 0 : 255;
+            },
             main() {
                 let holder = document.getElementsByClassName(
                     "RichText ztext Post-RichText"
@@ -887,7 +891,7 @@
                 this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
                 !this.blue && (this.index = 255);
                 holder = holder[0];
-                const tags = ["p", "ul", "li", "ol"];
+                const tags = ["p", "ul", "li", "ol", "blockquote"];
                 const textNode = [];
                 let i = -1;
                 for (const node of holder.childNodes) {
@@ -896,8 +900,11 @@
                     if (type === 3) {
                         textNode.push(i);
                         continue;
-                    } else if (!tags.includes(node.tagName.toLowerCase()))
+                    } else if (!tags.includes(node.tagName.toLowerCase())) {
+                        //the continuity of content is interrupted;
+                        this.resetColor();
                         continue;
+                    }
                     this.arr = [];
                     this.getItem(node);
                 }
