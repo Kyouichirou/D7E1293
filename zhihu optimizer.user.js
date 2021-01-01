@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.0
+// @version      2.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -809,6 +809,39 @@
             setColor(text, color) {
                 return `<colorspan class="color-node" style="color: ${color} !important;">${text}</colorspan>`;
             },
+            textDetach(text) {
+                //the time, number and alphabet(length greater than 1) will be treated as a whole
+                const reg = /((\d+[\.-\/]\d+([\.-\/]\d+)?)|\d{2,}|[a-z]{2,})/gi;
+                let result = null;
+                let start = 0;
+                let end = 0;
+                let tmp = "";
+                result = reg.exec(text);
+                const numaColors = ["green", "#8B008B"];
+                let i = 0;
+                if (result) {
+                    while (result) {
+                        tmp = result[0];
+                        end = reg.lastIndex - tmp.length;
+                        for (start; start < end; start++)
+                            this.arr.push(
+                                this.setColor(text[start], this.textColor)
+                            );
+                        start = reg.lastIndex;
+                        this.arr.push(this.setColor(tmp, numaColors[i]));
+                        i = i ^ 1;
+                        result = reg.exec(text);
+                    }
+                    end = text.length;
+                    for (start; start < end; start++)
+                        this.arr.push(
+                            this.setColor(text[start], this.textColor)
+                        );
+                } else {
+                    for (let t of text)
+                        this.arr.push(this.setColor(t, this.textColor));
+                }
+            },
             getItem(items) {
                 //the bold font text, or text of "a" tag will be ignored
                 const localName = items.localName;
@@ -818,13 +851,7 @@
                 }
                 if (items.childNodes.length === 0) {
                     const text = items.nodeValue;
-                    if (text) {
-                        for (let t of text) {
-                            t = t.trim();
-                            t &&
-                                this.arr.push(this.setColor(t, this.textColor));
-                        }
-                    }
+                    text && this.textDetach(text);
                 } else {
                     for (const item of items.childNodes) this.getItem(item);
                     this.arr.length > 0 &&
