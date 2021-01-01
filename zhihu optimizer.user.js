@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.1
+// @version      2.2
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -33,7 +33,7 @@
     "use strict";
     const blackID = ["zhujiangren", "gu-shi-dang-an-ju-71"];
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
-    const blackKey = ["留学中介", "肖战", "卡特尔联盟"];
+    const blackKey = ["留学中介", "肖战"];
     const zhihu = {
         shade: {
             Support: {
@@ -736,6 +736,8 @@
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .Comments-container,
+                .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
+                .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}`;
             const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
             GM_addStyle(mode ? article : list);
@@ -775,8 +777,9 @@
             index: 0,
             arr: null,
             blue: true,
+            grad: 5,
             get rgbRed() {
-                this.index -= 5;
+                this.index -= this.grad;
                 if (this.index < 0) {
                     this.index = 0;
                     this.blue = true;
@@ -796,7 +799,7 @@
                 return `rgb(${this.index}, ${s}, 0)`;
             },
             get rgbBlue() {
-                this.index += 6;
+                this.index += this.grad;
                 if (this.index > 255) {
                     this.index = 255;
                     this.blue = false;
@@ -809,8 +812,23 @@
             setColor(text, color) {
                 return `<colorspan class="color-node" style="color: ${color} !important;">${text}</colorspan>`;
             },
+            setcolorGrad(tlength) {
+                this.grad =
+                    tlength > 500
+                        ? 1
+                        : tlength > 300
+                        ? 2
+                        : tlength > 180
+                        ? 3
+                        : tlength > 120
+                        ? 4
+                        : tlength > 80
+                        ? 5
+                        : 6;
+            },
+            num: 0,
             textDetach(text) {
-                //the time, number and alphabet(length greater than 1) will be treated as a whole
+                this.setcolorGrad(text.length);
                 const reg = /((\d+[\.-\/]\d+([\.-\/]\d+)?)|\d{2,}|[a-z]{2,})/gi;
                 let result = null;
                 let start = 0;
@@ -818,7 +836,6 @@
                 let tmp = "";
                 result = reg.exec(text);
                 const numaColors = ["green", "#8B008B"];
-                let i = 0;
                 if (result) {
                     while (result) {
                         tmp = result[0];
@@ -828,8 +845,8 @@
                                 this.setColor(text[start], this.textColor)
                             );
                         start = reg.lastIndex;
-                        this.arr.push(this.setColor(tmp, numaColors[i]));
-                        i = i ^ 1;
+                        this.arr.push(this.setColor(tmp, numaColors[this.num]));
+                        this.num = this.num ^ 1;
                         result = reg.exec(text);
                     }
                     end = text.length;
@@ -860,22 +877,45 @@
                 }
             },
             main() {
-                const holder = document.getElementsByClassName(
+                let holder = document.getElementsByClassName(
                     "RichText ztext Post-RichText"
                 );
                 if (holder.length === 0) {
                     console.log("gete content fail");
                     return;
                 }
-                this.arr = [];
-                const tags = ["p", "ul", "ol"];
-                tags.forEach((e) => {
-                    const items = holder[0].getElementsByTagName(e);
-                    for (const item of items) {
-                        this.getItem(item);
-                        this.arr = [];
+                this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
+                !this.blue && (this.index = 255);
+                holder = holder[0];
+                const tags = ["p", "ul", "li", "ol"];
+                const textNode = [];
+                let i = -1;
+                for (const node of holder.childNodes) {
+                    i++;
+                    const type = node.nodeType;
+                    if (type === 3) {
+                        textNode.push(i);
+                        continue;
+                    } else if (!tags.includes(node.tagName.toLowerCase()))
+                        continue;
+                    this.arr = [];
+                    this.getItem(node);
+                }
+                i = textNode.length;
+                if (i > 0) {
+                    for (i; i--; ) {
+                        let node = holder.childNodes[textNode[i]];
+                        const text = node.nodeValue;
+                        if (text) {
+                            this.arr = [];
+                            this.textDetach(text);
+                            const iNode = document.createElement("colorspan");
+                            holder.insertBefore(iNode, node);
+                            iNode.outerHTML = this.arr.join("");
+                            node.remove();
+                        }
                     }
-                });
+                }
                 this.arr = null;
             },
         },
@@ -888,14 +928,15 @@
                 "/question/",
                 "/topic/",
                 "/search",
-                "/www",
+                "/column",
                 "/zhuanlan",
+                "/www",
             ];
             const href = location.href;
             const index = pos.findIndex((e) => href.includes(e));
             if (index < 0) {
                 return;
-            } else if (index > 4) {
+            } else if (index > 3 && index < 6) {
                 this.zhuanlanStyle(href.includes("/p/"));
                 return;
             }
