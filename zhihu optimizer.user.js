@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3
+// @version      2.3.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -33,7 +33,7 @@
     "use strict";
     const blackID = ["zhujiangren", "gu-shi-dang-an-ju-71"];
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
-    const blackKey = ["留学中介", "肖战"];
+    const blackKey = ["留学中介", "肖战", "卡特尔联盟"];
     const zhihu = {
         shade: {
             Support: {
@@ -735,10 +735,10 @@
                  body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
-                .Comments-container,
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
                 .Comments-container,
-                .Post-RichTextContainer{width: 900px !important;}`;
+                .Post-RichTextContainer{width: 900px !important;}
+                .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
             GM_addStyle(mode ? article : list);
             mode && (window.onload = () => this.colorAssistant.main());
@@ -859,20 +859,20 @@
                         this.arr.push(this.setColor(t, this.textColor));
                 }
             },
-            getItem(items) {
-                //the bold font text, or text of "a" tag will be ignored
-                const localName = items.localName;
-                if (localName && (localName === "b" || localName === "a")) {
-                    this.arr.push(items.outerHTML);
+            getItem(node) {
+                //tags will be ignored
+                const localName = node.localName;
+                const tags = ["a", "br", "b"];
+                if (localName && tags.includes(localName)) {
+                    this.arr.push(node.outerHTML);
                     return;
                 }
-                if (items.childNodes.length === 0) {
-                    const text = items.nodeValue;
+                if (node.childNodes.length === 0) {
+                    const text = node.nodeValue;
                     text && this.textDetach(text);
                 } else {
-                    for (const item of items.childNodes) this.getItem(item);
-                    this.arr.length > 0 &&
-                        (items.innerHTML = this.arr.join(""));
+                    for (const item of node.childNodes) this.getItem(item);
+                    this.arr.length > 0 && (node.innerHTML = this.arr.join(""));
                     this.arr = [];
                 }
             },
@@ -885,7 +885,7 @@
                     "RichText ztext Post-RichText"
                 );
                 if (holder.length === 0) {
-                    console.log("gete content fail");
+                    console.log("get content fail");
                     return;
                 }
                 this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
