@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3.1
+// @version      2.3.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -10,6 +10,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        unsafeWindow
+// @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
 // @grant        GM_registerMenuCommand
@@ -206,7 +207,85 @@
                     target.style.opacity !== opacity &&
                     (target.style.opacity = opacity);
             },
+            supportID: null,
+            SupportMenu() {
+                this.supportID = GM_registerMenuCommand(
+                    "Support || Donation",
+                    this.Support.main.bind(this.Support),
+                    "d4"
+                );
+            },
+            disableShade: {
+                id: null,
+                cmenu() {
+                    this.id = GM_registerMenuCommand(
+                        "Switch",
+                        this.func.bind(this),
+                        "s5"
+                    );
+                },
+                rmenu() {
+                    GM_unregisterMenuCommand(this.id);
+                },
+                func() {
+                    const target = document.getElementById(
+                        "screen_shade_cover"
+                    );
+                    target &&
+                        (target.style.display =
+                            target.style.display === "block"
+                                ? "none"
+                                : "block");
+                },
+            },
+            SwitchMonitor(result) {
+                GM_removeValueChangeListener(this.turnoffID);
+                GM_setValue("turnoff", result);
+                this.turnoffID = GM_addValueChangeListener(
+                    "turnoff",
+                    this.Switchfunc.bind(this)
+                );
+            },
+            menuID: null,
+            Switchfunc() {
+                const target = document.getElementById("screen_shade_cover");
+                let result = false;
+                if (target) {
+                    target.remove();
+                    result = true;
+                    this.disableShade.rmenu();
+                    let i = this.menuID.length;
+                    for (i; i--; ) GM_unregisterMenuCommand(this.menuID[i]);
+                    this.menuID = null;
+                } else {
+                    //rebuild menu
+                    GM_unregisterMenuCommand(this.switchID);
+                    GM_unregisterMenuCommand(this.supportID);
+                    this.createShade();
+                    this.SwitchMenu();
+                    this.SupportMenu();
+                }
+                this.SwitchMonitor(result);
+            },
+            switchID: null,
+            SwitchMenu() {
+                this.switchID = GM_registerMenuCommand(
+                    "Turn(On/Off)",
+                    this.Switchfunc.bind(this),
+                    "t6"
+                );
+            },
+            turnoffID: null,
             start() {
+                !GM_getValue("turnoff") && this.createShade();
+                this.SwitchMenu();
+                this.SupportMenu();
+                this.turnoffID = GM_addValueChangeListener(
+                    "turnoff",
+                    this.Switchfunc.bind(this)
+                );
+            },
+            createShade() {
                 const colors = {
                     yellow: "rgb(247, 232, 176)",
                     green: "rgb(202 ,232, 207)",
@@ -214,28 +293,25 @@
                     olive: "rgb(207, 230, 161)",
                 };
                 let color = GM_getValue("color");
-                (color && (color = colors[color])) ||
-                    (!color && (color = colors.yellow));
+                (color && (color = colors[color])) || (color = colors.yellow);
                 const opacity = this.opacity;
                 this.cover(color, opacity);
                 const UpperCase = (e) =>
                     e.slice(0, 1).toUpperCase() + e.slice(1);
-                Object.keys(colors).forEach((e, index) =>
-                    GM_registerMenuCommand(
+                this.menuID = [];
+                Object.keys(colors).forEach((e, index) => {
+                    const id = GM_registerMenuCommand(
                         UpperCase(e),
                         this.menu.bind(colors, e),
-                        e.slice(0, 1) + index
-                    )
-                );
+                        e[0] + index
+                    );
+                    this.menuID.push(id);
+                });
                 //note, who is the "this" in the GM_registerMenuCommand? take care of "this", must bind (function => this)
-                GM_registerMenuCommand(
-                    "Support || Donation",
-                    this.Support.main.bind(this.Support),
-                    "d4"
-                );
                 this.colorMonitor(colors);
                 GM_setValue("opacity", opacity);
                 GM_addValueChangeListener("opacity", this.opacityMonitor);
+                this.disableShade.cmenu();
             },
         },
         antiRedirect() {
