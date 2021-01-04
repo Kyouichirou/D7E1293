@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3.3
+// @version      2.3.4
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -160,25 +160,27 @@
                     ></div>`;
                 document.documentElement.insertAdjacentHTML("afterbegin", html);
             },
-            menu(e) {
+            menu() {
                 const target = document.getElementById("screen_shade_cover");
                 target &&
-                    target.style.background !== this[e] &&
-                    (target.style.background = this[e]) &&
-                    (GM_removeValueChangeListener(zhihu.shade.colorlistenID),
-                    GM_setValue("color", e),
-                    zhihu.shade.colorMonitor(this));
+                    target.style.background !== arguments[1] &&
+                    (target.style.background = arguments[1]) &&
+                    (GM_removeValueChangeListener(this.colorlistenID),
+                    GM_setValue("color", arguments[0]),
+                    this.colorMonitor());
             },
             colorlistenID: null,
             colorChange() {
                 const target = document.getElementById("screen_shade_cover");
                 target &&
-                    (target.style.background = this[GM_getValue("color")]);
+                    (target.style.background = this.colors[
+                        GM_getValue("color")
+                    ]);
             },
-            colorMonitor(colors) {
+            colorMonitor() {
                 this.colorlistenID = GM_addValueChangeListener(
                     "color",
-                    this.colorChange.bind(colors)
+                    this.colorChange.bind(this)
                 );
             },
             get opacity() {
@@ -285,30 +287,42 @@
                     this.Switchfunc.bind(this)
                 );
             },
+            colors: {
+                yellow: "rgb(247, 232, 176)",
+                green: "rgb(202 ,232, 207)",
+                grey: "rgb(182, 182, 182)",
+                olive: "rgb(207, 230, 161)",
+            },
             createShade() {
-                const colors = {
-                    yellow: "rgb(247, 232, 176)",
-                    green: "rgb(202 ,232, 207)",
-                    grey: "rgb(182, 182, 182)",
-                    olive: "rgb(207, 230, 161)",
-                };
                 let color = GM_getValue("color");
-                (color && (color = colors[color])) || (color = colors.yellow);
+                (color && (color = this.colors[color])) ||
+                    (color = this.colors.yellow);
                 const opacity = this.opacity;
                 this.cover(color, opacity);
                 const UpperCase = (e) =>
                     e.slice(0, 1).toUpperCase() + e.slice(1);
                 this.menuID = [];
-                Object.keys(colors).forEach((e, index) => {
+                for (const c of Object.entries(this.colors)) {
+                    /*
+                    const p = new Proxy(this.menu, {
+                        apply: (target, thisArg, args) => {
+                            args = c;
+                            thisArg = this;
+                            return target.apply(thisArg, args);
+                        },
+                    });
+                    */
+                    //const id = GM_registerMenuCommand(UpperCase(c[0]), p, c[0]);
+                    //same function
                     const id = GM_registerMenuCommand(
-                        UpperCase(e),
-                        this.menu.bind(colors, e),
-                        e[0] + index
+                        UpperCase(c[0]),
+                        this.menu.bind(this, c[0], c[1]),
+                        c[0]
                     );
                     this.menuID.push(id);
-                });
+                }
                 //note, who is the "this" in the GM_registerMenuCommand? take care of "this", must bind (function => this)
-                this.colorMonitor(colors);
+                this.colorMonitor();
                 GM_setValue("opacity", opacity);
                 GM_addValueChangeListener("opacity", this.opacityMonitor);
                 this.disableShade.cmenu();
