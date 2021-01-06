@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         zhihu optimizer
+// @name         zhihu optimizer_sp1
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3.4
+// @version      2.3.5
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -34,7 +34,7 @@
     "use strict";
     const blackID = ["zhujiangren", "gu-shi-dang-an-ju-71"];
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
-    const blackKey = ["留学中介", "肖战", "卡特尔联盟"];
+    const blackKey = ["留学中介", "肖战"];
     const zhihu = {
         shade: {
             Support: {
@@ -870,7 +870,7 @@
             grad: 5,
             get rgbRed() {
                 this.index -= this.grad;
-                if (this.index < 0) {
+                if (this.index < 0 || this.index > 255) {
                     this.index = 0;
                     this.blue = true;
                 }
@@ -888,11 +888,20 @@
                         : 0;
                 return `rgb(${this.index}, ${s}, 0)`;
             },
+            redc: false,
             get rgbBlue() {
                 this.index += this.grad;
                 if (this.index > 255) {
-                    this.index = 255;
                     this.blue = false;
+                    if (this.redc) {
+                        this.index = 0;
+                        this.grad *= -1;
+                        this.redc = false;
+                    } else {
+                        this.grad < 0 && (this.grad *= -1);
+                        this.index = 255;
+                        this.redc = true;
+                    }
                 }
                 return `rgb(0, 0, ${this.index})`;
             },
@@ -949,13 +958,20 @@
                         this.arr.push(this.setColor(t, this.textColor));
                 }
             },
+            level: 0,
             getItem(node) {
                 //tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b"];
+                const tags = ["a", "br", "b", "span"];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     return;
+                } else {
+                    const className = node.className;
+                    if (className && className === "UserLink") {
+                        this.arr.push(node.outerHTML);
+                        return;
+                    }
                 }
                 if (node.childNodes.length === 0) {
                     const text = node.nodeValue;
@@ -969,6 +985,94 @@
             resetColor() {
                 this.blue = !this.blue;
                 this.index = this.blue ? 0 : 255;
+            },
+            codeHightlight(node) {
+                const keywords = [
+                    "abstract",
+                    "arguments",
+                    "await",
+                    "boolean",
+                    "break",
+                    "byte",
+                    "case",
+                    "catch",
+                    "char",
+                    "class",
+                    "const",
+                    "continue",
+                    "debugger",
+                    "default",
+                    "delete",
+                    "do",
+                    "double",
+                    "else",
+                    "enum",
+                    "eval",
+                    "export",
+                    "extends",
+                    "false",
+                    "final",
+                    "finally",
+                    "float",
+                    "for",
+                    "function",
+                    "goto",
+                    "if",
+                    "implements",
+                    "import",
+                    "in",
+                    "instanceof",
+                    "int",
+                    "interface",
+                    "let",
+                    "long",
+                    "native",
+                    "new",
+                    "null",
+                    "package",
+                    "private",
+                    "protected",
+                    "public",
+                    "return",
+                    "short",
+                    "static",
+                    "super",
+                    "switch",
+                    "synchronized",
+                    "this",
+                    "throw",
+                    "throws",
+                    "transient",
+                    "true",
+                    "try",
+                    "typeof",
+                    "var",
+                    "void",
+                    "volatile",
+                    "while",
+                    "with",
+                    "yield",
+                ];
+                const code = node.getElementsByClassName("language-text");
+                if (code.length === 0 || code[0].childNodes.length > 1) return;
+                let html = code[0].innerHTML;
+                const reg = /(["'])(.+?)(["'])/g;
+                const keyReg = /([a-z]+(?=[\s\(]))/g;
+                const i = html.length;
+                const h = (match, color) =>
+                    `<hgclass class="hgColor" style="color:${color} !important;">${match}</hgclass>`;
+                html = html.replace(
+                    reg,
+                    (e) => e[0] + h(e.slice(1, -1), "#FA842B") + e.slice(-1)
+                );
+                html = html.replace(keyReg, (e) => {
+                    if (e && keywords.includes(e))
+                        return h(e, "rgb(0, 0, 252)");
+                    return e;
+                });
+                const Reg = /\/\//g;
+                html = html.replace(Reg, (e) => h(e, "green"));
+                i !== html.length && (code[0].innerHTML = html);
             },
             main() {
                 let holder = document.getElementsByClassName(
@@ -993,9 +1097,12 @@
                     } else if (!tags.includes(node.tagName.toLowerCase())) {
                         //the continuity of content is interrupted;
                         this.resetColor();
+                        if (node.className === "highlight")
+                            this.codeHightlight(node);
                         continue;
                     }
                     this.arr = [];
+                    this.level = 0;
                     this.getItem(node);
                 }
                 i = textNode.length;
