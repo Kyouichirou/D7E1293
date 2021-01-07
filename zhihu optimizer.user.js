@@ -246,7 +246,7 @@
                 const date = new Date();
                 const m = date.getMonth();
                 const h = date.getHours();
-                const [start, a] = m > 9 ? [15, 0.5] : [16, 1];
+                const [start, a] = m > 9 ? [15, 0.08] : [16, 0.12];
                 return (
                     (h > 20
                         ? h > 22
