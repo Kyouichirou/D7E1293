@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         zhihu optimizer_sp1
+// @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3.5
+// @version      2.3.9
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -15,6 +15,7 @@
 // @grant        GM_removeValueChangeListener
 // @grant        GM_registerMenuCommand
 // @match        https://*.zhihu.com/*
+// @compatible   chrome 80+; test on chrome 64, some features don't work
 // @license      MIT
 // @noframes
 // @note         more spam users of zhihu, https://zhuanlan.zhihu.com/p/127021293, it is recommended to block all of these users.
@@ -36,6 +37,79 @@
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
     const blackKey = ["留学中介", "肖战"];
     const zhihu = {
+        autoScroll: {
+            stepTime: 40,
+            keyCount: 1,
+            scrollState: false,
+            scrollTime: null,
+            scrollPos: null,
+            bottom: 100,
+            pageScroll(TimeStamp) {
+                const position =
+                    document.documentElement.scrollTop ||
+                    document.body.scrollTop ||
+                    window.pageYOffset;
+                if (this.scrollTime) {
+                    this.scrollPos =
+                        this.scrollPos !== null
+                            ? this.scrollPos +
+                              (TimeStamp - this.scrollTime) / this.stepTime
+                            : position;
+                    window.scrollTo(0, this.scrollPos);
+                }
+                this.scrollTime = TimeStamp;
+                if (this.scrollState) {
+                    let h =
+                        document.documentElement.scrollHeight ||
+                        document.body.scrollHeight;
+                    h = h - window.innerHeight - this.bottom;
+                    position < h
+                        ? window.requestAnimationFrame(
+                              this.pageScroll.bind(this)
+                          )
+                        : this.stopScroll();
+                }
+            },
+            stopScroll() {
+                if (this.scrollState) {
+                    this.scrollPos = null;
+                    this.scrollTime = null;
+                    this.scrollState = false;
+                    this.keyCount = 1;
+                }
+            },
+            speedUP() {
+                this.stepTime < 5 ? (this.stepTime = 5) : (this.stepTime -= 5);
+            },
+            slowDown() {
+                this.stepTime > 100
+                    ? (this.stepTime = 100)
+                    : (this.stepTime += 5);
+            },
+            start() {
+                this.keyCount += 1;
+                if (this.keyCount % 2 === 0) return;
+                this.scrollState
+                    ? this.stopScroll()
+                    : ((this.scrollState = true),
+                      window.requestAnimationFrame(this.pageScroll.bind(this)));
+            },
+            keyBoardEvent() {
+                document.onkeydown = (e) => {
+                    if (e.ctrlKey || e.shiftKey || e.altKey) return;
+                    const className = e.target.className;
+                    if (className && className.includes("DraftEditor")) return;
+                    const keyCode = e.keyCode;
+                    keyCode === 192
+                        ? this.start()
+                        : keyCode === 187
+                        ? this.speedUP()
+                        : keyCode === 189
+                        ? this.slowDown()
+                        : null;
+                };
+            },
+        },
         shade: {
             Support: {
                 interval: 0,
@@ -160,46 +234,36 @@
                     ></div>`;
                 document.documentElement.insertAdjacentHTML("afterbegin", html);
             },
-            menu() {
+            menu(e) {
                 const target = document.getElementById("screen_shade_cover");
                 target &&
-                    target.style.background !== arguments[1] &&
-                    (target.style.background = arguments[1]) &&
-                    (GM_removeValueChangeListener(this.colorlistenID),
-                    GM_setValue("color", arguments[0]),
-                    this.colorMonitor());
-            },
-            colorlistenID: null,
-            colorChange() {
-                const target = document.getElementById("screen_shade_cover");
-                target &&
-                    (target.style.background = this.colors[
-                        GM_getValue("color")
-                    ]);
-            },
-            colorMonitor() {
-                this.colorlistenID = GM_addValueChangeListener(
-                    "color",
-                    this.colorChange.bind(this)
-                );
+                    target.style.background !== this[e] &&
+                    (target.style.background = this[e]) &&
+                    arguments.length === 2 &&
+                    GM_setValue("color", e);
             },
             get opacity() {
-                const h = new Date().getHours();
-                return h > 20
-                    ? h > 22
-                        ? 0.65
-                        : 0.55
-                    : h < 7
-                    ? 0.75
-                    : h > 15
-                    ? h === 18
-                        ? 0.35
-                        : h === 19
-                        ? 0.45
-                        : h === 20
-                        ? 0.5
-                        : 0.3
-                    : 0.15;
+                const date = new Date();
+                const m = date.getMonth();
+                const h = date.getHours();
+                const [start, a] = m > 9 ? [15, 0.5] : [16, 1];
+                return (
+                    (h > 20
+                        ? h > 22
+                            ? 0.6
+                            : 0.5
+                        : h < 7
+                        ? 0.7
+                        : h > start
+                        ? h === 18
+                            ? 0.35
+                            : h === 19
+                            ? 0.45
+                            : h === 20
+                            ? 0.5
+                            : 0.3
+                        : 0.15) + a
+                );
             },
             opacityMonitor() {
                 const opacity = GM_getValue("opacity");
@@ -240,34 +304,31 @@
                                 : "block");
                 },
             },
-            SwitchMonitor(result) {
-                GM_removeValueChangeListener(this.turnoffID);
-                GM_setValue("turnoff", result);
-                this.turnoffID = GM_addValueChangeListener(
-                    "turnoff",
-                    this.Switchfunc.bind(this)
-                );
-            },
             menuID: null,
             Switchfunc() {
                 const target = document.getElementById("screen_shade_cover");
                 let result = false;
                 if (target) {
+                    if (arguments.length > 0 && !arguments[0]) return;
                     target.remove();
                     result = true;
                     this.disableShade.rmenu();
                     let i = this.menuID.length;
+                    GM_removeValueChangeListener(this.opacitylistenID);
+                    GM_removeValueChangeListener(this.colorlistenID);
                     for (i; i--; ) GM_unregisterMenuCommand(this.menuID[i]);
                     this.menuID = null;
                 } else {
                     //rebuild menu
+                    if (arguments.length > 0 && arguments[0]) return;
+                    if (this.menuID) return;
                     GM_unregisterMenuCommand(this.switchID);
                     GM_unregisterMenuCommand(this.supportID);
                     this.createShade();
                     this.SwitchMenu();
                     this.SupportMenu();
                 }
-                this.SwitchMonitor(result);
+                arguments.length === 0 && GM_setValue("turnoff", result);
             },
             switchID: null,
             SwitchMenu() {
@@ -284,58 +345,60 @@
                 this.SupportMenu();
                 this.turnoffID = GM_addValueChangeListener(
                     "turnoff",
-                    this.Switchfunc.bind(this)
+                    (name, oldValue, newValue, remote) => {
+                        if (!remote || oldValue === newValue) return;
+                        this.Switchfunc(newValue, true);
+                    }
                 );
             },
-            colors: {
-                yellow: "rgb(247, 232, 176)",
-                green: "rgb(202 ,232, 207)",
-                grey: "rgb(182, 182, 182)",
-                olive: "rgb(207, 230, 161)",
-            },
+            colorlistenID: null,
+            opacitylistenID: null,
             createShade() {
+                const colors = {
+                    yellow: "rgb(247, 232, 176)",
+                    green: "rgb(202 ,232, 207)",
+                    grey: "rgb(182, 182, 182)",
+                    olive: "rgb(207, 230, 161)",
+                };
                 let color = GM_getValue("color");
-                (color && (color = this.colors[color])) ||
-                    (color = this.colors.yellow);
+                (color && (color = colors[color])) || (color = colors.yellow);
                 const opacity = this.opacity;
                 this.cover(color, opacity);
                 const UpperCase = (e) =>
                     e.slice(0, 1).toUpperCase() + e.slice(1);
                 this.menuID = [];
-                for (const c of Object.entries(this.colors)) {
-                    /*
-                    const p = new Proxy(this.menu, {
-                        apply: (target, thisArg, args) => {
-                            args = c;
-                            thisArg = this;
-                            return target.apply(thisArg, args);
-                        },
-                    });
-                    */
-                    //const id = GM_registerMenuCommand(UpperCase(c[0]), p, c[0]);
-                    //same function
+                for (const c of Object.entries(colors)) {
                     const id = GM_registerMenuCommand(
                         UpperCase(c[0]),
-                        this.menu.bind(this, c[0], c[1]),
+                        this.menu.bind(colors, c[0], true),
                         c[0]
                     );
                     this.menuID.push(id);
                 }
                 //note, who is the "this" in the GM_registerMenuCommand? take care of "this", must bind (function => this)
-                this.colorMonitor();
+                this.colorlistenID = GM_addValueChangeListener(
+                    "color",
+                    (name, oldValue, newValue, remote) => {
+                        if (!remote || oldValue === newValue) return;
+                        this.menu.call(colors, newValue);
+                    }
+                );
                 GM_setValue("opacity", opacity);
-                GM_addValueChangeListener("opacity", this.opacityMonitor);
+                this.opacitylistenID = GM_addValueChangeListener(
+                    "opacity",
+                    this.opacityMonitor
+                );
                 this.disableShade.cmenu();
             },
         },
         antiRedirect() {
-            const hrefs = Object.getOwnPropertyDescriptors(
+            const links = Object.getOwnPropertyDescriptors(
                 HTMLAnchorElement.prototype
             ).href;
             Object.defineProperty(HTMLAnchorElement.prototype, "href", {
-                ...hrefs,
+                ...links,
                 get() {
-                    let href = decodeURIComponent(hrefs.get.call(this));
+                    let href = decodeURIComponent(links.get.call(this));
                     href = href.split("link.zhihu.com/?target=");
                     if (href.length > 1) {
                         this.href = href[1];
@@ -361,9 +424,14 @@
                         ) {
                             node.style.display = "none";
                             setTimeout(() => {
-                                node.getElementsByClassName(
+                                const cancel = node.getElementsByClassName(
                                     "Modal-backdrop"
-                                )[0].click();
+                                );
+                                if (cancel.length === 0) {
+                                    console.log("get cancel login id fail");
+                                    return;
+                                }
+                                cancel[0].click();
                                 mo.disconnect();
                                 mo = null;
                             }, 0);
@@ -371,10 +439,14 @@
                     })
                 )
             );
-            mo.observe(document.body, { childList: true });
+            document.body
+                ? mo.observe(document.body, { childList: true })
+                : (document.onreadystatechange = () =>
+                      mo && mo.observe(document.body, { childList: true }));
         },
         Filter: {
             checked: null,
+            //click the ico of button
             svgCheck(node, targetElements) {
                 let pnode = node.parentNode;
                 if (pnode.className === targetElements.buttonClass) {
@@ -409,6 +481,7 @@
                     return item;
                 }
             },
+            //get the url id of the answer
             getTargetID(item) {
                 const a = item.getElementsByTagName("a");
                 if (a.length === 0) return null;
@@ -722,6 +795,31 @@
         },
         inputBox: {
             box: null,
+            controlEventListener() {
+                const windowEventListener = window.addEventListener;
+                const eventTargetEventListener =
+                    EventTarget.prototype.addEventListener;
+                function addEventListener(type, listener, useCapture) {
+                    //take care
+                    const NewEventListener =
+                        this instanceof Window
+                            ? windowEventListener
+                            : eventTargetEventListener;
+                    //block original keyboard event to prevent blank search(ads)
+                    if (
+                        type.startsWith("key") &&
+                        !listener.toString().includes("(fuckzhihu)")
+                    )
+                        return;
+                    Reflect.apply(NewEventListener, this, [
+                        type,
+                        listener,
+                        useCapture,
+                    ]);
+                    //this => who lauch this function, eg, window, document, htmlelement...
+                }
+                window.addEventListener = EventTarget.prototype.addEventListener = addEventListener;
+            },
             monitor() {
                 this.box = document.getElementsByTagName("input")[0];
                 this.box.placeholder = "";
@@ -754,18 +852,20 @@
                     };
                 }
                 button = null;
-                unsafeWindow.addEventListener(
+                this.box.addEventListener(
                     "keydown",
-                    (e) => {
+                    (fuckzhihu) => {
+                        if (fuckzhihu.keyCode !== 13) return;
                         if (
-                            e.keyCode === 13 &&
-                            this.box.value.length === 0 &&
-                            e.target.localName === "input" &&
-                            e.target.id.includes("Popover")
+                            this.box.value.length === 0 ||
+                            this.box.value.trim().length === 0
                         ) {
-                            e.preventDefault();
-                            e.stopImmediatePropagation();
-                            e.stopPropagation();
+                            fuckzhihu.preventDefault();
+                            fuckzhihu.stopImmediatePropagation();
+                            fuckzhihu.stopPropagation();
+                        } else {
+                            const url = `http://www.zhihu.com/search?q=${this.box.value}&type=content`;
+                            window.open(url, "_blank");
                         }
                     },
                     true
@@ -831,7 +931,11 @@
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
             GM_addStyle(mode ? article : list);
-            mode && (window.onload = () => this.colorAssistant.main());
+            mode &&
+                (window.onload = () => {
+                    this.colorAssistant.main();
+                    this.autoScroll.keyBoardEvent();
+                });
         },
         colorIndicator() {
             let lasttarget = null;
@@ -962,7 +1066,7 @@
             getItem(node) {
                 //tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span"];
+                const tags = ["a", "br", "b", "span", "code"];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     return;
@@ -1091,11 +1195,12 @@
                 for (const node of holder.childNodes) {
                     i++;
                     const type = node.nodeType;
+                    //text node deal with separately
                     if (type === 3) {
                         textNode.push(i);
                         continue;
                     } else if (!tags.includes(node.tagName.toLowerCase())) {
-                        //the continuity of content is interrupted;
+                        //the continuity of content is interrupted, reset the color;
                         this.resetColor();
                         if (node.className === "highlight")
                             this.codeHightlight(node);
@@ -1123,27 +1228,9 @@
                 this.arr = null;
             },
         },
-        start() {
-            //global
-            this.shade.start();
-            this.antiRedirect();
-            const pos = [
-                "/answer/",
-                "/question/",
-                "/topic/",
-                "/search",
-                "/column",
-                "/zhuanlan",
-                "/www",
-            ];
-            const href = location.href;
-            const index = pos.findIndex((e) => href.includes(e));
-            if (index < 0) {
-                return;
-            } else if (index > 3 && index < 6) {
-                this.zhuanlanStyle(href.includes("/p/"));
-                return;
-            }
+        pageOfQA(index, href) {
+            //inject as soon as possible; may be need to concern about some eventlisteners and MO
+            this.inputBox.controlEventListener();
             this.addStyle(index);
             index < 2 && this.antiLogin();
             this.clearStorage();
@@ -1155,6 +1242,32 @@
                     this.colorIndicator());
                 this.inputBox.monitor();
             };
+        },
+        start() {
+            const pos = [
+                "/answer/",
+                "/question/",
+                "/topic/",
+                "/search",
+                "/column",
+                "/zhuanlan",
+                "/www",
+            ];
+            const href = location.href;
+            const index = pos.findIndex((e) => href.includes(e));
+            let w = true;
+            let z = false;
+            (
+                (z = index === 5)
+                    ? (w = !href.includes("/write"))
+                    : index === 4
+                    ? true
+                    : false
+            )
+                ? this.zhuanlanStyle(z && href.includes("/p/"))
+                : index < 0 ? null : this.pageOfQA(index, href);
+            w && this.antiRedirect();
+            this.shade.start();
         },
     };
     zhihu.start();
