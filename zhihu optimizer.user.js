@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         zhihu optimizer sp5
+// @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
 // @version      2.4.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
