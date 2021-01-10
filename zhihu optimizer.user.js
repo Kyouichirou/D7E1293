@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         zhihu optimizer
+// @name         zhihu optimizer sp5
 // @namespace    https://github.com/Kyouichirou
-// @version      2.3.9
+// @version      2.4.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -14,8 +14,9 @@
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
 // @grant        GM_registerMenuCommand
+// @grant        GM_notification
 // @match        https://*.zhihu.com/*
-// @compatible   chrome 80+; test on chrome 64, some features don't work
+// @compatible   chrome 80+; test on chrome 64(x86), some features don't work
 // @license      MIT
 // @noframes
 // @note         more spam users of zhihu, https://zhuanlan.zhihu.com/p/127021293, it is recommended to block all of these users.
@@ -36,7 +37,267 @@
     const blackID = ["zhujiangren", "gu-shi-dang-an-ju-71"];
     const blackName = ["盐选推荐", "故事档案局", "马小帅"];
     const blackKey = ["留学中介", "肖战"];
+    const getSelection = () => {
+        const select = window.getSelection();
+        return select ? select.toString().trim() : null;
+    };
+    const Notification = (content = "", title = "", duration = 2500, func) => {
+        GM_notification({
+            text: content,
+            title: title,
+            timeout: duration,
+            onclick: func,
+        });
+    };
     const zhihu = {
+        clipboardClear() {
+            const cs = [
+                /。/g,
+                /：/g,
+                /；/g,
+                /？/g,
+                /！/g,
+                /（/g,
+                /）/g,
+                /“/g,
+                /”/g,
+                /、/g,
+                /，/g,
+            ];
+            const es = [
+                ". ",
+                ": ",
+                "; ",
+                "? ",
+                "! ",
+                "(",
+                ")",
+                '"',
+                '"',
+                ", ",
+                ", ",
+            ];
+            document.oncopy = (e) => {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                let copytext = getSelection();
+                if (!copytext) return;
+                cs.forEach((s, i) => (copytext = copytext.replace(s, es[i])));
+                window.navigator.clipboard.writeText(copytext);
+            };
+        },
+        multiSearch(keyCode) {
+            const Names = {
+                65: "AboutMe",
+                68: "Douban",
+                71: "Google",
+                72: "Github",
+                77: "MDN",
+                66: "BiliBili",
+                90: "Zhihu",
+            };
+            const methods = {
+                Protocols: "https://",
+                Search(url) {
+                    const select = getSelection();
+                    if (!select || select.length > 75) return;
+                    url += encodeURIComponent(select);
+                    window.open(this.Protocols + url, "_blank");
+                },
+                Google() {
+                    this.Search("www.dogedoge.com/results?q=");
+                },
+                Douban() {
+                    this.Search("www.douban.com/search?q=");
+                },
+                Zhihu() {
+                    this.Search("www.zhihu.com/search?q");
+                },
+                MDN() {
+                    this.Search("developer.mozilla.org/zh-CN/search?q=");
+                },
+                Github() {
+                    this.Search("github.com/search?q=");
+                },
+                BiliBili() {
+                    this.Search("search.bilibili.com/all?keyword=");
+                },
+                AboutMe() {
+                    zhihu.shade.Support.main();
+                },
+            };
+            const name = Names[keyCode];
+            name && methods[name]();
+        },
+        noteHightlight: {
+            editable: null,
+            EditDoc() {
+                const m =
+                    document.body.contentEditable === "true"
+                        ? "inherit"
+                        : "true";
+                document.body.contentEditable = m;
+                this.editable = m;
+                const t =
+                    m === "true" ? "page editable mode" : "exit editable mode";
+                Notification(t, "Editable");
+            },
+            get Selection() {
+                return window.getSelection();
+            },
+            setMark(color, text) {
+                return `<mark class="AssistantMark" style="box-shadow: ${color} 0px 0px 0.35em;background-color: ${color} !important">${text}</mark>`;
+            },
+            get createElement() {
+                return document.createElement("markspan");
+            },
+            appendNewNode(node, color) {
+                const text = node.nodeValue;
+                const span = this.createElement;
+                node.parentNode.replaceChild(span, node);
+                span.outerHTML = this.setMark(color, text);
+            },
+            getTextNode(node, color) {
+                node.nodeType === 3 && this.appendNewNode(node, color);
+            },
+            Marker(keyCode) {
+                const cname = {
+                    82: "red",
+                    89: "yellow",
+                    80: "purple",
+                    71: "green",
+                };
+                let color = cname[keyCode];
+                if (!color) return;
+                const select = this.Selection;
+                if (!select.anchorNode || select.isCollapsed) return;
+                const colors = {
+                    red: "rgb(255, 128, 128)",
+                    green: "rgb(170, 255, 170)",
+                    yellow: "rgb(255, 255, 170)",
+                    purple: "rgb(255, 170, 255)",
+                };
+                let i = select.rangeCount;
+                const r = select.getRangeAt(--i);
+                let start = r.startContainer;
+                const end = r.endContainer;
+                const offs = r.startOffset;
+                const offe = r.endOffset;
+                color = colors[color];
+                let nodeValue = r.startContainer.nodeValue;
+                if (start !== end) {
+                    //start part
+                    let next = start.nextSibling;
+                    let p = start.parentNode;
+                    if (p.className !== "AssistantMark") {
+                        const text = nodeValue.slice(offs);
+                        const span = this.createElement;
+                        p.replaceChild(span, start);
+                        span.outerHTML =
+                            nodeValue.slice(0, offs) +
+                            this.setMark(color, text);
+                    }
+                    //mid part
+                    while (true) {
+                        if (next) {
+                            start = next;
+                        } else {
+                            next = p.nextSibling;
+                            while (!next) {
+                                p = p.parentNode;
+                                next = p.nextSibling;
+                            }
+                            start = next;
+                        }
+                        //get the deepest level node
+                        while (start.childNodes.length > 0)
+                            start = start.childNodes[0];
+                        if (start === end) break;
+                        p = start.parentNode;
+                        next = p.nextSibling;
+                        p.className !== "AssistantMark" &&
+                            this.getTextNode(start, color);
+                    }
+                    //end part
+                    nodeValue = start.nodeValue;
+                    start = start.parentNode;
+                    if (start.className === "AssistantMark") return;
+                    const text = nodeValue.slice(0, offe);
+                    const epan = this.createElement;
+                    start.replaceChild(epan, end);
+                    epan.outerHTML =
+                        this.setMark(color, text) + nodeValue.slice(offe);
+                } else {
+                    //all value in one node;
+                    const text = nodeValue.slice(offs, offe);
+                    const span = this.createElement;
+                    start.parentNode.replaceChild(span, start);
+                    span.outerHTML =
+                        nodeValue.slice(0, offs) +
+                        this.setMark(color, text) +
+                        nodeValue.slice(offe);
+                }
+            },
+            Restore(node) {
+                const p = node.parentNode;
+                if (p.className === "AssistantMark") {
+                    p.parentNode.innerHTML = p.parentNode.innerText;
+                    return true;
+                }
+                return false;
+            },
+            removeMark() {
+                const select = this.Selection;
+                if (!select.anchorNode || select.isCollapsed) return;
+                let i = select.rangeCount;
+                const r = select.getRangeAt(--i);
+                let start = r.startContainer;
+                const end = r.endContainer;
+                if (start !== end) {
+                    let t = start.nodeType;
+                    if (t !== 3 && r.collapsed) {
+                        const nodes = start.getElementsByClassName(
+                            "AssistantMark"
+                        );
+                        let i = nodes.length;
+                        if (i > 0) {
+                            for (i; i--; ) {
+                                const p = nodes[i].parentNode;
+                                p.innerhHTML = p.innerText;
+                            }
+                        }
+                        return;
+                    }
+                    while (start.childNodes.length > 0)
+                        start = start.childNodes[0];
+                    let p = start.parentNode.parentNode;
+                    let next = start.nextSibling;
+                    let result = this.Restore(start);
+                    //if this is mark node, will be removed, so we need get the parentnode to backup, if it is not mark node, restore the parentnode
+                    !result && (p = start.parentNode);
+                    while (true) {
+                        if (next) {
+                            start = next;
+                        } else {
+                            next = p.nextSibling;
+                            while (!next) {
+                                p = p.parentNode;
+                                next = p.nextSibling;
+                            }
+                            start = next;
+                        }
+                        while (start.childNodes.length > 0)
+                            start = start.childNodes[0];
+                        if (start === end) break;
+                        p = start.parentNode.parentNode;
+                        next = start.nextSibling;
+                        result = this.Restore(start);
+                        !result && (p = start.parentNode);
+                    }
+                }
+                this.Restore(start);
+            },
+        },
         autoScroll: {
             stepTime: 40,
             keyCount: 1,
@@ -94,19 +355,37 @@
                     : ((this.scrollState = true),
                       window.requestAnimationFrame(this.pageScroll.bind(this)));
             },
+            Others(keyCode, shift) {
+                shift
+                    ? keyCode === 67
+                        ? this.noteHightlight.removeMark()
+                        : this.noteHightlight.Marker(keyCode)
+                    : keyCode === 113
+                    ? this.noteHightlight.EditDoc()
+                    : this.multiSearch(keyCode);
+            },
             keyBoardEvent() {
-                document.onkeydown = (e) => {
-                    if (e.ctrlKey || e.shiftKey || e.altKey) return;
+                window.onkeydown = (e) => {
+                    if (e.ctrlKey || e.altKey) return;
                     const className = e.target.className;
                     if (className && className.includes("DraftEditor")) return;
                     const keyCode = e.keyCode;
-                    keyCode === 192
+                    const shift = e.shiftKey;
+                    if (keyCode === 68 || (shift && keyCode === 71)) {
+                        //68, default is login shortcut of zhihu
+                        //71 + shift, default is scroll to the bottom of webpage
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    shift
+                        ? this.Others.call(zhihu, keyCode, shift)
+                        : keyCode === 192
                         ? this.start()
                         : keyCode === 187
                         ? this.speedUP()
                         : keyCode === 189
                         ? this.slowDown()
-                        : null;
+                        : this.Others.call(zhihu, keyCode);
                 };
             },
         },
@@ -247,13 +526,13 @@
                 const m = date.getMonth();
                 const h = date.getHours();
                 const [start, a] = m > 9 ? [15, 0.08] : [16, 0.12];
-                return (
-                    (h > 20
+                let opacity =
+                    h > 20
                         ? h > 22
                             ? 0.6
                             : 0.5
-                        : h < 7
-                        ? 0.7
+                        : h < 8
+                        ? 0.65
                         : h > start
                         ? h === 18
                             ? 0.35
@@ -262,8 +541,8 @@
                             : h === 20
                             ? 0.5
                             : 0.3
-                        : 0.15) + a
-                );
+                        : 0.15;
+                return (opacity += opacity < 0.2 ? 0 : a);
             },
             opacityMonitor() {
                 const opacity = GM_getValue("opacity");
@@ -928,6 +1207,7 @@
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
+                span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
             GM_addStyle(mode ? article : list);
@@ -1241,6 +1521,7 @@
                     (setTimeout(() => this.Filter.main(index), 100),
                     this.colorIndicator());
                 this.inputBox.monitor();
+                this.clipboardClear();
             };
         },
         start() {
@@ -1265,9 +1546,12 @@
                     : false
             )
                 ? this.zhuanlanStyle(z && href.includes("/p/"))
-                : index < 0 ? null : this.pageOfQA(index, href);
+                : index < 0
+                ? null
+                : this.pageOfQA(index, href);
             w && this.antiRedirect();
             this.shade.start();
+            this.clipboardClear();
         },
     };
     zhihu.start();
