@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         zhihu optimizer _test
+// @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
 // @version      2.5.0
-// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/zhihu%20optimizer.user.js
+// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
 // @run-at       document-start
