@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.0
+// @version      2.5.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -100,6 +100,25 @@
                 cs.forEach((s, i) => (copytext = copytext.replace(s, es[i])));
                 window.navigator.clipboard.writeText(copytext);
             };
+        },
+        turnPage: {
+            main(mode) {
+                const overlap = 80;
+                const wh = window.innerHeight;
+                let height = wh - overlap;
+                height < 0 && (height = 0);
+                let top =
+                    document.documentElement.scrollTop ||
+                    document.body.scrollTop ||
+                    window.pageYOffset;
+                if (mode) top += height;
+                else top < height ? (top = 0) : (top -= height);
+                window.scrollTo(0, top);
+            },
+            start(mode) {
+                //n => scroll down ; u => scroll top
+                window.requestAnimationFrame(this.main.bind(this, mode));
+            },
         },
         multiSearch(keyCode) {
             const Names = {
@@ -377,6 +396,10 @@
                         : this.noteHightlight.Marker(keyCode)
                     : keyCode === 113
                     ? this.noteHightlight.EditDoc()
+                    : keyCode === 78
+                    ? this.turnPage.start(true)
+                    : keyCode === 85
+                    ? this.turnPage.start(false)
                     : this.multiSearch(keyCode);
             },
             keyBoardEvent() {
