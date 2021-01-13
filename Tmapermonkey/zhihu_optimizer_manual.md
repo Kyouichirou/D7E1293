@@ -73,6 +73,8 @@ blackkey需要在代码中修改, 该部分位于代码块的顶部(该功能尚
 
 字母和数字采用绿色和紫色
 
+**需要注意的是**: 如果原文已经加粗(或者已经表示强调的内容), 标题, 链接等内容将不会受到影响
+
 ![多彩页面](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20095.jpg?raw=true)
 
 #### 代码高亮
