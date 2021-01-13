@@ -91,6 +91,8 @@ blackkey需要在代码中修改, 该部分位于代码块的顶部(该功能尚
 
 生效页面: [专栏](https://zhuanlan.zhihu.com/)
 
+![快捷键示意图](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20105.jpg?raw=true)
+
 已知**占用原页面**的登录和滚动到底部快捷键
 
 分别为:
