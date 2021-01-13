@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.2
+// @version      2.5.2.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -103,7 +103,7 @@
         },
         turnPage: {
             main(mode) {
-                const overlap = 80;
+                const overlap = 100;
                 const wh = window.innerHeight;
                 let height = wh - overlap;
                 height < 0 && (height = 0);
@@ -989,6 +989,7 @@
                     );
                     let n = items.length;
                     for (n; n--; ) {
+                        debugger;
                         const item = items[n];
                         const a = item.getElementsByClassName(
                             targetElements.userID
@@ -1318,6 +1319,7 @@
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
                 .Comments-container,
+                .RichContent-actions .ContentItem-actions{position: inherit !important}
                 .Post-RichTextContainer{width: 900px !important;}
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
