@@ -129,6 +129,8 @@ purple => '**p**';
 
 red => '**r**';
 
+[高亮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20101.jpg?raw=true)
+
 ### 3. 清除高亮
 
 辅助键: '**Shift**'键
@@ -159,7 +161,7 @@ clear => '**c**';
 
 "**-**", 减速
 
-### 6. 翻页
+### 6. 翻页 (2.5.1版本新增)
 
 方便左手也能在键盘上进行翻页操作
 
