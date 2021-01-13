@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.2.1
+// @version      2.5.2.2
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1318,8 +1318,8 @@
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
-                .Comments-container,
                 .RichContent-actions .ContentItem-actions{position: inherit !important}
+                .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
