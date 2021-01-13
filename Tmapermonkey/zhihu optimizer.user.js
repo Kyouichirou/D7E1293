@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.1
+// @version      2.5.2
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -929,6 +929,7 @@
                         item = this.getiTem(target, targetElements);
                         //click the ico of expand button
                     } else if (target.localName === "svg") {
+                        true;
                         const button = this.svgCheck(target, targetElements);
                         button && (item = this.getiTem(button, targetElements));
                         //click the answser, the content will be automatically expanded
@@ -952,7 +953,9 @@
                 const items = document.getElementsByClassName(
                     "ContentItem-meta"
                 );
-                for (const item of items) {
+                const n = items.length;
+                for (n; n--; ) {
+                    const item = items[n];
                     const a = item.getElementsByClassName("UserLink-link");
                     let i = a.length;
                     if (i > 0) {
@@ -972,7 +975,6 @@
                 }
             },
             userChange(index) {
-                debugger;
                 const info = GM_getValue("blacknamechange");
                 if (!info) return;
                 const targetElements = this.getTagetElements(
@@ -983,16 +985,31 @@
                 if (!this.checkURL(targetElements)) return;
                 if (index === 3) {
                     const items = document.getElementsByClassName(
-                        targetElements.contentID
+                        targetElements.itemClass
                     );
-                    for (const item of items) {
-                        const text = item.innerText;
-                        const name = text.startsWith("匿名用户：")
-                            ? ""
-                            : text.slice(0, text.indexOf("："));
-                        if (name && name === info.username) {
-                            const t = this.getiTem(item, targetElements);
-                            t && this.setDisplay(t, info);
+                    let n = items.length;
+                    for (n; n--; ) {
+                        const item = items[n];
+                        const a = item.getElementsByClassName(
+                            targetElements.userID
+                        );
+                        let i = a.length;
+                        if (i > 0) {
+                            const name = a[--i].innerText;
+                            name === info.username &&
+                                this.setDisplay(item, info);
+                        } else {
+                            const content = item.getElementsByClassName(
+                                targetElements.contentID
+                            );
+                            if (content.length === 0) continue;
+                            const text = content[0].innerText;
+                            const name = text.startsWith("匿名用户：")
+                                ? ""
+                                : text.slice(0, text.indexOf("："));
+                            name &&
+                                name === info.username &&
+                                this.setDisplay(item, info);
                         }
                     }
                 } else this.topicAndquestion(targetElements, info);
