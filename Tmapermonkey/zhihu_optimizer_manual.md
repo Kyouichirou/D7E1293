@@ -129,7 +129,7 @@ purple => '**p**';
 
 red => '**r**';
 
-[高亮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20101.jpg?raw=true)
+![高亮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20101.jpg?raw=true)
 
 ### 3. 清除高亮
 
