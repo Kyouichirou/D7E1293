@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.2.2
+// @version      2.5.2.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1456,18 +1456,20 @@
                         this.arr.push(this.setColor(t, this.textColor));
                 }
             },
-            level: 0,
+            nodeCount: 0,
             getItem(node) {
                 //tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code"];
+                const tags = ["a", "br", "b", "span", "code", "strong"];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
+                    this.nodeCount += 1;
                     return;
                 } else {
                     const className = node.className;
                     if (className && className === "UserLink") {
                         this.arr.push(node.outerHTML);
+                        this.nodeCount += 1;
                         return;
                     }
                 }
@@ -1475,8 +1477,12 @@
                     const text = node.nodeValue;
                     text && this.textDetach(text);
                 } else {
+                    //this is a trick, no traversal of textnode, maybe some nodes will lost content, take care
                     for (const item of node.childNodes) this.getItem(item);
-                    this.arr.length > 0 && (node.innerHTML = this.arr.join(""));
+                    this.arr.length > 0 &&
+                        node.childNodes.length - this.nodeCount <
+                            this.nodeCount + 2 &&
+                        (node.innerHTML = this.arr.join(""));
                     this.arr = [];
                 }
             },
@@ -1601,7 +1607,7 @@
                         continue;
                     }
                     this.arr = [];
-                    this.level = 0;
+                    this.nodeCount = 0;
                     this.getItem(node);
                 }
                 i = textNode.length;
