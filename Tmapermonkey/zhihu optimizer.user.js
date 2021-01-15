@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.2.3
+// @version      2.5.2.4
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -953,7 +953,7 @@
                 const items = document.getElementsByClassName(
                     "ContentItem-meta"
                 );
-                const n = items.length;
+                let n = items.length;
                 for (n; n--; ) {
                     const item = items[n];
                     const a = item.getElementsByClassName("UserLink-link");
@@ -1313,8 +1313,10 @@
             },
         },
         zhuanlanStyle(mode) {
+            //font, the pic of header, main content, sidebar, main content letter spacing, comment zone, ..
             const article = `
                  body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
+                 .TitleImage{width: 500px !important}
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
@@ -1460,7 +1462,7 @@
             getItem(node) {
                 //tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code", "strong"];
+                const tags = ["a", "br", "b", "span", "code", 'strong'];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     this.nodeCount += 1;
@@ -1479,10 +1481,7 @@
                 } else {
                     //this is a trick, no traversal of textnode, maybe some nodes will lost content, take care
                     for (const item of node.childNodes) this.getItem(item);
-                    this.arr.length > 0 &&
-                        node.childNodes.length - this.nodeCount <
-                            this.nodeCount + 2 &&
-                        (node.innerHTML = this.arr.join(""));
+                    this.arr.length > 0 && (node.childNodes.length - this.nodeCount < this.nodeCount + 2) && (node.innerHTML = this.arr.join(""));
                     this.arr = [];
                 }
             },
