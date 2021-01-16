@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.2.4
+// @version      2.5.3.0
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -65,41 +65,49 @@
             blackName = GM_getValue("blackname");
             (!blackName || !Array.isArray(blackName)) && (blackName = []);
         },
-        clipboardClear() {
-            const cs = [
-                /。/g,
-                /：/g,
-                /；/g,
-                /？/g,
-                /！/g,
-                /（/g,
-                /）/g,
-                /“/g,
-                /”/g,
-                /、/g,
-                /，/g,
-            ];
-            const es = [
-                ". ",
-                ": ",
-                "; ",
-                "? ",
-                "! ",
-                "(",
-                ")",
-                '"',
-                '"',
-                ", ",
-                ", ",
-            ];
-            document.oncopy = (e) => {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                let copytext = getSelection();
-                if (!copytext) return;
-                cs.forEach((s, i) => (copytext = copytext.replace(s, es[i])));
-                window.navigator.clipboard.writeText(copytext);
-            };
+        clipboardClear: {
+            clear(text) {
+                const cs = [
+                    /。/g,
+                    /：/g,
+                    /；/g,
+                    /？/g,
+                    /！/g,
+                    /（/g,
+                    /）/g,
+                    /“/g,
+                    /”/g,
+                    /、/g,
+                    /，/g,
+                ];
+                const es = [
+                    ". ",
+                    ": ",
+                    "; ",
+                    "? ",
+                    "! ",
+                    "(",
+                    ")",
+                    '"',
+                    '"',
+                    ", ",
+                    ", ",
+                ];
+                cs.forEach((s, i) => (text = text.replace(s, es[i])));
+                this.write(text);
+            },
+            write(text) {
+                window.navigator.clipboard.writeText(text);
+            },
+            event() {
+                document.oncopy = (e) => {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    let copytext = getSelection();
+                    if (!copytext) return;
+                    this.clear(copytext);
+                };
+            },
         },
         turnPage: {
             main(mode) {
@@ -1462,7 +1470,7 @@
             getItem(node) {
                 //tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code", 'strong'];
+                const tags = ["a", "br", "b", "span", "code", "strong"];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     this.nodeCount += 1;
@@ -1481,7 +1489,10 @@
                 } else {
                     //this is a trick, no traversal of textnode, maybe some nodes will lost content, take care
                     for (const item of node.childNodes) this.getItem(item);
-                    this.arr.length > 0 && (node.childNodes.length - this.nodeCount < this.nodeCount + 2) && (node.innerHTML = this.arr.join(""));
+                    this.arr.length > 0 &&
+                        node.childNodes.length - this.nodeCount <
+                            this.nodeCount + 2 &&
+                        (node.innerHTML = this.arr.join(""));
                     this.arr = [];
                 }
             },
@@ -1577,6 +1588,37 @@
                 html = html.replace(Reg, (e) => h(e, "green"));
                 i !== html.length && (code[0].innerHTML = html);
             },
+            rightClickCopyCode: {
+                checkCodeZone(target) {
+                    if (target.className === "highlight") {
+                        return target;
+                    }
+                    let p = target.parentNode;
+                    let className = p.className;
+                    let i = 0;
+                    while (className !== "highlight") {
+                        p = p.parentNode;
+                        if (!p || i > 2) return null;
+                        className = p.className;
+                        i++;
+                    }
+                    return p;
+                },
+                main(node) {
+                    node.oncontextmenu = (e) => {
+                        if (e.button !== 2 || !e.ctrlKey) return;
+                        const code = this.checkCodeZone(e.target);
+                        if (code) {
+                            e.preventDefault();
+                            zhihu.clipboardClear.clear(code.innerText);
+                            Notification(
+                                "this code has been copied to clipboard",
+                                "clipboard"
+                            );
+                        }
+                    };
+                },
+            },
             main() {
                 let holder = document.getElementsByClassName(
                     "RichText ztext Post-RichText"
@@ -1591,6 +1633,8 @@
                 const tags = ["p", "ul", "li", "ol", "blockquote"];
                 const textNode = [];
                 let i = -1;
+                let code = false;
+                const tips = "Ctrl + Right mouse button to copy this code";
                 for (const node of holder.childNodes) {
                     i++;
                     const type = node.nodeType;
@@ -1601,8 +1645,11 @@
                     } else if (!tags.includes(node.tagName.toLowerCase())) {
                         //the continuity of content is interrupted, reset the color;
                         this.resetColor();
-                        if (node.className === "highlight")
+                        if (node.className === "highlight") {
                             this.codeHightlight(node);
+                            node.title = tips;
+                            code = true;
+                        }
                         continue;
                     }
                     this.arr = [];
@@ -1624,6 +1671,7 @@
                         }
                     }
                 }
+                code && this.rightClickCopyCode.main(holder);
                 this.arr = null;
             },
         },
@@ -1779,7 +1827,7 @@
                 : this.pageOfQA(index, href);
             w && this.antiRedirect();
             this.shade.start();
-            this.clipboardClear();
+            this.clipboardClear.event();
         },
     };
     zhihu.start();
