@@ -14,11 +14,6 @@
 
 推荐使用浏览器: [Centbrowser(百分浏览器)](https://www.centbrowser.cn/)
 
-# 目录
-
-[toc]
-
-
 ## 一, 屏幕颜色调节
 
 生效页面: 全站
