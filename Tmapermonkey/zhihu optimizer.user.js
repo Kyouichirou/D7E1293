@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.3.0
+// @version      2.5.3.2
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -15,6 +15,7 @@
 // @grant        GM_removeValueChangeListener
 // @grant        GM_registerMenuCommand
 // @grant        GM_notification
+// @grant        GM_openInTab
 // @match        https://*.zhihu.com/*
 // @compatible   chrome 80+; test on chrome 64(x86), some features don't work
 // @license      MIT
@@ -34,6 +35,29 @@
 
 (() => {
     "use strict";
+    const Notification = (content = "", title = "", duration = 2500, func) => {
+        GM_notification({
+            text: content,
+            title: title,
+            timeout: duration,
+            onclick: func,
+        });
+    };
+    const installTips = () => {
+        //first time run, open the usermanual webpage
+        const initial = GM_getValue("initial");
+        if (!initial) {
+            const usermanual =
+                "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
+            GM_setValue("initial", true);
+            Notification(
+                "thanks for installing, please read user manual carefully",
+                "Tips",
+                6000
+            );
+            GM_openInTab(usermanual, { insert: true });
+        }
+    };
     let blackName = null;
     const blackKey = ["留学中介", "肖战"];
     const mergeArray = (origin, target) => {
@@ -51,14 +75,6 @@
     const getSelection = () => {
         const select = window.getSelection();
         return select ? select.toString().trim() : null;
-    };
-    const Notification = (content = "", title = "", duration = 2500, func) => {
-        GM_notification({
-            text: content,
-            title: title,
-            timeout: duration,
-            onclick: func,
-        });
     };
     const zhihu = {
         getData() {
@@ -187,20 +203,20 @@
             get Selection() {
                 return window.getSelection();
             },
-            setMark(color, text) {
-                return `<mark class="AssistantMark" style="box-shadow: ${color} 0px 0px 0.35em;background-color: ${color} !important">${text}</mark>`;
+            setMark(text, type) {
+                return `<mark class="AssistantMark ${type}">${text}</mark>`;
             },
             get createElement() {
                 return document.createElement("markspan");
             },
-            appendNewNode(node, color) {
+            appendNewNode(node, type) {
                 const text = node.nodeValue;
                 const span = this.createElement;
                 node.parentNode.replaceChild(span, node);
-                span.outerHTML = this.setMark(color, text);
+                span.outerHTML = this.setMark(text, type);
             },
-            getTextNode(node, color) {
-                node.nodeType === 3 && this.appendNewNode(node, color);
+            getTextNode(node, type) {
+                node.nodeType === 3 && this.appendNewNode(node, type);
             },
             Marker(keyCode) {
                 const cname = {
@@ -209,35 +225,36 @@
                     80: "purple",
                     71: "green",
                 };
-                let color = cname[keyCode];
-                if (!color) return;
+                const type = cname[keyCode];
+                if (!type) return;
                 const select = this.Selection;
                 if (!select.anchorNode || select.isCollapsed) return;
+                /*
                 const colors = {
                     red: "rgb(255, 128, 128)",
                     green: "rgb(170, 255, 170)",
                     yellow: "rgb(255, 255, 170)",
                     purple: "rgb(255, 170, 255)",
                 };
+                const color = colors[type];
+                */
                 let i = select.rangeCount;
                 const r = select.getRangeAt(--i);
                 let start = r.startContainer;
                 const end = r.endContainer;
                 const offs = r.startOffset;
                 const offe = r.endOffset;
-                color = colors[color];
                 let nodeValue = r.startContainer.nodeValue;
                 if (start !== end) {
                     //start part
                     let next = start.nextSibling;
                     let p = start.parentNode;
-                    if (p.className !== "AssistantMark") {
+                    if (!p.className.startsWith("AssistantMark")) {
                         const text = nodeValue.slice(offs);
                         const span = this.createElement;
                         p.replaceChild(span, start);
                         span.outerHTML =
-                            nodeValue.slice(0, offs) +
-                            this.setMark(color, text);
+                            nodeValue.slice(0, offs) + this.setMark(text, type);
                     }
                     //mid part
                     while (true) {
@@ -257,18 +274,18 @@
                         if (start === end) break;
                         p = start.parentNode;
                         next = p.nextSibling;
-                        p.className !== "AssistantMark" &&
-                            this.getTextNode(start, color);
+                        !p.className.startsWith("AssistantMark") &&
+                            this.getTextNode(start, type);
                     }
                     //end part
                     nodeValue = start.nodeValue;
                     start = start.parentNode;
-                    if (start.className === "AssistantMark") return;
+                    if (start.className.startsWith("AssistantMark")) return;
                     const text = nodeValue.slice(0, offe);
                     const epan = this.createElement;
                     start.replaceChild(epan, end);
                     epan.outerHTML =
-                        this.setMark(color, text) + nodeValue.slice(offe);
+                        this.setMark(text, type) + nodeValue.slice(offe);
                 } else {
                     //all value in one node;
                     const text = nodeValue.slice(offs, offe);
@@ -276,13 +293,13 @@
                     start.parentNode.replaceChild(span, start);
                     span.outerHTML =
                         nodeValue.slice(0, offs) +
-                        this.setMark(color, text) +
+                        this.setMark(text, type) +
                         nodeValue.slice(offe);
                 }
             },
             Restore(node) {
                 const p = node.parentNode;
-                if (p.className === "AssistantMark") {
+                if (p.className.startsWith("AssistantMark")) {
                     p.parentNode.innerHTML = p.parentNode.innerText;
                     return true;
                 }
@@ -339,6 +356,67 @@
                 }
                 this.Restore(start);
             },
+        },
+        tocMenu: {
+            change: false,
+            appendNode(toc) {
+                if (toc.className.endsWith("collapsed")) return;
+                const header = document.getElementsByClassName("Post-Header");
+                if (header.length === 0) {
+                    console.log("the header has been remove");
+                    return;
+                }
+                header[0].appendChild(toc);
+                toc.style.position = "sticky";
+                toc.style.width = "900px";
+                this.change = true;
+            },
+            restoreNode(toc) {
+                if (!this.change) return;
+                document.body.append(toc);
+                toc.removeAttribute("style");
+                this.change = false;
+            },
+            main(mode) {
+                const toc = document.getElementById("toc-bar");
+                toc && mode ? this.restoreNode(toc) : this.appendNode(toc);
+            },
+        },
+        titleChange: false,
+        titleAlign() {
+            if (this.modePrint && !this.titleChange) return;
+            const title = document.getElementsByClassName("Post-Title");
+            if (title.length === 0) return;
+            if (this.modePrint) {
+                title[0].removeAttribute("style");
+            } else {
+                if (title[0].innerText.length > 28) return;
+                title[0].style.textAlign = "center";
+            }
+            this.titleChange = !this.titleChange;
+        },
+        modePrint: false,
+        pagePrint() {
+            const ids = [
+                "Post-Sub Post-NormalSub",
+                "Post-Author",
+                "Voters",
+                "ColumnPageHeader-Wrapper",
+                "Sticky RichContent-actions is-bottom",
+            ];
+            const style = this.modePrint ? "block" : "none";
+            ids.forEach((e) => {
+                const t = document.getElementsByClassName(e);
+                t.length > 0 && (t[0].style.display = style);
+            });
+            Notification(
+                `${this.modePrint ? "exit" : "enter"} print mode`,
+                "Print",
+                3500
+            );
+            this.tocMenu.main(this.modePrint);
+            this.titleAlign();
+            this.modePrint = !this.modePrint;
         },
         autoScroll: {
             stepTime: 40,
@@ -401,6 +479,8 @@
                 shift
                     ? keyCode === 67
                         ? this.noteHightlight.removeMark()
+                        : keyCode === 219
+                        ? this.pagePrint()
                         : this.noteHightlight.Marker(keyCode)
                     : keyCode === 113
                     ? this.noteHightlight.EditDoc()
@@ -418,8 +498,8 @@
                     const keyCode = e.keyCode;
                     const shift = e.shiftKey;
                     if (keyCode === 68 || (shift && keyCode === 71)) {
-                        //68, default is login shortcut of zhihu
-                        //71 + shift, default is scroll to the bottom of webpage
+                        //68, d, default is login shortcut of zhihu
+                        //71, g, + shift, default is scroll to the bottom of webpage
                         e.preventDefault();
                         e.stopPropagation();
                     }
@@ -1322,9 +1402,17 @@
         },
         zhuanlanStyle(mode) {
             //font, the pic of header, main content, sidebar, main content letter spacing, comment zone, ..
+            //@media print, print preview, make the background-color can view when save webpage as pdf file
             const article = `
-                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
-                 .TitleImage{width: 500px !important}
+                mark.AssistantMark.red{background-color: rgba(255, 128, 128, 0.65) !important;box-shadow: rgb(255, 128, 128) 0px 1.2px;border-radius: 0.2em !important;}
+                mark.AssistantMark.yellow{background-color: rgba(255, 250, 90, 1) !important;box-shadow: rgb(255, 255, 170) 0px 1.2px;border-radius: 0.2em !important;}
+                mark.AssistantMark.green{background-color: rgba(170, 235, 140, 0.8) !important;box-shadow: rgb(170, 255, 170) 0px 2.2px;border-radius: 0.2em !important;}
+                mark.AssistantMark.purple{background-color: rgba(255, 170, 255, 0.8) !important;box-shadow: rgb(255, 170, 255) 0px 1.2px;border-radius: 0.2em !important;}
+                @media print {
+                    mark.AssistantMark { box-shadow: unset !important; -webkit-print-color-adjust: exact !important; }
+                }
+                body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
+                .TitleImage{width: 500px !important}
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
@@ -1828,6 +1916,7 @@
             w && this.antiRedirect();
             this.shade.start();
             this.clipboardClear.event();
+            installTips();
         },
     };
     zhihu.start();
