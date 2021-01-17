@@ -209,7 +209,7 @@ next => "**n**", 向下翻页
 
 可以直接将生成的目录嵌入内容正文中
 
-[toc自动生成目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%202.jpg?raw=true)
+![toc自动生成目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%202.jpg?raw=true)
 
 ## 七, 页面样式调整
 
