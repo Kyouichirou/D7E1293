@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.5.3.2
+// @version      2.7.8.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -10,12 +10,18 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        unsafeWindow
+// @grant        GM_xmlhttpRequest
+// @connect      www.zhihu.com
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
 // @grant        GM_registerMenuCommand
 // @grant        GM_notification
 // @grant        GM_openInTab
+// @grant        GM_getTab
+// @grant        GM_getTabs
+// @grant        GM_saveTab
+// @grant        window.close
 // @match        https://*.zhihu.com/*
 // @compatible   chrome 80+; test on chrome 64(x86), some features don't work
 // @license      MIT
@@ -35,6 +41,7 @@
 
 (() => {
     "use strict";
+    const blackKey = ["留学中介", "肖战"];
     const Notification = (content = "", title = "", duration = 2500, func) => {
         GM_notification({
             text: content,
@@ -59,7 +66,6 @@
         }
     };
     let blackName = null;
-    const blackKey = ["留学中介", "肖战"];
     const mergeArray = (origin, target) => {
         origin = origin.concat(target);
         const newArr = [];
@@ -75,6 +81,530 @@
     const getSelection = () => {
         const select = window.getSelection();
         return select ? select.toString().trim() : null;
+    };
+    const escapeBlank = (target) => {
+        const type = typeof target;
+        if (type === "object") {
+            const entries = Object.entries(target);
+            for (const [key, value] of entries)
+                target[key] = value.replace(/\s/g, "&nbsp;");
+        } else {
+            target = target.replace(/\s/g, "&nbsp;");
+        }
+        return target;
+    };
+    const escapeHTML = (s) => {
+        const reg = /“|&|’|<|>|[\x00-\x20]|[\x7F-\xFF]|[\u0100-\u2700]/g;
+        return typeof s !== "string"
+            ? s
+            : s.replace(reg, ($0) => {
+                  let c = $0.charCodeAt(0),
+                      r = ["&#"];
+                  c = c == 0x20 ? 0xa0 : c;
+                  r.push(c);
+                  r.push(";");
+                  return r.join("");
+              });
+    };
+    //cut out part of title with specified length, take care of chinese character & english character
+    const titleSlice = (str) => {
+        let length = 0;
+        let newstr = "";
+        for (const e of str) {
+            length += e.charCodeAt(0).toString(16).length === 4 ? 2 : 1;
+            newstr += e;
+            if (length > 27) return `${newstr}...`;
+        }
+        return newstr;
+    };
+    const createButton = (name, title, otherButton = "", position = "left") => {
+        title = escapeBlank(title);
+        const html = `
+            <div
+                id = "assist-button-container"
+                >
+                <style>
+                    button.assist-button {
+                        border-radius: 0 1px 1px 0;
+                        border: rgb(247, 232, 176) solid 1.2px;
+                        display: inline-block;
+                        margin-top: 4px;
+                        font-size: 14px;
+                        height: 28px;
+                        width: 75px;
+                        box-shadow: 3px 4px 1px #888888;
+                        justify-content: center;
+                    }
+                    div#assist-button-container {
+                        opacity: 0.15;
+                        ${position}: 4%;
+                        width: 60px;
+                        flex-direction: column;
+                        position: fixed;
+                        bottom: 10%;
+                    }
+                    div#assist-button-container:hover {
+                        opacity: 1;
+                        transition: opacity 2s;
+                    }
+                </style>
+                ${otherButton}
+                <button class="assist-button block" style="color: black;" title=${title}>${name}</button>
+            </div>`;
+        document.documentElement.insertAdjacentHTML("beforeend", html);
+    };
+    const xmlHTTPRequest = (url, time = 2500, rType = false) => {
+        return new Promise(function (resolve, reject) {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: url,
+                timeout: time,
+                onload: (response) => {
+                    if (response.status == 200) {
+                        if (rType) {
+                            //after redirect, get the final URL
+                            resolve(response.finalUrl);
+                        } else {
+                            resolve(response.response);
+                        }
+                    } else {
+                        console.log(`err: code ${response.status}`);
+                        reject("request data error");
+                    }
+                },
+                onerror: (e) => {
+                    console.log(e);
+                    reject("something error");
+                },
+                ontimeout: (e) => {
+                    console.log(e);
+                    reject("timeout error");
+                },
+            });
+        });
+    };
+    const rndRangeNum = (start, end, count) => {
+        if (end < 0 || start < 0) return null;
+        if (end < start || end - start + 1 < count) return null;
+        const tmpArr = [];
+        const rndArr = [];
+        end++;
+        for (let i = start; i < end; i++) tmpArr.push(i);
+        for (; count > 0; count--) {
+            const ir = tmpArr.length - 1;
+            const rnd = Math.floor(Math.random() * ir);
+            rndArr.push(tmpArr[rnd]);
+            tmpArr[rnd] = tmpArr[ir];
+            tmpArr.pop();
+        }
+        return rndArr;
+    };
+    class Database {
+        /*
+        dname: name of database;
+        tname: name of table;
+        mode: read or read&write;
+        */
+        constructor(dbname, tbname = "", rwmode = false, version = 1) {
+            this.dbopen =
+                version === 1
+                    ? indexedDB.open(dbname)
+                    : indexedDB.open(dbname, version);
+            this.RWmode = rwmode ? "readwrite" : "readonly";
+            this.tbname = tbname;
+            const getIndex = (fieldname) => this.table.index(fieldname);
+        }
+        Initialize() {
+            return new Promise((resolve, reject) => {
+                //if the db does not exist, this event will fired firstly;
+                //adjust the version of db, which can trigger this event => create/delete table or create/delete index (must lauch from this event);
+                this.dbopen.onupgradeneeded = (e) => {
+                    this.store = e.target.result;
+                    this.updateEvent = true;
+                    this.storeEvent();
+                    resolve(0);
+                };
+                this.dbopen.onsuccess = () => {
+                    if (this.store) return;
+                    this.updateEvent = false;
+                    this.store = this.dbopen.result;
+                    this.storeEvent();
+                    resolve(1);
+                };
+                this.dbopen.onerror = (e) => {
+                    console.log(e);
+                    reject("error");
+                };
+                /*
+                The event handler for the blocked event.
+                This event is triggered when the upgradeneeded event should be triggered _
+                because of a version change but the database is still in use (i.e. not closed) somewhere,
+                even after the versionchange event was sent.
+                */
+                this.dbopen.onblocked = () => {
+                    console.log("please close others tab to update database");
+                    reject("conflict");
+                };
+                this.dbopen.onversionchange = (e) =>
+                    console.log("The version of this database has changed");
+            });
+        }
+        createTable(keyPath) {
+            if (this.updateEvent) {
+                const index = keyPath
+                    ? { keyPath: keyPath }
+                    : { autoIncrement: true };
+                this.store.createObjectStore(this.tbname, index);
+            }
+        }
+        createNewTable(keyPath) {
+            return new Promise((resolve, reject) => {
+                this.version = this.store.version + 1;
+                this.store.close();
+                if (this.storeErr) {
+                    reject("database generates some unknow error");
+                    return;
+                }
+                this.dbopen = indexedDB.open(this.store.name, this.version);
+                this.Initialize().then(
+                    () => {
+                        this.createTable(keyPath);
+                        resolve(true);
+                    },
+                    () => reject("database initial fail")
+                );
+            });
+        }
+        storeEvent() {
+            this.store.onclose = () => {
+                console.log("closing...");
+            };
+            this.store.onerror = () => (this.storeErr = true);
+        }
+        get checkTable() {
+            return this.store.objectStoreNames.contains(this.tbname);
+        }
+        get Tablenames() {
+            return this.store.objectStoreNames;
+        }
+        get Indexnames() {
+            return this.table.indexNames;
+        }
+        get DBversion() {
+            return this.store.version;
+        }
+        getTablecount(key) {
+            return this.table.count(key);
+        }
+        //take care the transaction, must make sure the transaction is alive when you need deal with something continually
+        openTable() {
+            this.isfinish = false;
+            this.transaction = this.store.transaction(
+                [this.tbname],
+                this.RWmode
+            );
+            this.table = this.transaction.objectStore(this.tbname);
+            this.transaction.oncomplete = () => (this.isfinish = true);
+        }
+        get Table() {
+            this.transaction = this.store.transaction(
+                [this.tbname],
+                this.RWmode
+            );
+            return this.transaction.objectStore(this.tbname);
+        }
+        rollback() {
+            this.transaction && this.transaction.abort();
+        }
+        read(keyPath) {
+            return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
+                const request = this.table.get(keyPath);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject("error");
+            });
+        }
+        batchCheck(tables, keyPath) {
+            return new Promise((resolve) => {
+                const arr = [];
+                for (const t of tables) {
+                    const transaction = this.store.transaction(
+                        this.store.objectStoreNames,
+                        this.RWmode
+                    );
+                    const table = transaction.objectStore(t);
+                    const rq = new Promise((reso, rej) => {
+                        const req = table.get(keyPath);
+                        req.onsuccess = () => reso(req.result);
+                        req.onerror = () => rej("error");
+                    });
+                    arr.push(rq);
+                }
+                Promise.allSettled(arr).then((results) => {
+                    resolve(
+                        results.map((r) =>
+                            r.status !== "rejected" ? r.value : null
+                        )
+                    );
+                });
+            });
+        }
+        add(info) {
+            return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
+                const op = this.table.add(info);
+                op.onsuccess = () => resolve(true);
+                op.onerror = (e) => {
+                    console.log(e);
+                    reject("error");
+                };
+            });
+        }
+        update(info, keyPath, mode = false) {
+            //if db has contained the item, will update the info; if it does not, a new item is added
+            return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
+                //keep cursor
+                if (mode) {
+                    this.read(info[keyPath]).then(
+                        (result) => {
+                            if (!result) {
+                                this.add(info).then(
+                                    () => resolve(true),
+                                    (err) => reject(err)
+                                );
+                            } else {
+                                const op = this.table.put(
+                                    Object.assign(result, info)
+                                );
+                                op.onsuccess = () => resolve(true);
+                                op.onerror = (e) => {
+                                    console.log(e);
+                                    reject("error");
+                                };
+                            }
+                        },
+                        (err) => console.log(err)
+                    );
+                } else {
+                    const op = this.table.put(info);
+                    op.onsuccess = () => resolve(true);
+                    op.onerror = (e) => {
+                        console.log(e);
+                        reject("error");
+                    };
+                }
+            });
+        }
+        clear() {
+            if (!this.table) this.openTable();
+            this.table.clear();
+        }
+        //must have primary key
+        deleteiTems(keyPath) {
+            return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
+                const op = this.table.delete(keyPath);
+                op.onsuccess = () => {
+                    console.log("delete item successfully");
+                    resolve(true);
+                };
+                op.onerror = (e) => {
+                    console.log(e);
+                    reject("error");
+                };
+            });
+        }
+        //note: create a index must lauch from onupgradeneeded event;
+        createIndex(indexName, keyPath, objectParameters) {
+            if (!this.updateEvent) {
+                console.log("this function must be through onupgradeneeded");
+                return;
+            }
+            this.table.createIndex(indexName, keyPath, objectParameters);
+        }
+        deleTable() {
+            if (!this.updateEvent) {
+                console.log("this function must be through onupgradeneeded");
+                return;
+            }
+            this.dbopen.deleteObjectStore(this.tbname);
+        }
+        deleIndex(indexName) {
+            if (!this.updateEvent) {
+                console.log("this function must be through onupgradeneeded");
+                return;
+            }
+            this.table.deleteIndex(indexName);
+        }
+        close() {
+            //The connection is not actually closed until all transactions created using this connection are complete
+            this.store.close();
+        }
+        static deleDB(dbname) {
+            return new Promise((resolve, reject) => {
+                const DBDeleteRequest = window.indexedDB.deleteDatabase(dbname);
+                DBDeleteRequest.onerror = (e) => {
+                    console.log(e);
+                    reject("error");
+                };
+                DBDeleteRequest.onsuccess = () => {
+                    console.log("success");
+                    resolve(true);
+                };
+            });
+        }
+    }
+    const dataBaseInstance = {
+        db: null,
+        additem(columnID) {
+            const info = {};
+            info.pid = this.pid;
+            info.update = Date.now();
+            info.excerpt = "";
+            const contentholder = document.getElementsByClassName(
+                "RichText ztext Post-RichText"
+            );
+            if (contentholder.length > 0) {
+                const chs = contentholder[0].childNodes;
+                let excerpt = "";
+                //take some data as this article's digest
+                let ic = 0;
+                for (const node of chs) {
+                    if (node.localName === "p") {
+                        excerpt += node.innerText;
+                        if (excerpt.length > 300) {
+                            excerpt = excerpt.slice(0, 300);
+                            break;
+                        }
+                    }
+                    ic++;
+                    if (ic > 5) break;
+                }
+                info.excerpt = excerpt;
+            }
+            info.userName = "";
+            info.userID = "";
+            const user = document.getElementsByClassName(
+                "UserLink AuthorInfo-name"
+            );
+            if (user.length > 0) {
+                const link = user[0].getElementsByTagName("a");
+                if (link.length > 0) {
+                    const p = link[0].pathname;
+                    info.userID = p.slice(p.lastIndexOf("/") + 1);
+                    info.userName = link[0].text;
+                }
+            }
+            info.ColumnID = columnID || "";
+            const defaultV = "A B";
+            const p = prompt(
+                "please input some tags about this article, like: javascript python; multiple tags use blank space to isolate",
+                defaultV
+            );
+            let tags = [];
+            if (p && p !== defaultV && p.trim()) {
+                const tmp = p.split(" ");
+                for (let e of tmp) {
+                    e = e.trim();
+                    e && tags.push(e);
+                }
+            }
+            const note = prompt(
+                "you can input something to hightlight this article, eg: this article is about advantage python usage"
+            );
+            info.tags = tags;
+            const title = document.title;
+            info.note = note || "";
+            info.title = title.slice(0, title.length - 5);
+            this.db.update(info, "pid", false).then(
+                () =>
+                    Notification(
+                        "add this article to collection successfully",
+                        "Tips"
+                    ),
+                () =>
+                    Notification(
+                        "add this aritcle to collection fail",
+                        "Warning"
+                    )
+            );
+        },
+        fold(info) {
+            this.db.update(info, "name", true).then(
+                () => console.log("this answer has been folded"),
+                () => console.log("add this anser to folded list fail")
+            );
+        },
+        get Table() {
+            return this.db.Table;
+        },
+        batchCheck(tableNames) {
+            const pid = this.pid;
+            return new Promise((resolve) =>
+                this.db
+                    .batchCheck(tableNames, pid)
+                    .then((results) => resolve(results))
+            );
+        },
+        check(keyPath) {
+            const pid = keyPath || this.pid;
+            return new Promise((resolve, reject) => {
+                this.db.read(pid).then(
+                    (result) => resolve(result),
+                    (err) => reject(err)
+                );
+            });
+        },
+        get pid() {
+            return location.pathname.slice(3);
+        },
+        dele(mode, keyPath) {
+            const pid = keyPath || this.pid;
+            this.db.deleteiTems(pid).then(
+                () =>
+                    mode &&
+                    Notification(
+                        `the article of ${pid} has been deleted from collection successfully`,
+                        "Tips"
+                    ),
+                () => mode && Notification("delete article fail")
+            );
+        },
+        update(info) {
+            this.db.update(info);
+        },
+        close(mode = true) {
+            mode && this.db.close();
+            this.db = null;
+        },
+        initial(tableNames, mode = false, keyPath = "pid") {
+            return new Promise((resolve, reject) => {
+                if (!Array.isArray(tableNames)) {
+                    reject("this parameter must be array");
+                    return;
+                }
+                const dbname = "zhihuDatabase";
+                const db = new Database(
+                    dbname,
+                    tableNames.length === 1 ? tableNames[0] : "",
+                    mode
+                );
+                this.db = db;
+                db.Initialize().then(
+                    (result) => {
+                        if (result === 0) {
+                            for (const table of tableNames) {
+                                db.tbname = table;
+                                db.createTable(keyPath);
+                            }
+                        }
+                        resolve(result);
+                    },
+                    (err) => reject(err)
+                );
+            });
+        },
     };
     const zhihu = {
         getData() {
@@ -95,6 +625,8 @@
                     /”/g,
                     /、/g,
                     /，/g,
+                    /《/g,
+                    /》/g,
                 ];
                 const es = [
                     ". ",
@@ -108,6 +640,8 @@
                     '"',
                     ", ",
                     ", ",
+                    "<",
+                    ">",
                 ];
                 cs.forEach((s, i) => (text = text.replace(s, es[i])));
                 this.write(text);
@@ -142,6 +676,59 @@
             start(mode) {
                 //n => scroll down ; u => scroll top
                 window.requestAnimationFrame(this.main.bind(this, mode));
+            },
+        },
+        scroll: {
+            toTop() {
+                let hTop =
+                    document.documentElement.scrollTop ||
+                    document.body.scrollTop;
+                if (hTop === 0) return;
+                const rate = 8;
+                let sid = 0;
+                const scrollToTop = () => {
+                    hTop =
+                        document.documentElement.scrollTop ||
+                        document.body.scrollTop;
+                    if (hTop > 0) {
+                        sid = window.requestAnimationFrame(scrollToTop);
+                        window.scrollTo(0, hTop - hTop / rate);
+                    } else {
+                        sid !== 0 && window.cancelAnimationFrame(sid);
+                    }
+                };
+                scrollToTop();
+            },
+            toBottom() {
+                //take care this, if the webpage adopts waterfall flow design
+                const height =
+                    document.documentElement.scrollHeight ||
+                    document.body.scrollHeight;
+                const sTop =
+                    document.documentElement.scrollTop ||
+                    document.body.scrollTop;
+                if (sTop >= height) return;
+                let sid = 0;
+                let shTop = 0;
+                let rate = 6;
+                const initial = 100;
+                const scrollToBottom = () => {
+                    const hTop =
+                        document.documentElement.scrollTop ||
+                        document.body.scrollTop ||
+                        initial;
+                    if (hTop < height && hTop > shTop) {
+                        shTop = hTop;
+                        sid = window.requestAnimationFrame(scrollToBottom);
+                        window.scrollTo(0, hTop + hTop / rate);
+                        rate += 0.2;
+                    } else {
+                        sid !== 0 && window.cancelAnimationFrame(sid);
+                        sid = 0;
+                        rate = 6;
+                    }
+                };
+                scrollToBottom();
             },
         },
         multiSearch(keyCode) {
@@ -188,17 +775,19 @@
             name && methods[name]();
         },
         noteHightlight: {
-            editable: null,
+            editable: false,
+            disableSiderbar(pevent) {
+                const column = document.getElementById("column_lists");
+                if (column) column.style.pointerEvents = pevent;
+            },
             EditDoc() {
-                const m =
-                    document.body.contentEditable === "true"
-                        ? "inherit"
-                        : "true";
-                document.body.contentEditable = m;
-                this.editable = m;
-                const t =
-                    m === "true" ? "page editable mode" : "exit editable mode";
-                Notification(t, "Editable");
+                const [edit, tips, pevent] = this.editable
+                    ? ["inherit", "exit", "inherit"]
+                    : ["true", "enter", "none"];
+                document.body.contentEditable = edit;
+                Notification(tips + " page editable mode", "Editable");
+                this.disableSiderbar(pevent);
+                this.editable = !this.editable;
             },
             get Selection() {
                 return window.getSelection();
@@ -357,67 +946,6 @@
                 this.Restore(start);
             },
         },
-        tocMenu: {
-            change: false,
-            appendNode(toc) {
-                if (toc.className.endsWith("collapsed")) return;
-                const header = document.getElementsByClassName("Post-Header");
-                if (header.length === 0) {
-                    console.log("the header has been remove");
-                    return;
-                }
-                header[0].appendChild(toc);
-                toc.style.position = "sticky";
-                toc.style.width = "900px";
-                this.change = true;
-            },
-            restoreNode(toc) {
-                if (!this.change) return;
-                document.body.append(toc);
-                toc.removeAttribute("style");
-                this.change = false;
-            },
-            main(mode) {
-                const toc = document.getElementById("toc-bar");
-                toc && mode ? this.restoreNode(toc) : this.appendNode(toc);
-            },
-        },
-        titleChange: false,
-        titleAlign() {
-            if (this.modePrint && !this.titleChange) return;
-            const title = document.getElementsByClassName("Post-Title");
-            if (title.length === 0) return;
-            if (this.modePrint) {
-                title[0].removeAttribute("style");
-            } else {
-                if (title[0].innerText.length > 28) return;
-                title[0].style.textAlign = "center";
-            }
-            this.titleChange = !this.titleChange;
-        },
-        modePrint: false,
-        pagePrint() {
-            const ids = [
-                "Post-Sub Post-NormalSub",
-                "Post-Author",
-                "Voters",
-                "ColumnPageHeader-Wrapper",
-                "Sticky RichContent-actions is-bottom",
-            ];
-            const style = this.modePrint ? "block" : "none";
-            ids.forEach((e) => {
-                const t = document.getElementsByClassName(e);
-                t.length > 0 && (t[0].style.display = style);
-            });
-            Notification(
-                `${this.modePrint ? "exit" : "enter"} print mode`,
-                "Print",
-                3500
-            );
-            this.tocMenu.main(this.modePrint);
-            this.titleAlign();
-            this.modePrint = !this.modePrint;
-        },
         autoScroll: {
             stepTime: 40,
             keyCount: 1,
@@ -425,6 +953,7 @@
             scrollTime: null,
             scrollPos: null,
             bottom: 100,
+            zhuanlanAuto_mode: false,
             pageScroll(TimeStamp) {
                 const position =
                     document.documentElement.scrollTop ||
@@ -448,15 +977,120 @@
                         ? window.requestAnimationFrame(
                               this.pageScroll.bind(this)
                           )
-                        : this.stopScroll();
+                        : this.stopScroll(true);
                 }
             },
-            stopScroll() {
+            disableEvent(mode) {
+                const h = document.getElementsByClassName(
+                    "RichText ztext Post-RichText"
+                );
+                if (h.length === 0) return;
+                h[0].style.pointerEvents = mode ? "none" : "inherit";
+            },
+            zhuanlanAuto() {
+                if (zhihu.Column.targetIndex === 0) return;
+                const text = `${
+                    this.zhuanlanAuto_mode ? "exit" : "enter"
+                } autoscroll mode`;
+                Notification(text, "Tips");
+                this.zhuanlanAuto_mode = !this.zhuanlanAuto_mode;
+            },
+            nextPage() {
+                const c = document.getElementById("column_lists");
+                if (!c) return;
+                const a = c.getElementsByClassName("article_lists");
+                const ch = a[0].children;
+                const i = zhihu.Column.targetIndex;
+                if (ch.length === 0 || i === ch.length) {
+                    Notification(
+                        "no more content, have reach the last page",
+                        "tips"
+                    );
+                    return;
+                }
+                ch[i].children[2].click();
+                setTimeout(() => {
+                    this.keyCount = 2;
+                    this.start();
+                }, 1800);
+            },
+            popup() {
+                const html = `
+                <div
+                    id="autoscroll-tips"
+                    style="
+                        top: 45%;
+                        left: 45%;
+                        position: fixed;
+                        background: whitesmoke;
+                        width: 210px;
+                        height: 96px;
+                        z-index: 1000;
+                    "
+                >
+                    <div class="autotips_content" style="margin: 5px 5px 5px 22px">
+                        <span class="tips-header">Auto Scroll Mode</span>
+                        <br />
+                        <span class="tips_show" style="font-size: 12px"
+                            >After 3s, auto load next page</span
+                        >
+                        <br />
+                        <button
+                            style="
+                                width: 60px;
+                                height: 24px;
+                                box-shadow: 3px 4px 1px #888888;
+                                margin-top: 10px;
+                                margin-right: 10px;
+                                border: rgb(247, 232, 176) solid 1.2px;
+                            "
+                        >
+                            OK
+                        </button>
+                        <button
+                            style="
+                                width: 60px;
+                                height: 24px;
+                                box-shadow: 3px 4px 1px #888888;
+                                border: white solid 1px;
+                            "
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>`;
+                document.documentElement.insertAdjacentHTML("beforeend", html);
+                const tips = document.getElementById("autoscroll-tips");
+                let buttons = tips.getElementsByTagName("button");
+                const id = setTimeout(() => {
+                    tips.remove();
+                    zhihu.scroll.toTop();
+                    this.nextPage();
+                }, 3000);
+                buttons[0].onclick = () => {
+                    clearTimeout(id);
+                    tips.remove();
+                    zhihu.scroll.toTop();
+                    this.nextPage();
+                };
+                buttons[1].onclick = () => {
+                    clearTimeout(id);
+                    tips.remove();
+                    this.zhuanlanAuto_mode = false;
+                    Notification("exit autoscroll mode successfully", "tips");
+                };
+                buttons = null;
+            },
+            stopScroll(mode = false) {
                 if (this.scrollState) {
                     this.scrollPos = null;
                     this.scrollTime = null;
                     this.scrollState = false;
                     this.keyCount = 1;
+                }
+                if (mode) {
+                    this.disableEvent(false);
+                    this.zhuanlanAuto_mode && this.popup();
                 }
             },
             speedUP() {
@@ -471,8 +1105,9 @@
                 this.keyCount += 1;
                 if (this.keyCount % 2 === 0) return;
                 this.scrollState
-                    ? this.stopScroll()
+                    ? (this.stopScroll(), this.disableEvent(false))
                     : ((this.scrollState = true),
+                      this.disableEvent(true),
                       window.requestAnimationFrame(this.pageScroll.bind(this)));
             },
             Others(keyCode, shift) {
@@ -480,12 +1115,22 @@
                     ? keyCode === 67
                         ? this.noteHightlight.removeMark()
                         : keyCode === 219
-                        ? this.pagePrint()
+                        ? this.Column.pagePrint()
+                        : keyCode === 70
+                        ? this.Column.follow()
+                        : keyCode === 82
+                        ? this.Column.columnsModule.recentModule.log("p")
+                        : keyCode === 83
+                        ? this.Column.subscribe()
                         : this.noteHightlight.Marker(keyCode)
                     : keyCode === 113
                     ? this.noteHightlight.EditDoc()
                     : keyCode === 78
                     ? this.turnPage.start(true)
+                    : keyCode === 84
+                    ? this.scroll.toTop()
+                    : keyCode === 82
+                    ? this.scroll.toBottom()
                     : keyCode === 85
                     ? this.turnPage.start(false)
                     : this.multiSearch(keyCode);
@@ -494,7 +1139,11 @@
                 window.onkeydown = (e) => {
                     if (e.ctrlKey || e.altKey) return;
                     const className = e.target.className;
-                    if (className && className.includes("DraftEditor")) return;
+                    if (
+                        (className && className.includes("DraftEditor")) ||
+                        e.target.localName === "input"
+                    )
+                        return;
                     const keyCode = e.keyCode;
                     const shift = e.shiftKey;
                     if (keyCode === 68 || (shift && keyCode === 71)) {
@@ -504,7 +1153,9 @@
                         e.stopPropagation();
                     }
                     shift
-                        ? this.Others.call(zhihu, keyCode, shift)
+                        ? keyCode === 65
+                            ? this.zhuanlanAuto()
+                            : this.Others.call(zhihu, keyCode, shift)
                         : keyCode === 192
                         ? this.start()
                         : keyCode === 187
@@ -578,9 +1229,10 @@
                                 15s, this Tips will be automatically closed or can you just click
                             </div>
                             <a
-                                href="https://github.com/Kyouichirou"
+                                href="https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md"
                                 target="blank"
                                 style="margin: ${mt}px 10px 0px 0px; float: right; font-size: 14px"
+                                title="user manual"
                             >
                                 Github: Kyouichirou
                             </a>
@@ -905,7 +1557,7 @@
             0, normal
             1, searchpage => check username
             2, click => check all content
-            3, articel page => check expand
+            3, article page => check expand
             if the item has been checked, return
             */
             contentCheck(item, targetElements, mode) {
@@ -987,7 +1639,17 @@
                     result = this.contentCheck(item, targetElements, 1);
                 } else {
                     result = this.userCheck(item, targetElements);
-                    !result && this.contentCheck(item, targetElements, mode);
+                    result =
+                        !result &&
+                        this.contentCheck(item, targetElements, mode);
+                    if (targetElements.index < 2 && !result && this.dbInitial)
+                        this.foldAnswer.check(
+                            item.className !== "ContentItem AnswerItem"
+                                ? item.getElementsByClassName(
+                                      "ContentItem AnswerItem"
+                                  )[0]
+                                : item
+                        );
                 }
             },
             checkURL(targetElements) {
@@ -1008,16 +1670,52 @@
             },
             //check the content when the content expanded
             clickMonitor(node, targetElements) {
+                let lasttarget = null;
+                const colors = ["green", "red", "blue", "purple"];
+                let i = 0;
+                let change = false;
+                const tags = ["blockquote", "p", "br", "li"];
                 node.onclick = (e) => {
                     const target = e.target;
+                    const localName = target.localName;
+                    if (tags.includes(localName)) {
+                        if (target.style.color) return;
+                        if (lasttarget) {
+                            lasttarget.style.color = "";
+                            lasttarget.style.fontSize = "";
+                            lasttarget.style.letterSpacing = "";
+                            if (change) lasttarget.style.fontWeight = "normal";
+                        }
+                        target.style.color = colors[i];
+                        target.style.fontSize = "16px";
+                        target.style.letterSpacing = "0.3px";
+                        if (target.style.fontWeight !== 600) {
+                            target.style.fontWeight = 600;
+                            change = true;
+                        } else change = false;
+                        i = i > 2 ? 0 : ++i;
+                        lasttarget = target;
+                        return;
+                    }
                     const className = target.className;
+                    if (className && className.startsWith("fold") && this.dbInitial) {
+                        if (
+                            !(
+                                className.endsWith("block") ||
+                                className.endsWith("temp") ||
+                                className.endsWith("element")
+                            )
+                        )
+                            return;
+                        this.foldAnswer.buttonclick(target);
+                        return;
+                    }
                     let item = null;
                     //click the expand button
                     if (className === targetElements.buttonClass) {
                         item = this.getiTem(target, targetElements);
                         //click the ico of expand button
-                    } else if (target.localName === "svg") {
-                        true;
+                    } else if (localName === "svg") {
                         const button = this.svgCheck(target, targetElements);
                         button && (item = this.getiTem(button, targetElements));
                         //click the answser, the content will be automatically expanded
@@ -1077,7 +1775,6 @@
                     );
                     let n = items.length;
                     for (n; n--; ) {
-                        debugger;
                         const item = items[n];
                         const a = item.getElementsByClassName(
                             targetElements.userID
@@ -1120,6 +1817,7 @@
                     if (!this.checkURL(targetElements)) return;
                     e.forEach((item) => {
                         if (item.addedNodes.length > 0) {
+                            console.log("z");
                             const additem = item.addedNodes[0];
                             if (additem.className === targetElements.itemClass)
                                 this.check(additem, targetElements, 0);
@@ -1140,10 +1838,14 @@
                 const targetElements = this[pos[index]](index);
                 return targetElements;
             },
+            dbInitial: false,
             main(index) {
-                this.checked = [];
-                const targetElements = this.getTagetElements(index);
-                targetElements && this.firstRun(targetElements);
+                this.foldAnswer.initial().then((r) => {
+                    this.checked = [];
+                    this.dbInitial = r;
+                    const targetElements = this.getTagetElements(index);
+                    targetElements && this.firstRun(targetElements);
+                });
             },
             firstRun(targetElements) {
                 if (!this.checkURL(targetElements)) {
@@ -1173,7 +1875,7 @@
                 const node = document.getElementsByClassName(
                     targetElements.backupClass
                 );
-                this.clickMonitor(node, targetElements);
+                this.clickMonitor(node[0], targetElements);
                 const all = document.getElementsByClassName(
                     "QuestionMainAction ViewAll-QuestionMainAction"
                 );
@@ -1193,6 +1895,7 @@
                     header: "ContentItem AnswerItem",
                     expand: "RichText ztext CopyrightRichText-richText",
                     answerID: "ContentItem AnswerItem",
+                    inserID: "LabelContainer-wrapper",
                     index: index,
                 };
                 return targetElements;
@@ -1227,14 +1930,177 @@
                 };
                 return targetElements;
             },
+            foldAnswer: {
+                buttonclick(button) {
+                    const text = button.innerText;
+                    text.startsWith("show")
+                        ? this.showFold(button, text)
+                        : this[text](button);
+                },
+                getid(item) {
+                    const attrs = item.attributes;
+                    if (!attrs) return null;
+                    for (const a of attrs)
+                        if (a.name === "name") return a.value;
+                    return null;
+                },
+                getpNode(button) {
+                    let pnode = button.parentNode;
+                    let ic = 0;
+                    while (pnode.className !== "ContentItem AnswerItem") {
+                        pnode = pnode.parentNode;
+                        ic++;
+                        if (ic > 4 || !pnode) return null;
+                    }
+                    return pnode;
+                },
+                Block(button) {
+                    const p = this.getpNode(button);
+                    if (!p) return;
+                    const id = this.getid(p);
+                    if (!id) return;
+                    const info = {};
+                    const user = p.getElementsByClassName("UserLink-link");
+                    let i = user.length - 1;
+                    if (i > 0) {
+                        i = i > 1 ? 1 : i;
+                        info.userName = user[i].innerText;
+                        const pn = user[i].pathname;
+                        info.userID = pn.slice(pn.lastIndexOf("/") + 1);
+                    }
+                    info.name = id;
+                    info.update = Date.now();
+                    dataBaseInstance.fold(info);
+                    button.innerText = "Remove";
+                    button.title = "remove the anwser from block list";
+                    this.insertShowFolded(p, "blocked");
+                },
+                Remove(button) {
+                    //show temp button
+                    const p = this.getpNode(button);
+                    if (!p) return;
+                    const id = this.getid(p);
+                    if (!id) return;
+                    dataBaseInstance.dele(false, id);
+                    button.innerText = "Block";
+                    button.title = "fold the anwser forever";
+                },
+                Fold(button) {
+                    const p = this.getpNode(button);
+                    if (!p) return;
+                    this.insertShowFolded(p, "folded");
+                },
+                showFold(button, text) {
+                    const next = button.nextElementSibling;
+                    next.style.display = "block";
+                    button.style.display = "none";
+                    if (text.endsWith("blocked")) this.insertButton(next, true);
+                },
+                check(item) {
+                    if (this.initialR === 0) {
+                        this.insertButton(item);
+                        return;
+                    }
+                    const id = this.getid(item);
+                    if (!id) return;
+                    dataBaseInstance.check(id).then(
+                        (r) => {
+                            r
+                                ? this.insertShowFolded(item, "blocked")
+                                : this.insertButton(item);
+                        },
+                        (err) => console.log(err)
+                    );
+                },
+                initialR: 0,
+                initial() {
+                    return new Promise((resolve) => {
+                        const tables = ["foldedAnswer"];
+                        dataBaseInstance.initial(tables, true, "name").then(
+                            (result) => {resolve(true), this.initialR = result},
+                            (err) => {
+                                console.log(err);
+                                resolve(false);
+                            }
+                        );
+                    });
+                },
+                insertShowFolded(item, name) {
+                    //if it has already contained this element , to hide or show
+                    const f = item.parentNode.getElementsByClassName(
+                        "fold_element"
+                    );
+                    if (f.length === 0) {
+                        const html = `
+                        <div
+                            class="fold_element"
+                            title="the answer has been folded"
+                        >
+                            show ${name}
+                        </div>`;
+                        item.insertAdjacentHTML("beforebegin", html);
+                        item.style.display = "none";
+                    } else {
+                        item.style.display = "none";
+                        f[0].style.display = "block";
+                        f[0].innerText = `show ${name}`;
+                    }
+                },
+                insertButton(item, mode = false) {
+                    const h = item.getElementsByClassName("hidden_fold");
+                    if (h.length === 0) {
+                        const html = `
+                        <div class="hidden_fold">
+                            <button class="fold_block" title="fold the anwser forever">Block</button>
+                            <button class="fold_temp" title="temporarily fold the answer">Fold</button>
+                        </div>`;
+                        //if the anwser has been blocked => show, hide the temp button
+                        const r = `
+                        <div class="hidden_fold">
+                            <button class="fold_block" title="remove the anwser from block list">Remove</button>
+                            <button class="fold_temp" title="temporarily fold the answer">Fold</button>
+                        </div>`;
+                        const label = item.getElementsByClassName(
+                            "LabelContainer-wrapper"
+                        );
+                        if (label.length > 0)
+                            label[0].insertAdjacentHTML(
+                                "afterend",
+                                mode ? r : html
+                            );
+                    }
+                },
+            },
         },
         addStyle(index) {
             const common = `
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
             const contentstyle = `
+                .fold_element{
+                    max-height: 24px;
+                    margin-left: 45%;
+                    margin-top: 3px;
+                    width: 100px;
+                    text-align: center;
+                    border: 1px solid #ccc !important;
+                }
+                .hidden_fold:hover {
+                     opacity: 1;
+                     transition: opacity 2s;
+                }
+                .hidden_fold{opacity: 0.15;}
+                .hidden_fold button {
+                    float: right;
+                    border: 1px solid #ccc!important;
+                    box-shadow: 1px 1px 4px #888888;
+                    height: 21px;
+                    font-size: 14px;
+                    width: 54px;
+                    border-radius: 5px;
+                }
                 html{overflow: auto !important;}
-                div.Question-mainColumn{margin: auto !important;width: 100% !important;}
+                div.Question-mainColumn{margin: auto !important;width: 100% !important;max-width: 1000px !important;}
                 div.Question-sideColumn,.Kanshan-container{display: none !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
@@ -1400,6 +2266,22 @@
                 mo.observe(target, { childList: true, subtree: true });
             },
         },
+        ErrorAutoClose() {
+            const w = document.getElementsByClassName("PostIndex-warning");
+            if (w.length === 0) return;
+            const h = document.createElement("h2");
+            w[0].insertAdjacentElement("afterbegin", h);
+            setTimeout(() => window.close(), 6100);
+            let time = 5;
+            const dot = ".";
+            h.innerText = `5s, current web will be automatically closed.....`;
+            let id = setInterval(() => {
+                time--;
+                const tmp = dot.repeat(time);
+                h.innerText = `${time}s, current web will be automatically closed${tmp}`;
+                if (time === 0) clearInterval(id);
+            }, 1000);
+        },
         zhuanlanStyle(mode) {
             //font, the pic of header, main content, sidebar, main content letter spacing, comment zone, ..
             //@media print, print preview, make the background-color can view when save webpage as pdf file
@@ -1410,54 +2292,1831 @@
                 mark.AssistantMark.purple{background-color: rgba(255, 170, 255, 0.8) !important;box-shadow: rgb(255, 170, 255) 0px 1.2px;border-radius: 0.2em !important;}
                 @media print {
                     mark.AssistantMark { box-shadow: unset !important; -webkit-print-color-adjust: exact !important; }
+                    .CornerButtons,
+                    .toc-bar.toc-bar--collapsed,
+                    div#assist-button-container {display : none;}
+                    #column_lists {display : none !important;}
                 }
                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}
                 .TitleImage{width: 500px !important}
                 .Post-Main .Post-RichText{text-align: justify !important;}
                 .Post-SideActions{left: calc(50vw - 560px) !important;}
                 .RichText.ztext.Post-RichText{letter-spacing: 0.1px;}
-                .RichContent-actions .ContentItem-actions{position: inherit !important}
+                .Sticky.RichContent-actions.is-fixed.is-bottom{position: inherit !important}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
-            const list = `.Card:last-child,.css-8txec3{width: 900px !important;}`;
-            GM_addStyle(mode ? article : list);
-            mode &&
-                (window.onload = () => {
+            const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
+            if (mode) {
+                const r = GM_getValue("reader");
+                if (r) {
+                    GM_addStyle(article + this.Column.clearPage(0).join(""));
+                    this.Column.readerMode = true;
+                } else {
+                    GM_addStyle(article);
+                }
+                if (document.title.startsWith("该内容暂无法显示")) {
+                    window.onload = () => this.ErrorAutoClose();
+                    return;
+                }
+                this.Column.isZhuanlan = true;
+                window.onload = () => {
                     this.colorAssistant.main();
                     this.autoScroll.keyBoardEvent();
-                });
+                    this.Column.main(0);
+                };
+            } else {
+                GM_addStyle(list);
+                this.Column.main(2);
+            }
         },
-        colorIndicator() {
-            let lasttarget = null;
-            const colors = ["green", "red", "blue", "purple"];
-            let i = 0;
-            let change = false;
-            const tags = ["blockquote", "p", "br", "li"];
-            document.onclick = (e) => {
-                const target = e.target;
-                const localName = target.localName;
-                if (!tags.includes(localName)) return;
-                if (target.style.color) return;
-                if (lasttarget) {
-                    lasttarget.style.color = "";
-                    lasttarget.style.fontSize = "";
-                    lasttarget.style.letterSpacing = "";
-                    if (change) lasttarget.style.fontWeight = "normal";
+        Column: {
+            isZhuanlan: false,
+            authorID: null,
+            get ColumnDetail() {
+                const header = document.getElementsByClassName(
+                    "ColumnLink ColumnPageHeader-TitleColumn"
+                );
+                if (header.length === 0) {
+                    this.columnName = null;
+                    this.columnID = null;
+                    return false;
                 }
-                target.style.color = colors[i];
-                target.style.fontSize = "16px";
-                target.style.letterSpacing = "0.3px";
-                if (target.style.fontWeight !== 600) {
-                    target.style.fontWeight = 600;
-                    change = true;
+                const href = header[0].href;
+                this.columnID = href.slice(href.lastIndexOf("/") + 1);
+                this.columnName = header[0].innerText;
+                const post = document.getElementsByClassName("Post-Author");
+                if (post.length > 0) {
+                    const user = post[0].getElementsByClassName(
+                        "UserLink-link"
+                    );
+                    const i = user.length - 1;
+                    const p = user[i].pathname;
+                    this.authorID = p.slice(p.lastIndexOf("/") + 1);
+                }
+                return true;
+            },
+            updateAuthor(author) {
+                const html = `
+                <div
+                    class="AuthorInfo"
+                    itemprop="author"
+                    itemscope=""
+                    itemtype="http://schema.org/Person"
+                >
+                    <meta itemprop="name" content=${author.name} /><meta
+                        itemprop="image"
+                        content=${author.avatar_url}
+                    /><meta
+                        itemprop="url"
+                        content=https://www.zhihu.com/people/${author.url_token}
+                    /><meta itemprop="zhihu:followerCount" content="3287" /><span
+                        class="UserLink AuthorInfo-avatarWrapper"
+                        ><div class="Popover">
+                            <div
+                                id="Popover8-toggle"
+                                aria-haspopup="true"
+                                aria-expanded="false"
+                                aria-owns="Popover8-content"
+                            >
+                                <a
+                                    class="UserLink-link"
+                                    data-za-detail-view-element_name="User"
+                                    target="_blank"
+                                    href="//www.zhihu.com/people/${author.url_token}"
+                                    ><img
+                                        class="Avatar Avatar--round AuthorInfo-avatar"
+                                        width="38"
+                                        height="38"
+                                        src=${author.avatar_url}
+                                        srcset=${author.avatar_url}
+                                        alt=${author.name}
+                                /></a>
+                            </div></div
+                    ></span>
+                    <div class="AuthorInfo-content">
+                        <div class="AuthorInfo-head">
+                            <span class="UserLink AuthorInfo-name"
+                                ><div class="Popover">
+                                    <div
+                                        id="Popover9-toggle"
+                                        aria-haspopup="true"
+                                        aria-expanded="false"
+                                        aria-owns="Popover9-content"
+                                    >
+                                        <a
+                                            class="UserLink-link"
+                                            data-za-detail-view-element_name="User"
+                                            target="_blank"
+                                            href="//www.zhihu.com/people/${author.url_token}"
+                                            >${author.name}</a
+                                        >
+                                    </div>
+                                </div></span
+                            >
+                        </div>
+                        <div class="AuthorInfo-detail">
+                            <div class="AuthorInfo-badge">
+                                <div class="ztext AuthorInfo-badgeText">
+                                    ${author.headline}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+                const authorNode = document.getElementsByClassName(
+                    "AuthorInfo"
+                );
+                if (authorNode.length > 0) authorNode[0].outerHTML = html;
+            },
+            //column homepage
+            subscribeOrfollow() {
+                if (!this.ColumnDetail) return;
+                let fn = "follow";
+                let sn = "subscribe";
+                const f = GM_getValue(fn);
+                if (f && Array.isArray(f))
+                    f.some((e) => this.columnID === e.columnID) &&
+                        (fn = "remove");
+                const s = GM_getValue(sn);
+                if (s && Array.isArray(s))
+                    s.some((e) => this.columnID === e.columnID) &&
+                        (sn = "remove");
+                let [a, b] =
+                    fn === "remove" ? ["remove", "from"] : ["add", "to"];
+                const ft = `${a}&nbsp;the&nbsp;column&nbsp;${b}&nbsp;follow&nbsp;list`;
+                [a, b] =
+                    sn === "remove" ? ["remove", "from"] : ["add", "to"];
+                const st = `${a}&nbsp;the&nbsp;column&nbsp;${b}&nbsp;subscribe&nbsp;list`;
+                const html = `
+                <div class="assistant-button" style="margin-left: 15px">
+                    <style type="text/css">
+                        .assistant-button button {
+                            box-shadow: 1px 1px 2px #848484;
+                            height: 24px;
+                            border: 1px solid #ccc !important;
+                            border-radius: 8px;
+                        }
+                    </style>
+                    <button class="follow" style="width: 80px; margin-right: 5px;color: #2196F3;" title=${ft}>
+                        ${fn}
+                    </button>
+                    <button class="subscribe" style="width: 90px" title=${st}>${sn}</button>
+                </div>`;
+                const user = document.getElementsByClassName(
+                    "AuthorInfo AuthorInfo--plain"
+                );
+                if (user.length === 0) return;
+                user[0].parentNode.insertAdjacentHTML("beforeend", html);
+                let buttons = document.getElementsByClassName(
+                    "assistant-button"
+                )[0].children;
+                const exe = (button, mode) => {
+                    const name = button.innerText;
+                    if (name === "remove") {
+                        const vname = mode === 1 ? "follow" : "subscribe";
+                        const arr = GM_getValue(vname);
+                        if (arr && Array.isArray(arr)) {
+                            const index = arr.findIndex(
+                                (e) => e.columnID === this.columnID
+                            );
+                            if (index > -1) {
+                                arr.splice(index, 1);
+                                GM_setValue(vname, arr);
+                                if (mode === 1 && this.columnsModule.node)
+                                    this.columnsModule.database = arr;
+                            }
+                            Notification(`un${vname} successfully`, "Tips");
+                        }
+                        button.innerText = vname;
+                        button.title = `add the column to ${vname} list`;
+                    } else {
+                        if (mode === 1) {
+                            const i = this.follow(true);
+                            if (i !== 1) {
+                                button.innerText = "remove";
+                                button.title =
+                                    "remove the column from follow list";
+                            }
+                        } else {
+                            this.subscribe();
+                            button.innerText = "remove";
+                            button.title =
+                                "remove the column from subscribe list";
+                        }
+                    }
+                };
+                buttons[1].onclick = function () {
+                    exe(this, 1);
+                };
+                buttons[2].onclick = function () {
+                    exe(this, 2);
+                };
+                buttons = null;
+            },
+            //shift + f
+            follow(mode) {
+                if (!this.columnID) return;
+                let f = GM_getValue("follow");
+                if (f && Array.isArray(f)) {
+                    let index = 0;
+                    for (const e of f) {
+                        if (this.columnID === e.columnID) {
+                            const c = confirm(
+                                `you have already followed this column on ${this.timeStampconvertor(
+                                    e.update
+                                )}, is unfollow this column?`
+                            );
+                            if (!c) return 0;
+                            f.splice(index, 1);
+                            GM_setValue("follow", f);
+                            Notification(
+                                "unfollow this column successfully",
+                                "Tips"
+                            );
+                            return 1;
+                        }
+                        index++;
+                    }
+                } else f = [];
+                const p = prompt(
+                    "please input some tags about this column, like: javascript python; multiple tags use blank space to isolate",
+                    "javascript python"
+                );
+                let tags = [];
+                if (p && p.trim()) {
+                    const tmp = p.split(" ");
+                    for (let e of tmp) {
+                        e = e.trim();
+                        e && tags.push(e);
+                    }
+                }
+                if (tags.length === 0 && !mode) {
+                    const top = document.getElementsByClassName(
+                        "TopicList Post-Topics"
+                    );
+                    if (top.length > 0) {
+                        const topic = top[0].children;
+                        for (const e of topic) tags.push(e.innerText);
+                    }
+                }
+                const info = {};
+                info.columnID = this.columnID;
+                info.update = Date.now();
+                info.columnName = this.columnName;
+                info.tags = tags;
+                f.push(info);
+                this.columnsModule.node && (this.columnsModule.database = f);
+                GM_setValue("follow", f);
+                Notification(
+                    "you have followed this column successfully",
+                    "Tips",
+                    3500
+                );
+                return 2;
+            },
+            //shift + s
+            subscribe() {
+                if (!this.columnID) return;
+                let s = GM_getValue("subscribe");
+                if (s && Array.isArray(s)) {
+                    let i = 0;
+                    for (const e of s) {
+                        if (e.columnID === this.columnID) {
+                            s.splice(i, 1);
+                            break;
+                        }
+                    }
+                } else s = [];
+                const i = s.length;
+                const info = {};
+                info.columnID = this.columnID;
+                info.update = Date.now();
+                info.columnName = this.columnName;
+                if (i === 0) {
+                    s.push(info);
                 } else {
-                    change = false;
+                    i === 10 && s.pop();
+                    s.unshift(info);
                 }
-                i = i > 2 ? 0 : ++i;
-                lasttarget = target;
-            };
+                GM_setValue("subscribe", s);
+                Notification(
+                    "you have subscribed this column successfully",
+                    "Tips",
+                    3500
+                );
+            },
+            Tabs: {
+                get GUID() {
+                    // blob:https://xxx.com/+ uuid
+                    const link = URL.createObjectURL(new Blob());
+                    const blob = link.toString();
+                    URL.revokeObjectURL(link);
+                    return blob.substr(blob.lastIndexOf("/") + 1);
+                },
+                save(columnID) {
+                    //if currentb window does't close, when reflesh page or open new url in current window(how to detect the change ?)
+                    //if open new url in same tab, how to change the uuid?
+                    GM_getTab((tab) => {
+                        const uuid = this.GUID;
+                        tab.id = uuid;
+                        tab.columnID = columnID;
+                        sessionStorage.setItem("uuid", uuid);
+                        GM_saveTab(tab);
+                    });
+                },
+                check(columnID) {
+                    return new Promise((resolve) => {
+                        GM_getTabs((tabs) => {
+                            if (tabs) {
+                                //when open a new tab with "_blank" method, this tab will carry the session data of origin tab
+                                const uuid = sessionStorage.getItem("uuid");
+                                if (!uuid) {
+                                    resolve(false);
+                                } else {
+                                    const tablist = Object.values(tabs);
+                                    const f = tablist.some(
+                                        (e) =>
+                                            e.columnID === columnID &&
+                                            uuid === e.id
+                                    );
+                                    resolve(f);
+                                }
+                            } else resolve(false);
+                        });
+                    });
+                },
+            },
+            tocMenu: {
+                change: false,
+                appendNode(toc) {
+                    if (toc.className.endsWith("collapsed")) return;
+                    const header = document.getElementsByClassName(
+                        "Post-Header"
+                    );
+                    if (header.length === 0) {
+                        console.log("the header has been remove");
+                        return;
+                    }
+                    header[0].appendChild(toc);
+                    toc.style.position = "sticky";
+                    toc.style.width = "900px";
+                    this.change = true;
+                },
+                restoreNode(toc) {
+                    if (!this.change) return;
+                    document.body.append(toc);
+                    toc.removeAttribute("style");
+                    this.change = false;
+                },
+                main(mode) {
+                    const toc = document.getElementById("toc-bar");
+                    toc &&
+                        (mode ? this.restoreNode(toc) : this.appendNode(toc));
+                },
+            },
+            titleChange: false,
+            clearPage(mode = 0) {
+                const ids = [
+                    "Post-Sub Post-NormalSub",
+                    "Post-Author",
+                    "span.Voters button",
+                    "ColumnPageHeader-Wrapper",
+                    "Post-SideActions",
+                    "Sticky RichContent-actions is-bottom",
+                ];
+                if (mode === 0) {
+                    const reg = /\s/g;
+                    const css = ids.map(
+                        (e) =>
+                            `${
+                                e.startsWith("span")
+                                    ? e
+                                    : `.${e.replace(reg, ".")}`
+                            }{display: none;}`
+                    );
+                    return css;
+                } else {
+                    const style = mode === 1 ? "block" : "none";
+                    ids.forEach((e) => {
+                        const tmp = e.startsWith("span");
+                        tmp &&
+                            (e = e.slice(e.indexOf(".") + 1, e.indexOf(" ")));
+                        const t = document.getElementsByClassName(e);
+                        t.length > 0 &&
+                            (tmp
+                                ? (t[0].firstChild.style.display = style)
+                                : (t[0].style.display = style));
+                    });
+                }
+            },
+            titleAlign() {
+                if (this.modePrint && !this.titleChange) return;
+                const title = document.getElementsByClassName("Post-Title");
+                if (title.length === 0) return;
+                if (this.modePrint) {
+                    title[0].removeAttribute("style");
+                } else {
+                    if (title[0].innerText.length > 28) return;
+                    title[0].style.textAlign = "center";
+                }
+                this.titleChange = !this.titleChange;
+            },
+            modePrint: false,
+            pagePrint() {
+                Notification(
+                    `${this.modePrint ? "exit" : "enter"} print mode`,
+                    "Print",
+                    3500
+                );
+                !this.readerMode && this.clearPage(this.modePrint ? 1 : 2);
+                this.tocMenu.main(this.modePrint);
+                this.titleAlign();
+                !this.modePrint && window.print();
+                this.modePrint = !this.modePrint;
+            },
+            Framework() {
+                const html = `
+                <div
+                    id="column_lists"
+                    style="
+                        top: 54px;
+                        width: 380px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                        padding: 0 10px 10px 0;
+                        box-shadow: 0 1px 3px #ddd;
+                        border-radius: 4px;
+                        transition: width 0.2s ease;
+                        color: #333;
+                        background: #fefefe;
+                        -moz-user-select: none;
+                        -webkit-user-select: none;
+                        user-select: none;
+                        display: flex;
+                        z-index: 1000;
+                        position: absolute;
+                        left: 2%;
+                    "
+                >
+                    <style type="text/css">
+                        button.button {
+                            margin: 15px 0px 5px 0px;
+                            width: 60px;
+                            height: 24px;
+                            border-radius: 3px;
+                            box-shadow: 1px 2px 5px #888888;
+                        }
+                        div#column_lists .list.num {
+                            color: #fff;
+                            width: 18px;
+                            height: 18px;
+                            text-align: center;
+                            line-height: 18px;
+                            background: #fff;
+                            border-radius: 2px;
+                            display: inline-block;
+                            background: #00a1d6;
+                        }
+                        div#column_lists ul a:hover{
+                            color: blue;
+                        }
+                        div#column_lists ul {
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            display: block;
+                            line-height: 1.9;
+                        }
+                        div#column_lists .header{
+                            font-weight: bold;
+                            font-size: 16px;
+                        }
+                    </style>
+                    <span
+                        class="right_column"
+                        style="margin-left: 5%; margin-top: 5px; width: 100%"
+                    >
+                        <span class="header current column">
+                            <a
+                                class="column name"
+                                href= https://www.zhihu.com/column/${
+                                    this.columnID
+                                }
+                                target="_blank"
+                                title=${
+                                    this.isZhuanlan
+                                        ? ""
+                                        : escapeBlank("random column")
+                                }
+                                >${this.columnName}</a
+                            >
+                            <span class="tips" style="
+                                float: right;
+                                font-size: 14px;
+                                font-weight: normal;
+                            "></span>
+                            <hr style="width: 340px" />
+                        </span>
+                        <ul
+                            class="article_lists"
+                        >
+                        </ul>
+                        <div class="nav button">
+                            <button class="button last" title="previous page">Pre</button>
+                            <button class="button next" title="next page">Next</button>
+                            <button class="button hide" title="hide the menu">Hide</button>
+                            <button class="button more" title="show more content">More</button>
+                            <select class="select-pages" size="1" name="pageslist" style="margin-left: 20px; margin-top: 16px; height: 24px; position: absolute; width: 60px;box-shadow: 1px 2px 5px #888888;">
+                                <option value="0" selected>pages</option>
+                            </select>
+                        </div>
+                    </span>
+                </div>`;
+                document.body.insertAdjacentHTML("beforeend", html);
+            },
+            timeStampconvertor(timestamp) {
+                if (!timestamp) return "undefined";
+                if (typeof timestamp === "number") {
+                    const s = timestamp.toString();
+                    if (s.length === 10) timestamp *= 1000;
+                    else if (s.length !== 13) return "undefined";
+                } else {
+                    if (timestamp.length === 10) {
+                        timestamp = parseInt(timestamp);
+                        timestamp *= 1000;
+                    } else if (timestamp.length === 13) {
+                        timestamp = parseInt(timestamp);
+                    } else {
+                        return "";
+                    }
+                }
+                const date = new Date(timestamp);
+                const y = date.getFullYear() + "-";
+                const m =
+                    (date.getMonth() + 1 < 10
+                        ? "0" + (date.getMonth() + 1)
+                        : date.getMonth() + 1) + "-";
+                let d = date.getDate();
+                d = d < 10 ? "0" + d : d;
+                return y + m + d;
+            },
+            backupInfo: null,
+            next: null,
+            previous: null,
+            index: 1,
+            requestData(url) {
+                xmlHTTPRequest(url).then(
+                    (json) => {
+                        typeof json === "string" && (json = JSON.parse(json));
+                        const data = json.data;
+                        let id = this.isReverse ? data.length : 1;
+                        const html = [];
+                        this.backupInfo = [];
+                        const tips =
+                            "click&nbsp;me,&nbsp;show&nbsp;the&nbsp;content&nbsp;in&nbsp;current&nbsp;webpage";
+                        const HREF = location.href;
+                        for (const e of data) {
+                            const type = e.type;
+                            if (type !== "article" && type !== "answer")
+                                continue;
+                            const info = {};
+                            info.id = id;
+                            let time = e.updated;
+                            let title = e.title;
+                            let className = '"list_date"';
+                            let question = "";
+                            info.url = e.url;
+                            const tmp = {};
+                            let fontWeight = "";
+                            if (!time) {
+                                time = e.updated_time;
+                                className = "list_date_question";
+                                title = e.question.title;
+                                question =
+                                    "this&nbsp;is&nbsp;a&nbsp;question&nbsp;page,&nbsp;do&nbsp;not&nbsp;show&nbsp;in&nbsp;current&nbsp;page";
+                                info.url = `https://www.zhihu.com/question/${e.question.id}/answer/${e.id}`;
+                            } else {
+                                HREF === info.url &&
+                                    ((fontWeight =
+                                        ' style="font-weight:bold;"'),
+                                    (this.targetIndex = id));
+                                tmp.author = e.author;
+                            }
+                            info.excerpt = escapeHTML(
+                                `${title} <摘要>: ` + e.excerpt
+                            );
+                            info.updated = this.timeStampconvertor(time);
+                            title = titleSlice(title);
+                            title = escapeHTML(title);
+                            info.title = title;
+                            html.push(
+                                this.liTagRaw(
+                                    info,
+                                    question || tips,
+                                    className,
+                                    fontWeight
+                                )
+                            );
+                            if (!question) {
+                                tmp.content = e.content;
+                                tmp.title = e.title;
+                            }
+                            this.backupInfo.push(tmp);
+                            this.isReverse ? id-- : id++;
+                        }
+                        if (this.isReverse) {
+                            this.backupInfo.reverse();
+                            html.reverse();
+                        }
+                        const pag = json.paging;
+                        const totals = pag.totals;
+                        this.appendNode(html, totals);
+                        this.previous = this.isReverse
+                            ? pag.is_end
+                                ? ""
+                                : pag.next
+                            : pag.is_start
+                            ? ""
+                            : pag.previous;
+                        this.next = this.isReverse
+                            ? pag.is_start
+                                ? ""
+                                : pag.previous
+                            : pag.is_end
+                            ? ""
+                            : pag.next;
+                    },
+                    (err) => console.log(err)
+                );
+            },
+            firstAdd: true,
+            selectRaw(index, name) {
+                return `<option value=${index}>${name}</option>`;
+            },
+            total_pages: 0,
+            isReverse: false,
+            //pages list
+            appendSelect(node, pages, mode = false) {
+                const select = node.getElementsByClassName("select-pages");
+                if (select.length === 0) return;
+                this.total_pages = Math.ceil(pages / 10);
+                const end = this.total_pages > 30 ? 31 : this.total_pages + 1;
+                const html = [];
+                for (let index = 1; index < end; index++)
+                    html.push(this.selectRaw(index, index));
+                if (this.total_pages > 1)
+                    html.push(this.selectRaw(html.length + 1, "reverse"));
+                select[0].insertAdjacentHTML("beforeend", html.join(""));
+                const optionNum = select[0].length + 1;
+                const [ds, dh] =
+                    optionNum < 9
+                        ? [optionNum, 15 * optionNum + "px"]
+                        : [8, "120px"];
+                select[0].onmousedown = function () {
+                    this.size = ds;
+                    this.style.height = dh;
+                };
+                select[0].onblur = function () {
+                    this.style.height = "24px";
+                    this.size = 1;
+                };
+                //execute
+                const exe = (opt) => {
+                    if (this.total_pages === 1) return;
+                    const i = opt.value * 1;
+                    const tmp = i === this.total_pages + 1;
+                    if (tmp) {
+                        if (this.isReverse) return;
+                        this.isReverse = tmp;
+                        this.index = 1;
+                        opt.value = 1;
+                    } else {
+                        if (i === 0) {
+                            if (this.isReverse) {
+                                this.isReverse = false;
+                                this.index = 1;
+                                opt.value = 1;
+                            } else {
+                                return;
+                            }
+                        } else this.index = i;
+                    }
+                    if (mode) {
+                        Reflect.apply(this.homePage.add, this, [
+                            this.homePage.initial,
+                            "f",
+                            true,
+                        ]);
+                    } else {
+                        const m = this.isReverse
+                            ? this.total_pages - this.index
+                            : this.index - 1;
+                        const URL = `http://www.zhihu.com/api/v4/columns/${
+                            this.columnID
+                        }/items?limit=10&offset=${10 * m}`;
+                        this.requestData(URL);
+                    }
+                };
+                select[0].onchange = function () {
+                    this.size = 1;
+                    this.style.height = "24px";
+                    exe(this);
+                };
+            },
+            changeSelect(mode) {
+                this.index += mode ? 1 : -1;
+                const column = document.getElementById("column_lists");
+                const select = column.getElementsByTagName("select")[0];
+                select.value = this.index;
+            },
+            appendNode(html, totals, mode = false) {
+                const column = document.getElementById("column_lists");
+                if (!column) {
+                    console.log("the module of column has been deleted");
+                    return;
+                }
+                const lists = column.getElementsByClassName("article_lists")[0];
+                this.firstAdd
+                    ? (lists.insertAdjacentHTML("afterbegin", html.join("")),
+                      this.appendSelect(column, totals, mode),
+                      this.clickEvent(column, mode))
+                    : (lists.innerHTML = html.join(""));
+                this.firstAdd = false;
+            },
+            liTagRaw(info, title, className = "list_date", fontWeight = "") {
+                const html = `
+                <li${fontWeight}>
+                    <span class="list num">${info.id}</span>
+                    <a
+                        href=${info.url}
+                        target="_blank"
+                        title=${info.excerpt}>${info.title}</a
+                    >
+                    <span class=${className} style="float: right" title=${title}>${info.updated}</span>
+                </li>`;
+                return html;
+            },
+            nextPage: false,
+            tipsTimeout: null,
+            showTips(tips) {
+                const column = document.getElementById("column_lists");
+                if (!column) return;
+                const tipNode = column.getElementsByClassName("tips")[0];
+                tipNode.innerText = tips;
+                this.tipsTimeout && clearTimeout(this.tipsTimeout);
+                this.tipsTimeout = setTimeout(() => {
+                    tipNode.innerText = "";
+                    this.tipsTimeout = null;
+                }, 2000);
+            },
+            /*
+            need add new function => simple mode and content mode, if it is simple mode, all page direct show the menu of column?
+            */
+            followCursor: null,
+            homePage: {
+                follow: null,
+                get ColumnID() {
+                    const i = Math.floor(Math.random() * this.follow.length);
+                    return this.follow[i].columnID;
+                },
+                get initial() {
+                    this.follow = GM_getValue("follow");
+                    if (
+                        !this.follow ||
+                        !Array.isArray(this.follow) ||
+                        this.follow.length === 0
+                    )
+                        return false;
+                    return this.follow;
+                },
+                add(follow, direction, page) {
+                    if (!follow) return;
+                    setTimeout(() => {
+                        const html = [];
+                        const k = follow.length;
+                        if (this.isReverse) {
+                            this.followCursor = (this.index - 1) * 10 - 1;
+                        } else {
+                            if (page) {
+                                this.followCursor = k - (this.index - 1) * 10;
+                            } else {
+                                if (this.followCursor === null) {
+                                    this.followCursor = k;
+                                } else {
+                                    if (direction === "r")
+                                        this.followCursor += 20;
+                                    if (this.followCursor > k)
+                                        this.followCursor = k;
+                                }
+                            }
+                        }
+                        const className = "list_date_follow";
+                        const title = "follow&nbsp;date";
+                        let id = 1;
+                        const prefix = "https://www.zhihu.com/column/";
+                        const methods = {
+                            r() {
+                                this.followCursor += 1;
+                                return this.followCursor < k;
+                            },
+                            f() {
+                                this.followCursor -= 1;
+                                return this.followCursor > -1;
+                            },
+                        };
+                        const func = this.isReverse ? "r" : "f";
+                        while (methods[func].call(this)) {
+                            const e = follow[this.followCursor];
+                            const info = {};
+                            info.title = e.columnName;
+                            info.updated = this.timeStampconvertor(e.update);
+                            info.excerpt = e.tags.join(";&nbsp;");
+                            info.url = prefix + e.columnID;
+                            info.id = id;
+                            html.push(this.liTagRaw(info, title, className));
+                            id++;
+                            if (id > 10) break;
+                        }
+                        this.appendNode(html, k, true);
+                        this.previous = this.isReverse
+                            ? this.index - 1
+                            : !(this.followCursor + id - 1 === k);
+                        this.next = this.isReverse
+                            ? this.index === Math.ceil(k / 10)
+                                ? 0
+                                : 1
+                            : this.followCursor > -1;
+                        this.homePage.follow = null;
+                    }, 0);
+                },
+            },
+            targetIndex: 0,
+            clickEvent(node, mode = false) {
+                let buttons = node.getElementsByClassName("nav button")[0]
+                    .children;
+                let article = node.getElementsByTagName("ul")[0];
+                let aid = 0;
+                //show content in current page;
+                article.onclick = (e) => {
+                    if (Reflect.get(zhihu.autoScroll, "scrollState")) return;
+                    const href = e.target.previousElementSibling.href;
+                    if (location.href === href) return;
+                    const className = e.target.className;
+                    if (className === "list_date_follow")
+                        window.open(href, "_self");
+                    else if (className !== "list_date") return;
+                    const content = document.getElementsByClassName(
+                        "RichText ztext Post-RichText"
+                    );
+                    if (content.length === 0) return;
+                    const p = e.path;
+                    let ic = 0;
+                    for (const e of p) {
+                        if (e.localName === "li") {
+                            let id = e.children[0].innerText;
+                            id *= 1;
+                            if (id === aid) return;
+                            aid = id;
+                            break;
+                        }
+                        if (ic > 2) return;
+                        ic++;
+                    }
+                    const i = aid - 1;
+                    const title = document.getElementsByClassName("Post-Title");
+                    title.length > 0 &&
+                        (title[0].innerText = this.backupInfo[i].title);
+                    content[0].innerHTML = this.backupInfo[i].content;
+                    zhihu.colorAssistant.main();
+                    window.history.replaceState(null, null, href);
+                    document.title = `${this.backupInfo[i].title} - 知乎`;
+                    //refresh the menu
+                    const toc = document.getElementById("toc-bar");
+                    if (toc) {
+                        const refresh = toc.getElementsByClassName(
+                            "toc-bar__refresh toc-bar__icon-btn"
+                        )[0];
+                        refresh.click();
+                    }
+                    const author = this.backupInfo[i].author;
+                    if (author && this.authorID !== author.url_token)
+                        this.updateAuthor(author);
+                    let pnode = e.target.parentNode;
+                    let j = 0;
+                    while (pnode.localName !== "li") {
+                        pnode = pnode.parentNode;
+                        j++;
+                        if (j > 2) break;
+                    }
+                    pnode.style.fontWeight = "bold";
+                    if (this.targetIndex > 0) {
+                        pnode.parentNode.children[
+                            this.targetIndex - 1
+                        ].style.fontWeight = "normal";
+                    }
+                    this.targetIndex = aid;
+                };
+                article = null;
+                //last page
+                let isCollapsed = false;
+                buttons[0].onclick = () => {
+                    !isCollapsed &&
+                        (this.previous
+                            ? (mode
+                                  ? Reflect.apply(this.homePage.add, this, [
+                                        this.homePage.initial,
+                                        "r",
+                                        false,
+                                    ])
+                                  : this.requestData(this.previous),
+                              (aid = 0),
+                              this.changeSelect(false))
+                            : this.showTips("no more content"));
+                };
+                //next page
+                buttons[1].onclick = () => {
+                    !isCollapsed &&
+                        (this.next
+                            ? (mode
+                                  ? Reflect.apply(this.homePage.add, this, [
+                                        this.homePage.initial,
+                                        "f",
+                                        false,
+                                    ])
+                                  : this.requestData(this.next),
+                              (aid = 0),
+                              this.changeSelect(true))
+                            : this.showTips("no more content"));
+                };
+                //hide the sidebar
+                buttons[2].onclick = function () {
+                    const [style, text, title] = isCollapsed
+                        ? ["block", "Hide", "hide the menu"]
+                        : ["none", "Expand", "show the menu"];
+                    this.parentNode.parentNode.children[1].style.display = style;
+                    const more = this.parentNode.nextElementSibling;
+                    if (more) {
+                        more.style.display = style;
+                        more.nextElementSibling.style.display = style;
+                    }
+                    this.innerText = text;
+                    this.title = title;
+                    isCollapsed = !isCollapsed;
+                };
+                let addnew = true;
+                const createModule = (button) => {
+                    const sub = GM_getValue("subscribe");
+                    if (addnew) {
+                        this.columnsModule.liTagRaw = this.liTagRaw;
+                        this.columnsModule.isZhuanlan = this.isZhuanlan;
+                        this.columnsModule.timeStampconvertor = this.timeStampconvertor;
+                    }
+                    let html = null;
+                    let text = "";
+                    if (sub && Array.isArray(sub)) {
+                        let id = 1;
+                        const prefix = "https://www.zhihu.com/column/";
+                        const title = "subscribe&nbsp;time";
+                        html = sub.map((e) => {
+                            const info = {};
+                            info.id = id;
+                            info.url = prefix + e.columnID;
+                            info.updated = this.timeStampconvertor(e.update);
+                            info.title = e.columnName;
+                            info.excerpt = "";
+                            id++;
+                            return this.liTagRaw(info, title);
+                        });
+                        text = "Subscribe";
+                    } else text = "no more data";
+                    addnew
+                        ? this.columnsModule.main(
+                              button,
+                              html,
+                              text,
+                              escapeBlank(
+                                  this.isZhuanlan
+                                      ? "column/collection search"
+                                      : "column search"
+                              )
+                          )
+                        : this.columnsModule.appendNewNode(html, text);
+                    addnew = false;
+                };
+                buttons[3].onclick = function () {
+                    !isCollapsed && createModule(this);
+                };
+                //if webpage is column home, expand this menu
+                mode && createModule(buttons[3]);
+                buttons = null;
+            },
+            columnsModule: {
+                recentModule: {
+                    log(type) {
+                        //history, pocket, recent collect: h, c, p
+                        const href = location.href;
+                        let r = GM_getValue("recent");
+                        if (r && Array.isArray(r)) {
+                            const index = r.findIndex((e) => e.url === href);
+                            if (index > -1 && r[index].type === type) {
+                                if (index === 0) return;
+                                r.splice(index, 1);
+                            }
+                        } else r = [];
+                        const info = {};
+                        let title = document.title;
+                        title = title.slice(0, title.length - 5);
+                        info.title = title;
+                        info.update = Date.now();
+                        info.type = type;
+                        info.url = href;
+                        const i = r.length;
+                        if (i === 0) {
+                            r.push(info);
+                        } else {
+                            if (i === 5) r.pop();
+                            r.unshift(info);
+                        }
+                        GM_setValue("recent", r);
+                        type === "p" &&
+                            Notification(
+                                "add current article to read later successfully",
+                                "Tips"
+                            );
+                    },
+                    remove(type) {
+                        const href = location.href;
+                        const r = GM_getValue("recent");
+                        if (r && Array.isArray(r)) {
+                            const index = r.findIndex((e) => e.url === href);
+                            if (r[index].type === type) {
+                                r.splice(index, 1);
+                                GM_setValue("recent", r);
+                            }
+                        }
+                    },
+                    addnew: true,
+                    read(node, liTagRaw, timeStampconvertor) {
+                        const r = GM_getValue("recent");
+                        if (!r || !Array.isArray(r) || r.length === 0) return;
+                        const html = r.map((e) => {
+                            const info = {};
+                            const type = e.type;
+                            info.updated = timeStampconvertor(e.update);
+                            info.id = type;
+                            info.excerpt = "";
+                            info.url = e.url;
+                            info.title = titleSlice(e.title);
+                            const title =
+                                "recent&nbsp;" +
+                                (type === "h"
+                                    ? "read&nbsp;history"
+                                    : type === "c"
+                                    ? "collection"
+                                    : "pocket");
+                            return liTagRaw(info, title);
+                        });
+                        let ul = node.getElementsByTagName("ul")[0];
+                        const pre = ul.previousElementSibling;
+                        pre.style.display =
+                            html.length === 0 ? "block" : "none";
+                        ul.innerHTML = html.join("");
+                        if (this.addnew) {
+                            ul.onclick = (e) => {
+                                if (e.target.className === "list_date") {
+                                    const a =
+                                        e.target.previousElementSibling.href;
+                                    location.href !== a &&
+                                        window.open(a, "_self");
+                                }
+                            };
+                        }
+                        ul = null;
+                    },
+                    main(node, liTagRaw, timeStampconvertor) {
+                        const n = node.nextElementSibling;
+                        this.read(n, liTagRaw, timeStampconvertor);
+                        let button = n.getElementsByClassName(
+                            "button refresh"
+                        )[0];
+                        button.onclick = () =>
+                            this.read(n, liTagRaw, timeStampconvertor);
+                        button = null;
+                    },
+                },
+                database: null,
+                node: null,
+                liTagRaw: null,
+                addNewModule(text, placeholder) {
+                    const html = `
+                        <div class="more columns">
+                            <hr>
+                            <div class="search module" style="margin-bottom: 10px">
+                                <input
+                                    type="text"
+                                    placeholder=${placeholder}
+                                    style="height: 24px; width: 250px"
+                                />
+                                <button class="button search" style="margin-left: 11px;">Search</button>
+                            </div>
+                            <hr>
+                            <span class="header columns">${text}</span>
+                            <ul class="columns list">
+                            </ul>
+                        </div>
+                        <div class="recently-activity">
+                            <hr>
+                            <span class="header columns"
+                                >Recent
+                                <button
+                                    class="button refresh"
+                                    style="margin-top: 5px; margin-left: 210px; font-weight: normal"
+                                    title="refresh recent content"
+                                >
+                                    refresh
+                                </button>
+                            </span>
+                            <hr>
+                            <span class="header columns">no recent data</span>
+                            <ul></ul>
+                        </div>`;
+                    const column = document.getElementById("column_lists");
+                    if (column)
+                        column.children[1].insertAdjacentHTML(
+                            "beforeend",
+                            html
+                        );
+                },
+                appendNewNode(html, text = "", node) {
+                    let pnode = node || this.node;
+                    pnode = pnode.parentNode.nextElementSibling;
+                    const ul = pnode.getElementsByTagName("ul")[0];
+                    ul.innerHTML = html.join("");
+                    text && (pnode.children[3].innerText = text);
+                },
+                checkInlcudes(e, key) {
+                    if (e.columnName.includes(key)) return true;
+                    return e.tags.some((t) =>
+                        key.length > t.length
+                            ? key.includes(t)
+                            : t.includes(key)
+                    );
+                },
+                timeStampconvertor: null,
+                commandFormat(str) {
+                    //s = '$d<3 $d>7 $a=(python javascript)';
+                    const treg = /(?<=\$)[dmhyw][<>=][1-9]+/g;
+                    const areg = /(?<=\$)a=\(.+\)/g;
+                    const preg = /(?<=\$)p=[1-9]{5,}/g;
+                    const t = str.match(treg);
+                    const p = str.match(preg);
+                    if (t && p) return null;
+                    const a = str.match(areg);
+                    if (p && a) return null;
+                    if (!(a || p || t)) return null;
+                    const sigs = ["=", ">", "<"];
+                    const sign = {
+                        0: "equal",
+                        1: "great",
+                        2: "less",
+                    };
+                    const type = {};
+                    if (t) {
+                        let cm = "";
+                        let ecount = 0;
+                        let lcount = 0;
+                        let gcount = 0;
+                        for (const e of t) {
+                            if (cm && cm !== e[0]) return null;
+                            if (!type[e[0]]) type[e[0]] = {};
+                            if (type[e[0]]) {
+                                const sg = e[1];
+                                const index = sigs.findIndex((e) => e === sg);
+                                if (index === 0) {
+                                    ecount++;
+                                    if (ecount > 1) return null;
+                                } else if (index === 1) {
+                                    gcount++;
+                                    if (gcount > 1) return null;
+                                } else {
+                                    lcount++;
+                                    if (lcount > 1) return null;
+                                }
+                                const n = sign[index];
+                                if (type[e[0]][n]) return null;
+                                type[e[0]][n] = e.slice(2);
+                            }
+                        }
+                        if (a) {
+                            if (a.length > 1) return null;
+                            const tmp = a[0];
+                            type[tmp[0]] = tmp
+                                .slice(3, tmp.length - 1)
+                                .split(" ");
+                        }
+                    } else if (p) {
+                        if (p.length > 1) return null;
+                        const tmp = p[0];
+                        type[tmp[0]] = tmp[2];
+                    } else if (a) {
+                        if (a.length > 1) return null;
+                        const tmp = a[0];
+                        type[tmp[0]] = tmp.slice(3, tmp.length - 1).split(" ");
+                    }
+                    return type;
+                },
+                ExecuteFunc: {
+                    Resultshow(e, i, liTagRaw, timeStampconvertor) {
+                        const info = {};
+                        info.id = i;
+                        info.title = titleSlice(e.title);
+                        info.excerpt = escapeHTML(e.excerpt);
+                        info.updated = timeStampconvertor(e.update);
+                        const title = escapeBlank("collect time");
+                        const prefix = "/p/";
+                        info.url = prefix + e.pid;
+                        return liTagRaw(info, title);
+                    },
+                    less(a, b) {
+                        return a < b;
+                    },
+                    equal(a, b) {
+                        return a === b;
+                    },
+                    great(a, b) {
+                        return a > b;
+                    },
+                    get now() {
+                        return Date.now();
+                    },
+                    get nowDate() {
+                        return new Date();
+                    },
+                    getUpdate(update) {
+                        return new Date(update);
+                    },
+                    w(value, mode, info) {
+                        const now = this.now;
+                        const time = info.update;
+                        const week = (now - time) / (86400000 * 7);
+                        return this[mode](week, value * 1);
+                    },
+                    d(value, mode, info) {
+                        const now = this.now;
+                        const time = info.update;
+                        const day = (now - time) / 86400000;
+                        return this[mode](day, value * 1);
+                    },
+                    m(value, mode, info) {
+                        const endDate = this.nowDate;
+                        const beginDate = this.getUpdate(info.update);
+                        const moth =
+                            endDate.getFullYear() * 12 +
+                            endDate.getMonth() -
+                            (beginDate.getFullYear() * 12 +
+                                beginDate.getMonth());
+                        return this[mode](moth, value * 1);
+                    },
+                    y(value, mode, info) {
+                        const endDate = this.nowDate;
+                        const beginDate = this.getUpdate(info.update);
+                        const year =
+                            endDate.getFullYear() * 12 +
+                            endDate.getMonth() -
+                            (beginDate.getFullYear() * 12 +
+                                beginDate.getMonth()) /
+                                12;
+                        return this[mode](year, value * 1);
+                    },
+                    h(value, mode, info) {
+                        const now = this.now;
+                        const time = info.update;
+                        const hour = (now - time) / (1000 * 60 * 60);
+                        return this[mode](hour, value * 1);
+                    },
+                    a(value, info) {
+                        const content =
+                            info.title +
+                            " | " +
+                            info.tags.join("") +
+                            info.excerpt;
+                        return value.some((v) => content.includes(v));
+                    },
+                    search(table, fs, liTagRaw, timeStampconvertor) {
+                        return new Promise((resolve, reject) => {
+                            let ic = 0;
+                            const html = [];
+                            const cur = table.openCursor(null, "next");
+                            cur.onsuccess = (e) => {
+                                const cursor = e.target.result;
+                                if (cursor) {
+                                    const info = cursor.value;
+                                    const result = fs.every((f) => f(info));
+                                    if (result) {
+                                        ic++;
+                                        html.push(
+                                            this.Resultshow(
+                                                info,
+                                                ic,
+                                                liTagRaw,
+                                                timeStampconvertor
+                                            )
+                                        );
+                                    }
+                                    if (ic === 10) {
+                                        resolve(html);
+                                    } else {
+                                        cursor.continue();
+                                    }
+                                } else {
+                                    resolve(html);
+                                }
+                            };
+                            cur.onerror = (e) => {
+                                console.log(e);
+                                reject("open db cursor fail");
+                            };
+                        });
+                    },
+                    funcs(
+                        type,
+                        liTagRaw,
+                        timeStampconvertor,
+                        node,
+                        appendNewNode
+                    ) {
+                        const fs = [];
+                        const keys = Object.keys(type);
+                        for (const f of keys) {
+                            const tmp = type[f];
+                            if (Array.isArray(tmp) || typeof tmp !== "object") {
+                                if (f === "p") {
+                                    dataBaseInstance.check().then(
+                                        (r) => {
+                                            const html = [];
+                                            if (r) {
+                                                html.push(
+                                                    this.Resultshow(
+                                                        r,
+                                                        1,
+                                                        liTagRaw,
+                                                        timeStampconvertor
+                                                    )
+                                                );
+                                            }
+                                            appendNewNode(
+                                                html,
+                                                html.length === 0
+                                                    ? "no search result"
+                                                    : "article search results",
+                                                node
+                                            );
+                                        },
+                                        (err) => console.log(err)
+                                    );
+                                    return;
+                                }
+                                fs.push(this[f].bind(this, tmp));
+                                continue;
+                            }
+                            const tk = Object.keys(tmp);
+                            for (const e of tk)
+                                fs.push(this[f].bind(this, tmp[e], e));
+                        }
+                        return fs;
+                    },
+                    main(
+                        table,
+                        type,
+                        liTagRaw,
+                        timeStampconvertor,
+                        node,
+                        appendNewNode
+                    ) {
+                        const fs = this.funcs(
+                            type,
+                            liTagRaw,
+                            timeStampconvertor,
+                            node,
+                            appendNewNode
+                        );
+                        if (fs.length === 0) {
+                            dataBaseInstance.close();
+                            return;
+                        }
+                        this.search(
+                            table,
+                            fs,
+                            liTagRaw,
+                            timeStampconvertor
+                        ).then(
+                            (html) => {
+                                appendNewNode(
+                                    html,
+                                    html.length === 0
+                                        ? "no search result"
+                                        : "article search results",
+                                    node
+                                );
+                                dataBaseInstance.close();
+                            },
+                            (err) => {
+                                console.log(err);
+                                dataBaseInstance.close();
+                            }
+                        );
+                    },
+                },
+                initialDatabase(type) {
+                    if (!type) return;
+                    dataBaseInstance.initial(["collection"], false).then(
+                        (result) => {
+                            if (result === 0) {
+                                this.appendNewNode([], "no search result");
+                                return;
+                            }
+                            this.ExecuteFunc.main(
+                                dataBaseInstance.Table,
+                                type,
+                                this.liTagRaw,
+                                this.timeStampconvertor,
+                                this.node,
+                                this.appendNewNode
+                            );
+                        },
+                        (err) => {
+                            this.appendNewNode([], "open DB fail");
+                            dataBaseInstance.close();
+                        }
+                    );
+                },
+                isZhuanlan: false,
+                searchDatabase(key) {
+                    if (key.startsWith("$") && this.isZhuanlan) {
+                        const cm = ["a", "p", "d", "m", "y", "h", "w"];
+                        const sc = key.slice(1, 2);
+                        const f = cm.findIndex((e) => sc === e);
+                        if (f < 0) return false;
+                        this.initialDatabase(this.commandFormat(key));
+                        return true;
+                    }
+                    return false;
+                },
+                search(key) {
+                    //search follow columns & collection of article
+                    if (this.searchDatabase(key)) return;
+                    let i = 0;
+                    const html = [];
+                    const prefix = "https://www.zhihu.com/column/";
+                    const title = "follow&nbsp;time";
+                    for (const e of this.database) {
+                        if (this.checkInlcudes(e, key)) {
+                            i++;
+                            const info = {};
+                            info.id = i;
+                            info.title = e.columnName;
+                            info.excerpt = e.tags.join(";&nbsp;");
+                            info.updated = this.timeStampconvertor(e.update);
+                            info.url = prefix + e.columnID;
+                            html.push(this.liTagRaw(info, title));
+                            if (i === 10) break;
+                        }
+                    }
+                    this.appendNewNode(
+                        html,
+                        html.length === 0
+                            ? "no search result"
+                            : "column search results"
+                    );
+                },
+                event() {
+                    const p = this.node.parentNode.nextElementSibling;
+                    const input = p.getElementsByTagName("input")[0];
+                    input.onkeydown = (e) => {
+                        if (e.keyCode !== 13) return;
+                        const key = input.value.trim();
+                        key.length > 1 && this.search(key);
+                    };
+                    let button = p.getElementsByClassName("button search")[0];
+                    button.onclick = () => {
+                        const key = input.value.trim();
+                        key.length > 1 && this.search(key);
+                    };
+                    button = null;
+                    let ul = p.getElementsByTagName("ul")[0];
+                    ul.onclick = (e) => {
+                        if (e.target.className === "list_date") {
+                            const a = e.target.previousElementSibling.href;
+                            location.href !== a && window.open(a, "_self");
+                        }
+                    };
+                    ul = null;
+                    this.recentModule.main(
+                        p,
+                        this.liTagRaw,
+                        this.timeStampconvertor
+                    );
+                },
+                main(node, html, text, placeholder) {
+                    this.node = node;
+                    this.addNewModule(text, placeholder);
+                    html && this.appendNewNode(html);
+                    this.database = GM_getValue("follow");
+                    if (!this.database || !Array.isArray(this.database))
+                        this.database = [];
+                    this.event();
+                    GM_addValueChangeListener(
+                        "follow",
+                        (name, oldValue, newValue, remote) =>
+                            remote && (this.database = newValue)
+                    );
+                },
+            },
+            assistNewModule: {
+                preferenceModule(ainfo, binfo) {
+                    const html = `
+                    <div class="article_attitude" style="margin-left: 23px;">
+                        <i
+                            class="like"
+                            style="
+                                display: ${ainfo.ldisplay};
+                                width: 26px;
+                                content: url(data:image/webp;base64,UklGRoQBAABXRUJQVlA4IHgBAACQCACdASogAB8APm0ukUakIqGhKA1QgA2JaQATIBYgOyI1I/+d+2b49NA3z97A/6i/5f7VTVdqWUnQ+1B4fpukJQWsIUl77RwBlh9AYAD+/zKmH7r/7EJor7FchRHELu3xLyzt7tJsA4Kzo9o+jvdvg5F0PPnJ9h0T6ZLB/b/rf/u1ZNAgIjiz+e0teMM3r/7DFRJvl0h7Fp4PhhsogsSnsOevchiVl0v6jl73n1FPJaHvKz9qfJjC7VQCJTZ5/BAH9nF7hT/zjn+4fX8wnMmQGU9umlNySGfj4UGkhjkHpIds5Roy6Pi8eUA5zXCS8zCLf44zw/qXPgWSHfCrt+fmUapijvBoIn63X72ltR/wx3tHDi5gRr/wpBL8ERY3qmeKlMEBs9Km2Kg7BwpkKE4XNXjYQXuHn5bv7F0uxIKi2Ubgl/XO+BoeBlATzvrM24XeHW2/tv3nQ/z/wzbte4iSl5C3+7TrtUmPDs/XPieOK13LuZjgAAAA);
+                                height: 26px;
+                                margin-bottom: 5px;
+                            "
+                            title=${ainfo.ltitle}
+                        ></i>
+                        <i
+                            class="dislike"
+                            style="
+                                content: url(data:image/webp;base64,UklGRmYBAABXRUJQVlA4IFoBAACQCQCdASogACAAPm0qkkWkIqGYDAYAQAbEtIAJ5c+RfUB0rJ7j9kpzPfcf1XiiNSX5s/7v5gPbD3Bv1F/0K6nH9glbEGQcDYiAI3S+NfKqNr+EMSyQAP7yUv/+QvpX0Z+oaIucX4be+hsni+QhcLK0f/ugn01LW17/NrkTFet/XNw/o/5+bPpPA3v7Ic8/NjVb4alH/V1LUJBkL7kko/v//XOzDfCaCoDzemP+zPNtC3dB6keXLJVpBMrLJgNzY/VUAKf+1SSCB/5BD/4Nf+lylTxAGWJl0/1twWPbOMbH0d+MQkF0fSsPqqBRpvc6FNf+PClifyl4OpWwfxGKiMm1C7O8/w0vDlPCbbwR4FKhQKuj2Fyul9WITHFC4fpzSNIBC39ZlySnghJRgDgCo/P+f9205ENaW+9XKyYLte/Gddtc43354MKLVHwYv44znVWV8gcjChTAAAAA);
+                                display: ${ainfo.ddisplay};
+                                width: 24px;
+                                height: 24px;
+                            "
+                            title=${ainfo.dtitle}
+                        ></i>
+                    </div>
+                    <button class="assist-button collect" style="color: black;" title=${binfo.title}>${binfo.name}</button>`;
+                    return html;
+                },
+                create(module) {
+                    const node = document.getElementById(
+                        "assist-button-container"
+                    );
+                    node.children[0].insertAdjacentHTML("afterend", module);
+                    return node;
+                },
+                main() {
+                    return new Promise((resolve) => {
+                        const tables = ["collection", "preference"];
+                        //open db with r&w mode, if this db is not exist then create db
+                        dataBaseInstance.initial(tables, true).then(
+                            (result) => {
+                                const ainfo = {};
+                                ainfo.ltitle = "like this article";
+                                ainfo.ldisplay = "block";
+                                ainfo.ddisplay = "block";
+                                ainfo.dtitle = "dislike this article";
+                                const binfo = {};
+                                binfo.title = "add this article to collection";
+                                binfo.name = "Collect";
+                                if (result === 0) {
+                                    resolve(
+                                        this.create(
+                                            this.preferenceModule(
+                                                escapeBlank(ainfo),
+                                                escapeBlank(binfo)
+                                            )
+                                        )
+                                    );
+                                    dataBaseInstance.close(false);
+                                } else {
+                                    dataBaseInstance
+                                        .batchCheck(tables)
+                                        .then((results) => {
+                                            const c = results[0];
+                                            if (c) {
+                                                binfo.title =
+                                                    "remove this acticle from collection list";
+                                                binfo.name = "Remove";
+                                            }
+                                            const pref = results[1];
+                                            if (pref === 1) {
+                                                ainfo.ltitle =
+                                                    "cancel like this article";
+                                                ainfo.ddisplay = "none";
+                                            } else if (pref === 0) {
+                                                ainfo.dtitle =
+                                                    "cancel dislike this article";
+                                                ainfo.ldisplay = "none";
+                                            }
+                                            resolve(
+                                                this.create(
+                                                    this.preferenceModule(
+                                                        escapeBlank(ainfo),
+                                                        escapeBlank(binfo)
+                                                    )
+                                                )
+                                            );
+                                            dataBaseInstance.close();
+                                        });
+                                }
+                            },
+                            (err) => {
+                                console.log(err);
+                                resolve(null);
+                            }
+                        );
+                    });
+                },
+            },
+            creatAssistantEvent(node, mode) {
+                const Button = (button, m) => {
+                    if (m) {
+                        if (!this.readerMode) return;
+                        this.createFrame();
+                        button.style.display = "none";
+                        mode = false;
+                    } else {
+                        let text = "";
+                        let style = "";
+                        const column = document.getElementById("column_lists");
+                        let i = 0;
+                        let title = "";
+                        if (this.readerMode) {
+                            text = "Reader";
+                            style = "none";
+                            title = "enter";
+                            if (column) column.style.display = style;
+                            i = 1;
+                            //show content;
+                        } else {
+                            style = "block";
+                            text = "Exit";
+                            title = "exit";
+                            if (column) {
+                                column.style.display = style;
+                            } else {
+                                //hide content
+                                this.Tabs.check(this.columnID).then(
+                                    (result) => !result && this.createFrame()
+                                );
+                            }
+                            i = 2;
+                        }
+                        !this.modePrint && this.clearPage(i);
+                        button.title = `${title} the reader mode`;
+                        button.innerText = text;
+                        this.readerMode = !this.readerMode;
+                        GM_setValue("reader", this.readerMode);
+                        mode &&
+                            (button.previousElementSibling.style.display = style);
+                    }
+                };
+                let i = node.children.length;
+                //reder
+                node.children[--i].onclick = function () {
+                    Button(this, false);
+                };
+                //menu
+                if (mode) {
+                    node.children[--i].onclick = function () {
+                        Button(this, true);
+                    };
+                }
+                //collection
+                const collectionClick = (button) => {
+                    dataBaseInstance.initial(["collection"], true).then(
+                        (result) => {
+                            const text = button.innerText;
+                            let s = "",
+                                t = "";
+                            if (text === "Remove") {
+                                s = "Collect";
+                                t = "add this article to collection list";
+                                dataBaseInstance.dele(true);
+                                this.columnsModule.recentModule.remove();
+                            } else {
+                                s = "Remove";
+                                t = "remove this article frome collection list";
+                                dataBaseInstance.additem(this.columnID);
+                                this.columnsModule.recentModule.log("c");
+                            }
+                            button.innerText = s;
+                            button.title = t;
+                            dataBaseInstance.close();
+                        },
+                        (err) => {
+                            console.log(err);
+                            dataBaseInstance.close();
+                        }
+                    );
+                };
+                node.children[--i].onclick = function () {
+                    collectionClick(this);
+                };
+                //pref
+                const prefclick = (button, other, mode) => {
+                    dataBaseInstance.initial(["preference"], true).then(
+                        (result) => {
+                            let title = "";
+                            if (other.style.display === "none") {
+                                dataBaseInstance.dele(false);
+                                title = `${
+                                    mode ? "like" : "dislike"
+                                } this article`;
+                                other.style.display = "block";
+                            } else {
+                                const info = {};
+                                info.pid = dataBaseInstance.pid;
+                                info.value = mode ? 1 : 0;
+                                dataBaseInstance.update(info);
+                                title = `cancel ${
+                                    mode ? "like" : "dislike"
+                                } this article`;
+                                other.style.display = "none";
+                            }
+                            button.title = title;
+                            dataBaseInstance.close();
+                        },
+                        (err) => {
+                            console.log(err);
+                            dataBaseInstance.close();
+                        }
+                    );
+                };
+                node.children[--i].onclick = (e) => {
+                    const target = e.target;
+                    const className = target.className;
+                    if (className === "like") {
+                        prefclick(target, target.nextElementSibling, true);
+                    } else if (className === "dislike") {
+                        prefclick(target, target.previousElementSibling, false);
+                    }
+                };
+            },
+            injectButton(mode) {
+                const name = this.readerMode ? "Exit" : "Reader";
+                const mbutton =
+                    '<button class="assist-button siderbar" style="color: black;" title="show the siderbar">Menu</button>';
+                createButton(
+                    name,
+                    (this.readerMode ? "exit " : "enter ") + "the reader mode",
+                    mode ? mbutton : "",
+                    "right"
+                );
+                this.assistNewModule
+                    .main()
+                    .then(
+                        (node) => node && this.creatAssistantEvent(node, mode)
+                    );
+            },
+            readerMode: false,
+            createFrame() {
+                if (this.columnID) {
+                    this.Framework();
+                    //const pinURL = `https://www.zhihu.com/api/v4/columns/${this.columnID}/pinned-items`;
+                    const url = `https://www.zhihu.com/api/v4/columns/${this.columnID}/items`;
+                    this.requestData(url);
+                    this.Tabs.save(this.columnID);
+                }
+            },
+            columnID: null,
+            columnName: null,
+            main(mode = 0) {
+                if (mode > 0) {
+                    window.onload = () => {
+                        const f = this.homePage.initial;
+                        if (f) {
+                            this.columnID = this.homePage.ColumnID;
+                            this.columnName = "Follow";
+                            this.Framework();
+                            Reflect.apply(this.homePage.add, this, [
+                                f,
+                                "f",
+                                false,
+                            ]);
+                        }
+                        mode === 2 && this.subscribeOrfollow();
+                    };
+                    return false;
+                }
+                if (this.ColumnDetail) {
+                    if (this.readerMode)
+                        this.Tabs.check(this.columnID).then((result) =>
+                            result
+                                ? this.injectButton(true)
+                                : (this.createFrame(), this.injectButton())
+                        );
+                    else this.injectButton();
+                } else {
+                    this.injectButton();
+                }
+            },
         },
         colorAssistant: {
             index: 0,
@@ -1469,6 +4128,7 @@
                 if (this.index < 0 || this.index > 255) {
                     this.index = 0;
                     this.blue = true;
+                    this.grad < 0 && (this.grad *= -1);
                 }
                 const s =
                     this.index > 233
@@ -1556,7 +4216,7 @@
             },
             nodeCount: 0,
             getItem(node) {
-                //tags will be ignored
+                //those tags will be ignored
                 const localName = node.localName;
                 const tags = ["a", "br", "b", "span", "code", "strong"];
                 if (localName && tags.includes(localName)) {
@@ -1784,42 +4444,13 @@
                 Notification(text, "blackName");
             },
             injectButton(name) {
-                const html = `
-                    <div
-                        id = "assist-button-container"
-                        >
-                        <style>
-                            button.assist-button {
-                                border-radius: 0 1px 1px 0;
-                                border: rgb(247, 232, 176) solid 1.2px;
-                                display: flex;
-                                margin-top: 2px;
-                                height: 28px;
-                                width: 75px;
-                                box-shadow: 3px 4px 1px #888888;
-                                justify-content: center;
-                            }
-                            div#assist-button-container {
-                                opacity: 0.15;
-                                left: 4%;
-                                width: 60px;
-                                flex-direction: column;
-                                position: fixed;
-                                bottom: 10%;
-                            }
-                            div#assist-button-container:hover {
-                                opacity: 1;
-                                transition: opacity 2s;
-                            }
-                        </style>
-                        <button class="assist-button block" style="color: blue;">${name}</button>
-                    </div>`;
-                document.documentElement.insertAdjacentHTML("beforeend", html);
+                createButton(name, name + " this user");
                 let assist = document.getElementById("assist-button-container");
                 assist.children[1].onclick = function () {
                     const n = this.innerText;
                     zhihu.userPage.userManage(n);
                     this.innerText = n === "Block" ? "unBlock" : "Block";
+                    this.title = this.innerText + " this user";
                 };
                 assist = null;
             },
@@ -1863,8 +4494,7 @@
                     (index < 4
                         ? !(index === 1 && href.endsWith("/waiting"))
                         : false) &&
-                        (setTimeout(() => this.Filter.main(index), 100),
-                        this.colorIndicator());
+                        setTimeout(() => this.Filter.main(index), 100);
                     index === 6 && this.userPage.main();
                 }
                 this.inputBox.monitor();
@@ -1902,9 +4532,12 @@
             const index = pos.findIndex((e) => href.includes(e));
             let w = true;
             let z = false;
+            let f = true;
             (
                 (z = index === 5)
-                    ? (w = !href.includes("/write"))
+                    ? href.endsWith("zhihu.com/")
+                        ? (f = this.Column.main(1))
+                        : (w = !href.includes("/write"))
                     : index === 4
                     ? true
                     : false
@@ -1912,7 +4545,7 @@
                 ? this.zhuanlanStyle(z && href.includes("/p/"))
                 : index < 0
                 ? null
-                : this.pageOfQA(index, href);
+                : f && this.pageOfQA(index, href);
             w && this.antiRedirect();
             this.shade.start();
             this.clipboardClear.event();
