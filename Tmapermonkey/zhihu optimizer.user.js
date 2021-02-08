@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      2.7.8.1
+// @version      3.0
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -21,6 +21,7 @@
 // @grant        GM_getTab
 // @grant        GM_getTabs
 // @grant        GM_saveTab
+// @grant        window.onurlchange
 // @grant        window.close
 // @match        https://*.zhihu.com/*
 // @compatible   chrome 80+; test on chrome 64(x86), some features don't work
@@ -42,6 +43,8 @@
 (() => {
     "use strict";
     const blackKey = ["留学中介", "肖战"];
+    let blackName = null;
+    let blackTopicAndQuestion = null;
     const Notification = (content = "", title = "", duration = 2500, func) => {
         GM_notification({
             text: content,
@@ -52,20 +55,17 @@
     };
     const installTips = () => {
         //first time run, open the usermanual webpage
-        const initial = GM_getValue("initial");
-        if (!initial) {
-            const usermanual =
-                "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
-            GM_setValue("initial", true);
-            Notification(
-                "thanks for installing, please read user manual carefully",
-                "Tips",
-                6000
-            );
-            GM_openInTab(usermanual, { insert: true });
-        }
+        if (GM_getValue("initial")) return;
+        const usermanual =
+            "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
+        GM_setValue("initial", true);
+        Notification(
+            "thanks for installing, please read user manual carefully",
+            "Tips",
+            6000
+        );
+        GM_openInTab(usermanual, { insert: true });
     };
-    let blackName = null;
     const mergeArray = (origin, target) => {
         origin = origin.concat(target);
         const newArr = [];
@@ -343,7 +343,7 @@
                 Promise.allSettled(arr).then((results) => {
                     resolve(
                         results.map((r) =>
-                            r.status !== "rejected" ? r.value : null
+                            r.status === "rejected" ? null : r.value
                         )
                     );
                 });
@@ -358,6 +358,24 @@
                     console.log(e);
                     reject("error");
                 };
+            });
+        }
+        updateRecord(keyPath) {
+            return new Promise((resolve, reject) => {
+                this.read(keyPath).then(
+                    (result) => {
+                        if (result) {
+                            result.visitTime = Date.now();
+                            let times = result.visitTimes;
+                            result.visitTimes = times ? ++times : 2;
+                            this.update(result).then(
+                                () => resolve(true),
+                                (err) => reject(err)
+                            );
+                        } else resolve(true);
+                    },
+                    (err) => reject(err)
+                );
             });
         }
         update(info, keyPath, mode = false) {
@@ -462,6 +480,8 @@
             info.pid = this.pid;
             info.update = Date.now();
             info.excerpt = "";
+            info.visitTimes = 1;
+            info.visitTime = info.update;
             const contentholder = document.getElementsByClassName(
                 "RichText ztext Post-RichText"
             );
@@ -547,6 +567,13 @@
                     .then((results) => resolve(results))
             );
         },
+        updateRecord(keyPath) {
+            const pid = keyPath || this.pid;
+            this.db.updateRecord(pid).then(
+                () => console.log("update record finished"),
+                (err) => console.log(err)
+            );
+        },
         check(keyPath) {
             const pid = keyPath || this.pid;
             return new Promise((resolve, reject) => {
@@ -610,6 +637,9 @@
         getData() {
             blackName = GM_getValue("blackname");
             (!blackName || !Array.isArray(blackName)) && (blackName = []);
+            blackTopicAndQuestion = GM_getValue("blacktopicAndquestion");
+            (!blackTopicAndQuestion || !Array.isArray(blackTopicAndQuestion)) &&
+                (blackTopicAndQuestion = []);
         },
         clipboardClear: {
             clear(text) {
@@ -743,11 +773,23 @@
             };
             const methods = {
                 Protocols: "https://",
-                Search(url) {
+                string_length(str) {
+                    const lg = [...str].reduce(
+                        (length, e) =>
+                            (length +=
+                                e.charCodeAt(0).toString(16).length === 4
+                                    ? 2
+                                    : 1),
+                        0
+                    );
+                    return Math.floor(lg / 2);
+                },
+                Search(url, parameter = "") {
                     const select = getSelection();
-                    if (!select || select.length > 75) return;
+                    //baidu restrict the length of search keyword is 38;
+                    if (!select || this.string_length(select) > 38) return;
                     url += encodeURIComponent(select);
-                    window.open(this.Protocols + url, "_blank");
+                    window.open(this.Protocols + url + parameter, "_blank");
                 },
                 Google() {
                     this.Search("www.dogedoge.com/results?q=");
@@ -756,7 +798,7 @@
                     this.Search("www.douban.com/search?q=");
                 },
                 Zhihu() {
-                    this.Search("www.zhihu.com/search?q");
+                    this.Search("www.zhihu.com/search?q=", "&type=content");
                 },
                 MDN() {
                     this.Search("developer.mozilla.org/zh-CN/search?q=");
@@ -995,11 +1037,15 @@
                 Notification(text, "Tips");
                 this.zhuanlanAuto_mode = !this.zhuanlanAuto_mode;
             },
-            nextPage() {
+            get article_lists() {
                 const c = document.getElementById("column_lists");
-                if (!c) return;
+                if (!c) return null;
                 const a = c.getElementsByClassName("article_lists");
-                const ch = a[0].children;
+                return a.length === 0 ? null : a[0].children;
+            },
+            nextPage() {
+                const ch = this.article_lists;
+                if (!ch) return;
                 const i = zhihu.Column.targetIndex;
                 if (ch.length === 0 || i === ch.length) {
                     Notification(
@@ -1013,6 +1059,23 @@
                     this.keyCount = 2;
                     this.start();
                 }, 1800);
+            },
+            //0-9 => click target article;
+            key_Click(keyCode) {
+                const ch = this.article_lists;
+                let index = keyCode - 47;
+                if (index > ch.length) return;
+                ch[--index].children[2].click();
+            },
+            key_next_Pre(keyCode) {
+                const c = document.getElementById("column_lists");
+                if (!c) return;
+                const n = c.getElementsByClassName("nav button");
+                let i = keyCode - 188;
+                n.length > 0 &&
+                    (i === 0
+                        ? n[0].children[i].click()
+                        : n[0].children[--i].click());
             },
             popup() {
                 const html = `
@@ -1162,6 +1225,10 @@
                         ? this.speedUP()
                         : keyCode === 189
                         ? this.slowDown()
+                        : keyCode > 47 && keyCode < 58
+                        ? this.key_Click(keyCode)
+                        : keyCode === 188 || keyCode === 190
+                        ? this.key_next_Pre(keyCode)
                         : this.Others.call(zhihu, keyCode);
                 };
             },
@@ -1449,6 +1516,7 @@
             },
         },
         antiRedirect() {
+            //only those links can be capture, which has the attribute of classname with ' external'
             const links = Object.getOwnPropertyDescriptors(
                 HTMLAnchorElement.prototype
             ).href;
@@ -1633,16 +1701,123 @@
                 }
                 return result;
             },
+            //block question
+            get Topic_question_ID() {
+                const href = location.href;
+                const reg = /(?<=(question|topic)\/)\d+/;
+                const match = href.match(reg);
+                if (!match) return null;
+                return match[0];
+            },
+            Topic_questionButton(targetElements) {
+                const header_line = (event, mode) => {
+                    let question = null;
+                    if (event) {
+                        const path = event.path;
+                        for (const e of path) {
+                            if (e.className === targetElements.headerID) {
+                                question = e;
+                                break;
+                            }
+                        }
+                    } else {
+                        question = document.getElementsByClassName(
+                            targetElements.headerID
+                        )[0];
+                    }
+                    if (!question) return;
+                    const h = question.getElementsByClassName(
+                        targetElements.headerTitle
+                    );
+                    if (h.length === 0) return;
+                    h[0].style.textDecoration = mode ? "line-through" : "none";
+                };
+                let q = document.getElementsByClassName(
+                    targetElements.inserButtonID
+                );
+                if (q.length === 0) return;
+                const id = this.Topic_question_ID;
+                if (!id) return;
+                let mode = false;
+                const type = targetElements.index === 2 ? "topic" : "question";
+                let [name, title] = (mode = blackTopicAndQuestion.some(
+                    (e) => e.id === id
+                ))
+                    ? ["Remove", `remove the ${type} from block list`]
+                    : ["Block", `add the ${type} to block list`];
+                const html = `
+                <button
+                    title=${escapeBlank(title)}
+                    style="
+                        font-size: 14px;
+                        height: 22px;
+                        width: 60px;
+                        margin-left: 10px;
+                        box-shadow: 1px 1px 4px #888888;
+                    "
+                >
+                    ${name}
+                </button>`;
+                let button = document.createElement("button");
+                q[0].insertAdjacentElement("beforeend", button);
+                button.outerHTML = html;
+                q[0].lastChild.onclick = function (event) {
+                    if (mode) {
+                        const index = blackTopicAndQuestion.findIndex(
+                            (e) => e.id === id
+                        );
+                        if (index > -1) {
+                            blackTopicAndQuestion.splice(index, 1);
+                            GM_setValue(
+                                targetElements.blockValueName,
+                                blackTopicAndQuestion
+                            );
+                        }
+                    } else {
+                        if (blackTopicAndQuestion.some((e) => e.id === id))
+                            return;
+                        const info = {};
+                        info.id = id;
+                        info.type = type;
+                        info.update = Date.now();
+                        blackTopicAndQuestion.push(info);
+                        GM_setValue(
+                            targetElements.blockValueName,
+                            blackTopicAndQuestion
+                        );
+                    }
+                    mode = !mode;
+                    [name, title] = mode
+                        ? ["Remove", `remove the ${type} from block list`]
+                        : ["Block", `add the ${type} to block list`];
+                    this.title = title;
+                    this.innerText = name;
+                    header_line(event, mode);
+                };
+                button = null;
+                q = null;
+                mode && header_line(null, true);
+                GM_addValueChangeListener(
+                    targetElements.blockValueName,
+                    (name, oldValue, newValue, remote) =>
+                        remote && (blackTopicAndQuestion = newValue)
+                );
+            },
             check(item, targetElements, mode) {
                 let result = false;
                 if (targetElements.index === 3) {
+                    //zhihu hot news(the whole) => don't treat
+                    const h = item.getElementsByClassName("MinorHotSpot");
+                    if (h.length > 0) return;
                     result = this.contentCheck(item, targetElements, 1);
                 } else {
                     result = this.userCheck(item, targetElements);
                     result =
                         !result &&
                         this.contentCheck(item, targetElements, mode);
-                    if (targetElements.index < 2 && !result && this.dbInitial)
+                }
+                if (!result && this.dbInitial) {
+                    if (targetElements.index < 2) {
                         this.foldAnswer.check(
                             item.className !== "ContentItem AnswerItem"
                                 ? item.getElementsByClassName(
@@ -1650,6 +1825,9 @@
                                   )[0]
                                 : item
                         );
+                    } else {
+                        this.foldAnswer.Three.main(item);
+                    }
                 }
             },
             checkURL(targetElements) {
@@ -1669,45 +1847,75 @@
                 );
             },
             //check the content when the content expanded
+            colorIndicator: {
+                lasttarget: null,
+                index: 0,
+                change: false,
+                color(target) {
+                    this.restore();
+                    const colors = ["green", "red", "blue", "purple"];
+                    target.style.color = colors[this.index];
+                    target.style.fontSize = "16px";
+                    target.style.letterSpacing = "0.3px";
+                    if (target.style.fontWeight !== 600) {
+                        target.style.fontWeight = 600;
+                        this.change = true;
+                    } else this.change = false;
+                    this.index > 2 ? (this.index = 0) : (this.index += 1);
+                    this.lasttarget = target;
+                },
+                restore() {
+                    if (this.lasttarget) {
+                        this.lasttarget.style.color = "";
+                        this.lasttarget.style.fontSize = "";
+                        this.lasttarget.style.letterSpacing = "";
+                        if (this.change)
+                            this.lasttarget.style.fontWeight = "normal";
+                        this.lasttarget = null;
+                    }
+                },
+            },
             clickMonitor(node, targetElements) {
-                let lasttarget = null;
-                const colors = ["green", "red", "blue", "purple"];
-                let i = 0;
-                let change = false;
                 const tags = ["blockquote", "p", "br", "li"];
                 node.onclick = (e) => {
                     const target = e.target;
                     const localName = target.localName;
                     if (tags.includes(localName)) {
-                        if (target.style.color) return;
-                        if (lasttarget) {
-                            lasttarget.style.color = "";
-                            lasttarget.style.fontSize = "";
-                            lasttarget.style.letterSpacing = "";
-                            if (change) lasttarget.style.fontWeight = "normal";
-                        }
-                        target.style.color = colors[i];
-                        target.style.fontSize = "16px";
-                        target.style.letterSpacing = "0.3px";
-                        if (target.style.fontWeight !== 600) {
-                            target.style.fontWeight = 600;
-                            change = true;
-                        } else change = false;
-                        i = i > 2 ? 0 : ++i;
-                        lasttarget = target;
+                        if (target.style.color || this.foldAnswer.editableMode)
+                            return;
+                        this.colorIndicator.color(target);
                         return;
                     }
+                    this.colorIndicator.restore();
                     const className = target.className;
-                    if (className && className.startsWith("fold") && this.dbInitial) {
-                        if (
-                            !(
-                                className.endsWith("block") ||
-                                className.endsWith("temp") ||
-                                className.endsWith("element")
-                            )
-                        )
-                            return;
-                        this.foldAnswer.buttonclick(target);
+                    if (
+                        className &&
+                        typeof className === "string" &&
+                        className.startsWith("fold") &&
+                        this.dbInitial
+                    ) {
+                        if (targetElements.index < 2) {
+                            const ends = [
+                                "block",
+                                "temp",
+                                "element",
+                                "select",
+                                "edit",
+                            ];
+                            if (ends.some((e) => className.endsWith(e)))
+                                this.foldAnswer.buttonclick(target);
+                        } else {
+                            const ends = [
+                                "question",
+                                "topic",
+                                "element",
+                                "temp",
+                                "answer",
+                                "article",
+                            ];
+                            if (ends.some((e) => className.endsWith(e)))
+                                this.foldAnswer.Three.btnClick(target);
+                        }
                         return;
                     }
                     let item = null;
@@ -1718,7 +1926,7 @@
                     } else if (localName === "svg") {
                         const button = this.svgCheck(target, targetElements);
                         button && (item = this.getiTem(button, targetElements));
-                        //click the answser, the content will be automatically expanded
+                        //click the answer, the content will be automatically expanded
                     } else {
                         if (className !== targetElements.expand) return;
                         for (const node of e.path) {
@@ -1732,7 +1940,29 @@
                             }
                         }
                     }
-                    item && this.clickCheck(item, targetElements);
+                    if (item) this.clickCheck(item, targetElements);
+                    else {
+                        const path = e.path;
+                        let ic = 0;
+                        for (const c of path) {
+                            if (c.localName === "a") {
+                                const cl = c.className;
+                                if (cl && !cl.endsWith("external")) {
+                                    const s = c.search;
+                                    if (s.startsWith("?target=")) {
+                                        e.preventDefault();
+                                        e.stopImmediatePropagation();
+                                        const h = s.slice(s.indexof("=") + 1);
+                                        c.href = h;
+                                        window.open(h, "_blank");
+                                        break;
+                                    }
+                                }
+                            }
+                            ic++;
+                            if (ic > 4) break;
+                        }
+                    }
                 };
             },
             topicAndquestion(targetElements, info) {
@@ -1800,6 +2030,38 @@
                     }
                 } else this.topicAndquestion(targetElements, info);
             },
+            //standby, commmunication between others and column
+            connectColumn() {
+                const r = GM_getValue("removearticleA");
+                if (r && Array.isArray(r) && r.length > 0) {
+                    for (const e of r) dataBaseInstance.dele(false, e);
+                    GM_setValue("removearticleA", "");
+                }
+                const b = GM_getValue("blockarticleA");
+                if (b && Array.isArray(b) && b.length > 0) {
+                    for (const e of b) dataBaseInstance.fold(e);
+                    GM_setValue("blockarticleA", "");
+                }
+                GM_addValueChangeListener(
+                    "blockarticleA",
+                    (name, oldValue, newValue, remote) => {
+                        if (remote) {
+                            dataBaseInstance.fold(newValue[0]);
+                            GM_setValue("blockarticleA", "");
+                        }
+                    }
+                );
+                GM_addValueChangeListener(
+                    "removearticleA",
+                    (name, oldValue, newValue, remote) => {
+                        if (remote) {
+                            debugger;
+                            dataBaseInstance.dele(false, newValue[0]);
+                            GM_setValue("removearticleA", "");
+                        }
+                    }
+                );
+            },
             monitor(targetElements) {
                 let node = document.getElementById(targetElements.mainID);
                 if (!node) {
@@ -1817,7 +2079,6 @@
                     if (!this.checkURL(targetElements)) return;
                     e.forEach((item) => {
                         if (item.addedNodes.length > 0) {
-                            console.log("z");
                             const additem = item.addedNodes[0];
                             if (additem.className === targetElements.itemClass)
                                 this.check(additem, targetElements, 0);
@@ -1826,6 +2087,7 @@
                 });
                 mo.observe(node, { childList: true, subtree: true });
                 this.clickMonitor(node, targetElements);
+                this.connectColumn();
             },
             getTagetElements(index) {
                 const pos = {
@@ -1844,7 +2106,8 @@
                     this.checked = [];
                     this.dbInitial = r;
                     const targetElements = this.getTagetElements(index);
-                    targetElements && this.firstRun(targetElements);
+                    index !== 0 && this.firstRun(targetElements);
+                    index !== 3 && this.Topic_questionButton(targetElements);
                 });
             },
             firstRun(targetElements) {
@@ -1882,6 +2145,7 @@
                 for (const button of all)
                     button.onclick = () =>
                         setTimeout(() => this.firstRun(targetElements), 300);
+                return targetElements;
             },
             questionPage(index) {
                 const targetElements = {
@@ -1893,9 +2157,13 @@
                     userID: "UserLink-link",
                     backupClass: "Question-main",
                     header: "ContentItem AnswerItem",
+                    headerID: "QuestionHeader",
+                    headerTitle: "QuestionHeader-title",
                     expand: "RichText ztext CopyrightRichText-richText",
                     answerID: "ContentItem AnswerItem",
                     inserID: "LabelContainer-wrapper",
+                    blockValueName: "blacktopicAndquestion",
+                    inserButtonID: "QuestionHeaderActions",
                     index: index,
                 };
                 return targetElements;
@@ -1923,19 +2191,439 @@
                     itemClass: "List-item TopicFeedItem",
                     mainID: "TopicMain",
                     userID: "UserLink-link",
+                    headerID: "ContentItem-head",
+                    headerTitle: "ContentItem-title",
                     contentID: "RichText ztext CopyrightRichText-richText",
                     expand: "RichContent-inner",
+                    inserButtonID: "TopicActions TopicMetaCard-actions",
                     zone: ["/top-answers", "/hot"],
+                    blockValueName: "blacktopicAndquestion",
                     index: index,
                 };
                 return targetElements;
             },
             foldAnswer: {
+                Three: {
+                    initialR: false,
+                    btnClick(button) {
+                        const text = button.innerText;
+                        if (text.startsWith("show")) {
+                            this.showFold(button);
+                        } else {
+                            let bid = "";
+                            if (text !== "Fold") {
+                                bid = this.getbid(button);
+                                if (!bid) return;
+                            }
+                            this[text](button, bid);
+                        }
+                    },
+                    getbid(button) {
+                        const attrs = button.attributes;
+                        if (!attrs) return null;
+                        for (const e of attrs)
+                            if (e.name === "bid") return e.value;
+                        return null;
+                    },
+                    Answer_Article(button, bid, type, n, t, from = "") {
+                        const p = button.parentNode.parentNode;
+                        const user = p.getElementsByClassName("UserLink-link");
+                        let i = user.length - 1;
+                        const info = {};
+                        info.userID = "";
+                        info.userName = "";
+                        if (i > 0) {
+                            i = i > 1 ? 1 : i;
+                            info.userName = user[i].innerText;
+                            const pn = user[i].pathname;
+                            info.userID = pn.slice(pn.lastIndexOf("/") + 1);
+                        }
+                        info.from = from;
+                        info.name = bid;
+                        info.update = Date.now();
+                        info.type = type;
+                        dataBaseInstance.fold(info);
+                        this.changeBtn(button, n, t);
+                    },
+                    changeBtn(button, n, t) {
+                        button.innerText = n;
+                        button.title = t;
+                        this.Fold(button, "show blocked");
+                    },
+                    Question_Topic(button, bid, type, n, t) {
+                        if (blackTopicAndQuestion.some((e) => e.id === bid))
+                            return;
+                        const info = {};
+                        info.id = bid;
+                        info.type = type;
+                        info.update = Date.now();
+                        blackTopicAndQuestion.push(info);
+                        GM_setValue(
+                            "blacktopicAndquestion",
+                            blackTopicAndQuestion
+                        );
+                        this.changeBtn(button, n, t);
+                    },
+                    Answer(button, bid) {
+                        const from = this.getbid(button.nextElementSibling);
+                        this.Answer_Article(
+                            button,
+                            bid,
+                            "answer",
+                            "Remove",
+                            "unblock the answer",
+                            from ? from : ""
+                        );
+                    },
+                    Question(button, bid) {
+                        this.Question_Topic(
+                            button,
+                            bid,
+                            "question",
+                            "Remove",
+                            "unblock the question"
+                        );
+                    },
+                    Article(button, bid) {
+                        this.Answer_Article(
+                            button,
+                            bid,
+                            "article",
+                            "Remove",
+                            "unblock the article"
+                        );
+                        let b = GM_getValue("blockarticleB");
+                        if (b && Array.isArray(b)) {
+                            for (const e of b) if (e.pid === bid) return;
+                        } else b = [];
+                        const r = GM_getValue("removearticleB");
+                        if (r && Array.isArray(r)) {
+                            const i = r.indexOf(bid);
+                            if (i > -1) {
+                                r.splice(i, 1);
+                                GM_setValue("removearticleB", r);
+                            }
+                        }
+                        const info = {};
+                        info.userID = "";
+                        info.from = "";
+                        info.pid = bid;
+                        info.value = 0;
+                        info.update = Date.now();
+                        b.push(info);
+                        GM_setValue("blockarticleB", b);
+                    },
+                    Topic(button, bid) {
+                        this.Question_Topic(
+                            button,
+                            bid,
+                            "topic",
+                            "Remove",
+                            "unblock the topic"
+                        );
+                    },
+                    Remove(button, bid) {
+                        const className = button.className;
+                        const method = {
+                            changeBtn(n, t) {
+                                button.innerText = n;
+                                button.title = t;
+                                button.parentNode.previousElementSibling.innerText =
+                                    "show folded";
+                            },
+                            answer() {
+                                dataBaseInstance.dele(false, bid);
+                                this.changeBtn("Answer", "block the answer");
+                            },
+                            remove() {
+                                let i = -1;
+                                for (const e of blackTopicAndQuestion) {
+                                    i++;
+                                    if (e.id === bid) break;
+                                }
+                                if (i < 0) return;
+                                blackTopicAndQuestion.splice(i, 1);
+                                GM_setValue("", blackTopicAndQuestion);
+                            },
+                            topic() {
+                                this.remove();
+                                this.changeBtn("Topic", "block the topic");
+                            },
+                            article() {
+                                dataBaseInstance.dele(false, bid);
+                                this.changeBtn("Article", "block the article");
+                                let r = GM_getValue("removearticleB");
+                                if (r && Array.isArray(r) && r.length > 0) {
+                                    if (r.includes(bid)) return;
+                                } else r = [];
+                                const b = GM_getValue("blockarticleB");
+                                if (b && Array.isArray(b)) {
+                                    const i = b.findIndex((e) => e.pid === bid);
+                                    if (i > -1) {
+                                        b.splice(i, 1);
+                                        GM_setValue("blockarticleB", b);
+                                    }
+                                }
+                                r.push(bid);
+                                GM_setValue("removearticleB", r);
+                            },
+                            question() {
+                                this.remove();
+                                this.changeBtn(
+                                    "Question",
+                                    "block the question"
+                                );
+                            },
+                        };
+                        const n = className.slice(className.indexOf("_") + 1);
+                        method[n]();
+                    },
+                    Fold(button, n = "") {
+                        const p = button.parentNode;
+                        p.previousElementSibling.style.display = "block";
+                        p.nextElementSibling.style.display = "none";
+                        p.style.display = "none";
+                        n && (p.previousElementSibling.innerText = n);
+                    },
+                    showFold(button) {
+                        button.style.display = "none";
+                        const n = button.nextElementSibling;
+                        if (!n) return;
+                        n.style.display = "grid";
+                        n.nextElementSibling.style.display = "block";
+                    },
+                    getInfo(item) {
+                        const title = item.getElementsByTagName("h2");
+                        if (title.length === 0) return null;
+                        const a = title[0].getElementsByTagName("a");
+                        if (a.length === 0) return null;
+                        const p = a[0].pathname;
+                        const info = {};
+                        info.cblock = false;
+                        info.ablcok = false;
+                        info.qblock = false;
+                        info.tblock = false;
+                        const flags = ["/topic", "/p/", "/question"];
+                        const index = flags.findIndex((e) => p.includes(e));
+                        if (index === 0) {
+                            info.type = "topic";
+                            info.tid = p.slice(p.lastIndexOf("/") + 1);
+                        } else if (index === 1) {
+                            info.type = "column";
+                            info.cid = p.slice(p.lastIndexOf("/") + 1);
+                        } else {
+                            info.type = "answer";
+                            const tmp = p.split("/");
+                            if (tmp.length !== 5) return null;
+                            info.qid = tmp[2];
+                            info.aid = tmp[4];
+                        }
+                        return info;
+                    },
+                    btnRaw(c, t, n, b) {
+                        return `<button class="fold_${c}" title=${escapeBlank(
+                            t
+                        )} bid=${b}>${n}</button>`;
+                    },
+                    foldRaw(arr, info, adisplay, bdisplay, name) {
+                        const d = JSON.stringify(info);
+                        return `
+                            <div
+                                class="fold_element"
+                                title="the ${info.type} has been folded"
+                                data-info=${d}
+                                style="display:${adisplay};"
+                            >
+                                show ${name}
+                            </div>
+                                <div class="hidden_fold" data-info=${d} style="display:${bdisplay};">
+                                ${arr.join("")}
+                                <button class="fold_temp" title="temporarily fold the item">Fold</button>
+                            </div>`;
+                    },
+                    checkAnswerOrArticle(id) {
+                        return new Promise((resolve, reject) => {
+                            dataBaseInstance.check(id).then(
+                                (result) => resolve(result),
+                                (err) => {
+                                    console.log(err);
+                                    reject();
+                                }
+                            );
+                        });
+                    },
+                    checkTAndQ(id) {
+                        return blackTopicAndQuestion.some((e) => e.id === id);
+                    },
+                    answer(item, info) {
+                        const exe = (r) => {
+                            const f = this.checkTAndQ(info.qid);
+                            const html = [];
+                            info.qblock = f;
+                            info.ablcok = r;
+                            (r || f) && this.hide_content(item);
+                            let [t, n] = r
+                                ? ["unblock", "Remove"]
+                                : ["block", "Answer"];
+                            html.push(
+                                this.btnRaw(
+                                    "answer",
+                                    t + " the answer",
+                                    n,
+                                    info.aid
+                                )
+                            );
+                            [t, n] = f
+                                ? ["unblock", "Remove"]
+                                : ["block", "Question"];
+                            html.push(
+                                this.btnRaw(
+                                    "question",
+                                    t + " the question",
+                                    n,
+                                    info.qid
+                                )
+                            );
+                            const [a, b, name] =
+                                r || f
+                                    ? ["grid", "none", "blocked"]
+                                    : ["none", "grid", "folded"];
+                            item.insertAdjacentHTML(
+                                "afterbegin",
+                                this.foldRaw(html, info, a, b, name)
+                            );
+                        };
+                        this.initialR
+                            ? this.checkAnswerOrArticle(info.aid).then(
+                                  (r) => exe(r),
+                                  () => console.log("check blocked answer fail")
+                              )
+                            : exe(false);
+                    },
+                    hide_content(item) {
+                        item.firstChild.style.display = "none";
+                    },
+                    column(item, info) {
+                        const exe = (r) => {
+                            info.cblock = r;
+                            r && this.hide_content(item);
+                            const [t, n, a, b, name] = r
+                                ? [
+                                      "unblock",
+                                      "Remove",
+                                      "grid",
+                                      "none",
+                                      "blocked",
+                                  ]
+                                : [
+                                      "block",
+                                      "Article",
+                                      "none",
+                                      "grid",
+                                      "folded",
+                                  ];
+                            item.insertAdjacentHTML(
+                                "afterbegin",
+                                this.foldRaw(
+                                    [
+                                        this.btnRaw(
+                                            "article",
+                                            t + " the article",
+                                            n,
+                                            info.cid
+                                        ),
+                                    ],
+                                    info,
+                                    a,
+                                    b,
+                                    name
+                                )
+                            );
+                        };
+                        this.initialR
+                            ? this.checkAnswerOrArticle(info.cid).then(
+                                  (r) => exe(r),
+                                  () =>
+                                      console.log("check blocked article fail")
+                              )
+                            : exe(false);
+                    },
+                    topic(item, info) {
+                        const f = this.checkTAndQ(info.tid);
+                        info.tblock = f;
+                        f && this.hide_content(item);
+                        const [t, n, a, b, name] = f
+                            ? ["unblock", "Remove", "block", "none", "blocked"]
+                            : ["block", "Topic", "none", "grid", "folded"];
+                        item.insertAdjacentHTML(
+                            "afterbegin",
+                            this.foldRaw(
+                                [
+                                    this.btnRaw(
+                                        "topic",
+                                        t + " the topic",
+                                        n,
+                                        info.tid
+                                    ),
+                                ],
+                                info,
+                                a,
+                                b,
+                                name
+                            )
+                        );
+                    },
+                    main(item) {
+                        const info = this.getInfo(item);
+                        if (!info) return;
+                        this[info.type](item, info);
+                    },
+                },
+                //---------------------------------------------------------------------------------------
                 buttonclick(button) {
                     const text = button.innerText;
                     text.startsWith("show")
                         ? this.showFold(button, text)
                         : this[text](button);
+                },
+                getcontent(button) {
+                    const p = this.getpNode(button);
+                    if (!p) return null;
+                    const expand = p.getElementsByClassName(
+                        "Button ContentItem-rightButton ContentItem-expandButton Button--plain"
+                    );
+                    if (expand.length > 0) expand[0].click();
+                    const ele = p.getElementsByClassName(
+                        "RichText ztext CopyrightRichText-richText"
+                    );
+                    return ele.length === 0 ? null : ele[0];
+                },
+                editableMode: false,
+                Edit(button) {
+                    const ele = this.getcontent(button);
+                    if (!ele) return;
+                    this.editableMode = true;
+                    ele.contentEditable = true;
+                    button.innerText = "Exit";
+                    button.title = "exit editable mode";
+                },
+                Exit(button) {
+                    const ele = this.getcontent(button);
+                    if (!ele) return;
+                    this.editableMode = false;
+                    ele.contentEditable = false;
+                    button.innerText = "Edit";
+                    button.title = "edit the answer";
+                },
+                Select(button) {
+                    if (this.editableMode) return;
+                    const ele = this.getcontent(button);
+                    if (!ele) return;
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    const range = new Range();
+                    range.selectNodeContents(ele);
+                    selection.addRange(range);
                 },
                 getid(item) {
                     const attrs = item.attributes;
@@ -1954,7 +2642,13 @@
                     }
                     return pnode;
                 },
-                Block(button) {
+                get from() {
+                    const p = location.pathname;
+                    const reg = /(?<=question\/)\d+/;
+                    const m = p.match(reg);
+                    return m ? m[0] : "";
+                },
+                Block(button, type = "answer") {
                     const p = this.getpNode(button);
                     if (!p) return;
                     const id = this.getid(p);
@@ -1970,9 +2664,11 @@
                     }
                     info.name = id;
                     info.update = Date.now();
+                    info.type = type;
+                    info.from = this.from;
                     dataBaseInstance.fold(info);
                     button.innerText = "Remove";
-                    button.title = "remove the anwser from block list";
+                    button.title = "remove the answer from block list";
                     this.insertShowFolded(p, "blocked");
                 },
                 Remove(button) {
@@ -1983,7 +2679,7 @@
                     if (!id) return;
                     dataBaseInstance.dele(false, id);
                     button.innerText = "Block";
-                    button.title = "fold the anwser forever";
+                    button.title = "fold the answer forever";
                 },
                 Fold(button) {
                     const p = this.getpNode(button);
@@ -1997,6 +2693,7 @@
                     if (text.endsWith("blocked")) this.insertButton(next, true);
                 },
                 check(item) {
+                    if (!item) return;
                     if (this.initialR === 0) {
                         this.insertButton(item);
                         return;
@@ -2017,7 +2714,10 @@
                     return new Promise((resolve) => {
                         const tables = ["foldedAnswer"];
                         dataBaseInstance.initial(tables, true, "name").then(
-                            (result) => {resolve(true), this.initialR = result},
+                            (result) => {
+                                resolve(true),
+                                    (this.Three.initialR = this.initialR = result);
+                            },
                             (err) => {
                                 console.log(err);
                                 resolve(false);
@@ -2049,16 +2749,19 @@
                 insertButton(item, mode = false) {
                     const h = item.getElementsByClassName("hidden_fold");
                     if (h.length === 0) {
+                        const obutton = `
+                            <button class="fold_temp" title="temporarily fold the answer">Fold</button>
+                            <button class="fold_edit" title="edit the answer">Edit</button>
+                            <button class="fold_select" title="select the answer">Select</button>`;
                         const html = `
                         <div class="hidden_fold">
-                            <button class="fold_block" title="fold the anwser forever">Block</button>
-                            <button class="fold_temp" title="temporarily fold the answer">Fold</button>
+                            <button class="fold_block" title="fold the answer forever">Block</button>
+                            ${obutton}
                         </div>`;
-                        //if the anwser has been blocked => show, hide the temp button
                         const r = `
                         <div class="hidden_fold">
-                            <button class="fold_block" title="remove the anwser from block list">Remove</button>
-                            <button class="fold_temp" title="temporarily fold the answer">Fold</button>
+                            <button class="fold_block" title="remove the answer from block list">Remove</button>
+                            ${obutton}
                         </div>`;
                         const label = item.getElementsByClassName(
                             "LabelContainer-wrapper"
@@ -2076,7 +2779,7 @@
             const common = `
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
-            const contentstyle = `
+            const showfold = `
                 .fold_element{
                     max-height: 24px;
                     margin-left: 45%;
@@ -2084,7 +2787,9 @@
                     width: 100px;
                     text-align: center;
                     border: 1px solid #ccc !important;
-                }
+                }`;
+            const contentstyle = `
+                ${showfold}
                 .hidden_fold:hover {
                      opacity: 1;
                      transition: opacity 2s;
@@ -2100,7 +2805,12 @@
                     border-radius: 5px;
                 }
                 html{overflow: auto !important;}
-                div.Question-mainColumn{margin: auto !important;width: 100% !important;max-width: 1000px !important;}
+                div.Question-mainColumn{
+                    margin: auto !important;
+                    width: 100% !important;
+                    max-width: 1000px !important;
+                    min-width: 1000px !important;
+                }
                 div.Question-sideColumn,.Kanshan-container{display: none !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
@@ -2111,6 +2821,7 @@
                     border-radius: 6px !important;
                 }
                 .Pc-word,
+                span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important;}
                 .Comments{padding: 12px !important; margin: 60px !important;}`;
             const inpustyle = `
@@ -2118,13 +2829,35 @@
                     font-size: 0px !important;
                     text-align: right;
                 }`;
-            const hotsearch = ".Card.TopSearch{display: none !important;}";
+            const hotsearch =
+                ".Card.TopSearch{display: none !important;}.List-item{position: inherit !important;}";
+            const topicAndquestion = `
+                ${showfold}
+                .hidden_fold {
+                    opacity: 0.15;
+                    float: right;
+                }
+                .hidden_fold:hover {
+                     opacity: 1;
+                     transition: opacity 2s;
+                }
+                .hidden_fold button {
+                    border: 1px solid #ccc!important;
+                    box-shadow: 1px 1px 0px #888888;
+                    height: 18px;
+                    font-size: 12px;
+                    width: 54px;
+                    border-radius: 5px;
+                    margin-top: 2px;
+                }`;
             GM_addStyle(
                 common +
                     (index < 2
                         ? contentstyle + inpustyle
                         : index === 3
-                        ? inpustyle + hotsearch
+                        ? inpustyle + hotsearch + topicAndquestion
+                        : index === 2
+                        ? inpustyle + topicAndquestion
                         : inpustyle)
             );
         },
@@ -2210,7 +2943,7 @@
                             fuckzhihu.stopImmediatePropagation();
                             fuckzhihu.stopPropagation();
                         } else {
-                            const url = `http://www.zhihu.com/search?q=${this.box.value}&type=content`;
+                            const url = `https://www.zhihu.com/search?q=${this.box.value}&type=content`;
                             window.open(url, "_blank");
                         }
                     },
@@ -2277,8 +3010,9 @@
             h.innerText = `5s, current web will be automatically closed.....`;
             let id = setInterval(() => {
                 time--;
-                const tmp = dot.repeat(time);
-                h.innerText = `${time}s, current web will be automatically closed${tmp}`;
+                h.innerText = `${time}s, current web will be automatically closed${dot.repeat(
+                    time
+                )}`;
                 if (time === 0) clearInterval(id);
             }, 1000);
         },
@@ -2333,14 +3067,15 @@
         },
         Column: {
             isZhuanlan: false,
-            authorID: null,
+            authorID: "",
+            authorName: "",
             get ColumnDetail() {
                 const header = document.getElementsByClassName(
                     "ColumnLink ColumnPageHeader-TitleColumn"
                 );
                 if (header.length === 0) {
-                    this.columnName = null;
-                    this.columnID = null;
+                    this.columnName = "";
+                    this.columnID = "";
                     return false;
                 }
                 const href = header[0].href;
@@ -2353,6 +3088,7 @@
                     );
                     const i = user.length - 1;
                     const p = user[i].pathname;
+                    this.authorName = user[i].innerText;
                     this.authorID = p.slice(p.lastIndexOf("/") + 1);
                 }
                 return true;
@@ -2429,6 +3165,8 @@
                     "AuthorInfo"
                 );
                 if (authorNode.length > 0) authorNode[0].outerHTML = html;
+                this.authorID = author.url_token;
+                this.authorName = author.name;
             },
             //column homepage
             subscribeOrfollow() {
@@ -2446,8 +3184,7 @@
                 let [a, b] =
                     fn === "remove" ? ["remove", "from"] : ["add", "to"];
                 const ft = `${a}&nbsp;the&nbsp;column&nbsp;${b}&nbsp;follow&nbsp;list`;
-                [a, b] =
-                    sn === "remove" ? ["remove", "from"] : ["add", "to"];
+                [a, b] = sn === "remove" ? ["remove", "from"] : ["add", "to"];
                 const st = `${a}&nbsp;the&nbsp;column&nbsp;${b}&nbsp;subscribe&nbsp;list`;
                 const html = `
                 <div class="assistant-button" style="margin-left: 15px">
@@ -2464,6 +3201,7 @@
                     </button>
                     <button class="subscribe" style="width: 90px" title=${st}>${sn}</button>
                 </div>`;
+                //const bhtml = `<button class="block" style="width: 70px" title="block the column">block</button>`;
                 const user = document.getElementsByClassName(
                     "AuthorInfo AuthorInfo--plain"
                 );
@@ -2513,6 +3251,11 @@
                 buttons[2].onclick = function () {
                     exe(this, 2);
                 };
+                /*
+                buttons[3].onclick =function () {
+                    exe(this, 3);
+                }
+                */
                 buttons = null;
             },
             //shift + f
@@ -2866,7 +3609,13 @@
             next: null,
             previous: null,
             index: 1,
+            rqReady: false,
             requestData(url) {
+                if (this.rqReady) {
+                    Notification("please request data slowly...", "Tips");
+                    return;
+                }
+                this.rqReady = true;
                 xmlHTTPRequest(url).then(
                     (json) => {
                         typeof json === "string" && (json = JSON.parse(json));
@@ -2947,8 +3696,12 @@
                             : pag.is_end
                             ? ""
                             : pag.next;
+                        this.rqReady = false;
                     },
-                    (err) => console.log(err)
+                    (err) => {
+                        console.log(err);
+                        this.rqReady = false;
+                    }
                 );
             },
             firstAdd: true,
@@ -3158,9 +3911,20 @@
                     .children;
                 let article = node.getElementsByTagName("ul")[0];
                 let aid = 0;
+                //prevent click too fast
+                let isReady = false;
                 //show content in current page;
                 article.onclick = (e) => {
-                    if (Reflect.get(zhihu.autoScroll, "scrollState")) return;
+                    //if under autoscroll mode, => not allow to click
+                    if (
+                        Reflect.get(zhihu.autoScroll, "scrollState") ||
+                        Reflect.get(zhihu.noteHightlight, "editable")
+                    )
+                        return;
+                    if (isReady) {
+                        Notification("please operate slowly...", "Tips");
+                        return;
+                    }
                     const href = e.target.previousElementSibling.href;
                     if (location.href === href) return;
                     const className = e.target.className;
@@ -3184,6 +3948,7 @@
                         if (ic > 2) return;
                         ic++;
                     }
+                    isReady = true;
                     const i = aid - 1;
                     const title = document.getElementsByClassName("Post-Title");
                     title.length > 0 &&
@@ -3210,13 +3975,15 @@
                         j++;
                         if (j > 2) break;
                     }
-                    pnode.style.fontWeight = "bold";
+                    j < 3 && (pnode.style.fontWeight = "bold");
                     if (this.targetIndex > 0) {
                         pnode.parentNode.children[
                             this.targetIndex - 1
                         ].style.fontWeight = "normal";
                     }
                     this.targetIndex = aid;
+                    this.reInject();
+                    isReady = false;
                 };
                 article = null;
                 //last page
@@ -3572,12 +4339,12 @@
                     m(value, mode, info) {
                         const endDate = this.nowDate;
                         const beginDate = this.getUpdate(info.update);
-                        const moth =
+                        const month =
                             endDate.getFullYear() * 12 +
                             endDate.getMonth() -
                             (beginDate.getFullYear() * 12 +
                                 beginDate.getMonth());
-                        return this[mode](moth, value * 1);
+                        return this[mode](month, value * 1);
                     },
                     y(value, mode, info) {
                         const endDate = this.nowDate;
@@ -3904,15 +4671,17 @@
                                                     "remove this acticle from collection list";
                                                 binfo.name = "Remove";
                                             }
-                                            const pref = results[1];
-                                            if (pref === 1) {
-                                                ainfo.ltitle =
-                                                    "cancel like this article";
-                                                ainfo.ddisplay = "none";
-                                            } else if (pref === 0) {
-                                                ainfo.dtitle =
-                                                    "cancel dislike this article";
-                                                ainfo.ldisplay = "none";
+                                            if (results[1]) {
+                                                const pref = results[1].value;
+                                                if (pref === 1) {
+                                                    ainfo.ltitle =
+                                                        "cancel like this article";
+                                                    ainfo.ddisplay = "none";
+                                                } else if (pref === 0) {
+                                                    ainfo.dtitle =
+                                                        "cancel dislike this article";
+                                                    ainfo.ldisplay = "none";
+                                                }
                                             }
                                             resolve(
                                                 this.create(
@@ -3933,6 +4702,62 @@
                         );
                     });
                 },
+            },
+            syncData(mode, newValue) {
+                dataBaseInstance.initial(["preference"], true).then(
+                    () => {
+                        mode
+                            ? dataBaseInstance.update(newValue[0])
+                            : dataBaseInstance.dele(false, newValue[0]);
+                        dataBaseInstance.close();
+                    },
+                    (err) => console.log(err)
+                );
+            },
+            communication() {
+                const monitor = () => {
+                    GM_addValueChangeListener(
+                        "blockarticleB",
+                        (name, oldValue, newValue, remote) => {
+                            if (remote) {
+                                this.syncData(true, newValue);
+                                GM_setValue("blockarticleB", "");
+                            }
+                        }
+                    );
+                    GM_addValueChangeListener(
+                        "removearticleB",
+                        (name, oldValue, newValue, remote) => {
+                            if (remote) {
+                                this.syncData(false, newValue);
+                                GM_setValue("removearticleB", "");
+                            }
+                        }
+                    );
+                };
+                const r = GM_getValue("removearticleB");
+                const b = GM_getValue("blockarticleB");
+                r || b
+                    ? dataBaseInstance.initial(["preference"], true).then(
+                          () => {
+                              if (r && Array.isArray(r) && r.length > 0) {
+                                  for (const e of r)
+                                      dataBaseInstance.dele(false, e);
+                                  GM_setValue("removearticleB", "");
+                              }
+                              if (b && Array.isArray(b) && b.length > 0) {
+                                  for (const e of b) dataBaseInstance.update(e);
+                                  GM_setValue("blockarticleB", "");
+                              }
+                              monitor();
+                              dataBaseInstance.close();
+                          },
+                          (err) => {
+                              console.log(err);
+                              dataBaseInstance.close();
+                          }
+                      )
+                    : monitor();
             },
             creatAssistantEvent(node, mode) {
                 const Button = (button, m) => {
@@ -3989,7 +4814,10 @@
                     };
                 }
                 //collection
+                let cReady = false;
                 const collectionClick = (button) => {
+                    if (cReady) return;
+                    cReady = true;
                     dataBaseInstance.initial(["collection"], true).then(
                         (result) => {
                             const text = button.innerText;
@@ -4009,8 +4837,10 @@
                             button.innerText = s;
                             button.title = t;
                             dataBaseInstance.close();
+                            cReady = false;
                         },
                         (err) => {
+                            cReady = false;
                             console.log(err);
                             dataBaseInstance.close();
                         }
@@ -4020,30 +4850,84 @@
                     collectionClick(this);
                 };
                 //pref
+                const cm = (mode) => {
+                    const bid = location.pathname.slice(3);
+                    if (mode) {
+                        let b = GM_getValue("blockarticleA");
+                        if (b && Array.isArray(b)) {
+                            for (const e of b) if (e.name === bid) return;
+                        } else b = [];
+                        const r = GM_getValue("removearticleA");
+                        if (r && Array.isArray(r)) {
+                            const i = r.indexOf(bid);
+                            if (i > -1) {
+                                r.splice(i, 1);
+                                GM_setValue("removearticleA", r);
+                            }
+                        }
+                        const info = {};
+                        info.name = bid;
+                        info.type = "article";
+                        info.from = this.columnID;
+                        info.update = Date.now();
+                        info.userID = this.authorID;
+                        info.userName = this.authorName;
+                        b.push(info);
+                        GM_setValue("blockarticleA", b);
+                    } else {
+                        let r = GM_getValue("removearticleA");
+                        if (r && Array.isArray(r) && r.length > 0) {
+                            if (r.includes(bid)) return;
+                        } else r = [];
+                        const b = GM_getValue("blockarticleA");
+                        if (b && Array.isArray(b)) {
+                            const i = b.findIndex((e) => e.name === bid);
+                            if (i > -1) {
+                                b.splice(i, 1);
+                                GM_setValue("blockarticleA", b);
+                            }
+                        }
+                        r.push(bid);
+                        GM_setValue("removearticleA", r);
+                    }
+                };
+                let pReady = false;
                 const prefclick = (button, other, mode) => {
+                    if (pReady) return;
+                    pReady = true;
                     dataBaseInstance.initial(["preference"], true).then(
                         (result) => {
                             let title = "";
+                            let f = false;
+                            let cl = false;
                             if (other.style.display === "none") {
                                 dataBaseInstance.dele(false);
                                 title = `${
                                     mode ? "like" : "dislike"
                                 } this article`;
                                 other.style.display = "block";
+                                cl = mode;
                             } else {
                                 const info = {};
                                 info.pid = dataBaseInstance.pid;
+                                info.update = Date.now();
+                                info.userID = this.authorID;
+                                info.from = this.columnID;
                                 info.value = mode ? 1 : 0;
                                 dataBaseInstance.update(info);
                                 title = `cancel ${
                                     mode ? "like" : "dislike"
                                 } this article`;
                                 other.style.display = "none";
+                                f = !mode;
                             }
                             button.title = title;
                             dataBaseInstance.close();
+                            !cl && cm(f);
+                            pReady = false;
                         },
                         (err) => {
+                            pReady = false;
                             console.log(err);
                             dataBaseInstance.close();
                         }
@@ -4052,12 +4936,48 @@
                 node.children[--i].onclick = (e) => {
                     const target = e.target;
                     const className = target.className;
-                    if (className === "like") {
+                    if (className === "like")
                         prefclick(target, target.nextElementSibling, true);
-                    } else if (className === "dislike") {
+                    else if (className === "dislike")
                         prefclick(target, target.previousElementSibling, false);
-                    }
                 };
+            },
+            recordID: null,
+            dataRecord() {
+                this.recordID && clearTimeout(this.recordID);
+                this.recordID = setTimeout(() => {
+                    this.recordID = null;
+                    const pid = dataBaseInstance.pid;
+                    dataBaseInstance.initial(["collection"], true).then(
+                        (result) => {
+                            result === 1 && dataBaseInstance.updateRecord(pid);
+                            dataBaseInstance.close();
+                        },
+                        () => console.log("open database fail")
+                    );
+                    if (this.columnID) {
+                        const f = GM_getValue("follow");
+                        if (f && Array.isArray(f) && f.length > 0) {
+                            for (const e of f) {
+                                if (e.columnID === this.columnID) {
+                                    e.visitTime = Date.now();
+                                    let times = e.visitTimes;
+                                    e.visitTimes = times ? ++times : 2;
+                                    GM_setValue("follow", f);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }, 15000);
+            },
+            reInject() {
+                let assist = document.getElementById("assist-button-container");
+                if (assist) {
+                    assist.remove();
+                    assist = null;
+                }
+                this.injectButton();
             },
             injectButton(mode) {
                 const name = this.readerMode ? "Exit" : "Reader";
@@ -4074,6 +4994,7 @@
                     .then(
                         (node) => node && this.creatAssistantEvent(node, mode)
                     );
+                this.dataRecord();
             },
             readerMode: false,
             createFrame() {
@@ -4116,6 +5037,7 @@
                 } else {
                     this.injectButton();
                 }
+                this.communication();
             },
         },
         colorAssistant: {
@@ -4425,6 +5347,14 @@
         },
         userPage: {
             username: null,
+            changeTitle(mode) {
+                const title = document.getElementsByClassName(
+                    "ProfileHeader-contentHead"
+                );
+                if (title.length === 0) return;
+                title[0].style.textDecoration =
+                    mode === "Block" ? "none" : "line-through";
+            },
             userManage(mode) {
                 let text = "";
                 const info = {};
@@ -4446,13 +5376,16 @@
             injectButton(name) {
                 createButton(name, name + " this user");
                 let assist = document.getElementById("assist-button-container");
-                assist.children[1].onclick = function () {
-                    const n = this.innerText;
-                    zhihu.userPage.userManage(n);
-                    this.innerText = n === "Block" ? "unBlock" : "Block";
-                    this.title = this.innerText + " this user";
+                assist.children[1].onclick = (e) => {
+                    const button = e.target;
+                    const n = button.innerText;
+                    this.userManage(n);
+                    button.innerText = n === "Block" ? "unBlock" : "Block";
+                    this.changeTitle(button.innerText);
+                    this.title = button.innerText + " this user";
                 };
                 assist = null;
+                name === "unBlock" && this.changeTitle(name);
             },
             changeButton(mode) {
                 const button = document.getElementById(
@@ -4481,6 +5414,22 @@
                     );
             },
         },
+        QASkeyBoardEvent() {
+            document.onkeydown = (e) => {
+                if (e.ctrlKey || e.altKey || e.shiftKey) return;
+                if (e.target.localName === "input") return;
+                const className = e.target.className;
+                if (className && className.includes("DraftEditor")) return;
+                const keyCode = e.keyCode;
+                keyCode === 192
+                    ? this.autoScroll.start()
+                    : keyCode === 187
+                    ? this.autoScroll.speedUP()
+                    : keyCode === 189
+                    ? this.autoScroll.slowDown()
+                    : null;
+            };
+        },
         pageOfQA(index, href) {
             //inject as soon as possible; may be need to concern about some eventlisteners and MO
             this.inputBox.controlEventListener();
@@ -4488,14 +5437,17 @@
             index < 2 && this.antiLogin();
             this.clearStorage();
             window.onload = () => {
-                if (index !== 7) {
+                if (index !== 8) {
                     this.getData();
                     this.blackUserMonitor(index);
                     (index < 4
                         ? !(index === 1 && href.endsWith("/waiting"))
                         : false) &&
-                        setTimeout(() => this.Filter.main(index), 100);
-                    index === 6 && this.userPage.main();
+                        setTimeout(() => {
+                            this.Filter.main(index);
+                            this.QASkeyBoardEvent();
+                        }, 100);
+                    (index === 6 || index === 7) && this.userPage.main();
                 }
                 this.inputBox.monitor();
             };
@@ -4526,6 +5478,7 @@
                 "/column",
                 "/zhuanlan",
                 "/people/",
+                "/org/",
                 "/www",
             ];
             const href = location.href;
