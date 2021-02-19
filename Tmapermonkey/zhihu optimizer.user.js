@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0
+// @version      3.0.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1830,10 +1830,17 @@
                     }
                 }
             },
-            checkURL(targetElements) {
-                if (targetElements.index < 2) return true;
+            URL_hasChange: false,
+            checkURL(targetElements, mode = false) {
                 const href = location.href;
-                return targetElements.zone.some((e) => href.includes(e));
+                if (mode && this.currentHREF !== href) {
+                    this.URL_hasChange = true;
+                    this.currentHREF = href;
+                    return false;
+                }
+                return targetElements.index < 2
+                    ? true
+                    : targetElements.zone.some((e) => href.includes(e));
             },
             clickCheck(item, targetElements) {
                 // user without userid when in the search page, if the answer is not expanded
@@ -2076,7 +2083,12 @@
                     }
                 }
                 const mo = new MutationObserver((e) => {
-                    if (!this.checkURL(targetElements)) return;
+                    if (
+                        this.URL_hasChange ||
+                        !this.checkURL(targetElements, targetElements.index > 1)
+                    ) {
+                        return;
+                    }
                     e.forEach((item) => {
                         if (item.addedNodes.length > 0) {
                             const additem = item.addedNodes[0];
@@ -2101,18 +2113,38 @@
                 return targetElements;
             },
             dbInitial: false,
+            URL_change: false,
+            currentHREF: null,
             main(index) {
+                this.currentHREF = location.href;
                 this.foldAnswer.initial().then((r) => {
                     this.checked = [];
                     this.dbInitial = r;
                     const targetElements = this.getTagetElements(index);
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
+                    if (index > 1) {
+                        unsafeWindow.addEventListener("urlchange", () =>
+                            this.URL_change
+                                ? (this.URL_change = false)
+                                : setTimeout(() => {
+                                      document.getElementsByClassName(
+                                          "fold_element"
+                                      ).length === 0 &&
+                                          this.firstRun(targetElements, false);
+                                  }, 300)
+                        );
+                        //monitor forward or backward, this operation will not fire dom event
+                        window.onpopstate = () => (
+                            (this.URL_change = true),
+                            this.firstRun(targetElements, false)
+                        );
+                    }
                 });
             },
-            firstRun(targetElements) {
+            firstRun(targetElements, mode = true) {
                 if (!this.checkURL(targetElements)) {
-                    this.monitor(targetElements);
+                    mode && this.monitor(targetElements);
                     return;
                 }
                 let ic = 0;
@@ -2120,11 +2152,12 @@
                     const items = document.getElementsByClassName(
                         targetElements.itemClass
                     );
-                    if (items.length > 4 || ic > 10) {
+                    if (items.length > 4 || ic > 25) {
                         clearInterval(id);
                         for (const item of items)
                             this.check(item, targetElements, 0);
-                        this.monitor(targetElements);
+                        mode && this.monitor(targetElements);
+                        this.URL_hasChange = false;
                     }
                     ic++;
                 }, 20);
@@ -2196,7 +2229,7 @@
                     contentID: "RichText ztext CopyrightRichText-richText",
                     expand: "RichContent-inner",
                     inserButtonID: "TopicActions TopicMetaCard-actions",
-                    zone: ["/top-answers", "/hot"],
+                    zone: ["/top-answers", "/hot", "newest"],
                     blockValueName: "blacktopicAndquestion",
                     index: index,
                 };
@@ -2811,6 +2844,7 @@
                     max-width: 1000px !important;
                     min-width: 1000px !important;
                 }
+                .RichText-MCNLinkCardContainer,
                 div.Question-sideColumn,.Kanshan-container{display: none !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
@@ -2820,6 +2854,7 @@
                     border: 6px dashed rgba(133,144,166,0.2) !important;
                     border-radius: 6px !important;
                 }
+                a[href*="u.jd.com"],
                 .Pc-word,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important;}
@@ -3039,6 +3074,8 @@
                 .Sticky.RichContent-actions.is-fixed.is-bottom{position: inherit !important}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
+                a[href*="u.jd.com"],
+                .RichText-MCNLinkCardContainer,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
