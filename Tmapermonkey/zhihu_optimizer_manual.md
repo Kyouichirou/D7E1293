@@ -2,9 +2,13 @@
 
 **zhihu optimizer**, 这是一款让知乎变得更好的轻量级Tampermonkey脚本....._Make Thing Better and Simpler_
 
+鉴于增加大量功能, 为了方便使用, 移步B站查看完整的使用演示视频
+
 浏览器兼容测试: **chrome 80+**(x_64)完美运行, 已知不兼容chrome最低版本为: **64**(x_86), Firefox未作兼容测试
 
 **Tampermonkey**版本: 4.11.6120
+
+(***建议使用尽可能高版本的chrome | chromium浏览器和Tampermonkey扩展***)
 
 安装地址: [Github](https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js)
 
@@ -33,6 +37,10 @@
     - [6. 翻页 (2.5.1版本新增)](#6-翻页-251版本新增)
     - [7. 快速复制代码](#7-快速复制代码)
     - [8. PDF打印预览排版优化](#8-pdf打印预览排版优化)
+    - [9. 添加专栏](#9-添加专栏)
+    - [10. 自动模式](#10-自动模式)
+    - [11. 滚动到顶部 | 底部](#11-滚动到顶部--底部)
+    - [12. 目录快捷键](#12-目录快捷键)
   - [七, 页面样式调整](#七-页面样式调整)
       - [字体:](#字体)
       - [页面内容加宽显示:](#页面内容加宽显示)
@@ -60,22 +68,34 @@
 2. 话题(Topic)
 3. 问题和答案(question && answer)
 
-支持两种种拦截方式:
+支持拦截方式:
 
-1. blackName, 用户名, 例如: [故事档案局](https://www.zhihu.com/people/gu-shi-dang-an-ju-71)
-3. blackKey, 关键词, 将过滤内容, 如果内容包含此关键词, 相关的信息将被移除, 使用需谨慎
-
-````javascript
-eg: const blackKey = ["留学中介", "肖战"];
-````
-
-blackkey需要在代码中修改, 该部分位于代码块的顶部(该功能尚未完善, 未作全面启用)
+1. 用户名, 该用户所发表的所有内容将从搜索, 话题, 问题|答案页面移除掉, 例如: [故事档案局](https://www.zhihu.com/people/gu-shi-dang-an-ju-71)
+2. 关键词, 将过滤内容, 如果内容包含此关键词, 相关的信息将被从搜索, 话题, 问题, 答案|问题页面移除, 使用需谨慎
+3. 问题, 顾名思义, 相关问题将从搜索页面和话题页面当中移除
+4. 话题, 顾名思义, 相关话题将被从搜索页面当中移除
+5. 文章(专栏), 相关的文章将被从搜索, 话题页面移除
 
 当点击"**Block**"按钮的时候, 相关页面中的用户回答的答案将被隐藏, 反之, "**unBlock**",  取消拦截, 将显示答案, 同步执行, 不需要刷新页面即可
 
 此按钮将在用户页面的左下角生成, eg: [故事档案局](https://www.zhihu.com/people/gu-shi-dang-an-ju-71)
 
 ![Block按钮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20099.jpg?raw=true)
+
+````javascript
+eg: const blackKey = ["留学中介", "肖战"];
+````
+
+关键词, blackkey需要在代码中修改, 该部分位于代码块的顶部(**该功能尚未完善, 未作全面启用**)
+
+问题, question
+答案, answer
+话题, topic
+文章, article
+
+![示例](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/block.jpg?raw=true)
+
+在搜索, 话题, 答案|问题页面, 点击对应的按钮即可移除相应的项目
 
 ## 三, 点击即突出内容
 
@@ -209,7 +229,40 @@ next => "**n**", 向下翻页
 
 可以直接将生成的目录嵌入内容正文中
 
-![toc自动生成目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%202.jpg?raw=true)
+[toc自动生成目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%202.jpg?raw=true)
+
+### 9. 添加专栏
+
+辅助键: "**shift**" 
+
+"F", => follow, 将当前专栏添加到follow列表, 不限数量, 适用于非迫切关注的内容
+
+"S", => subscribe, 订阅当前的专栏, 注意订阅数量上限为10, 适用于迫切需要关注的内容
+
+### 10. 自动模式
+
+在滚动模式下使用
+顾名思义, 假如你当前处于阅读模式下, 且观看的文章在当前访问的列表中, 将会在阅读完当前文章后自动阅读下一篇文章.
+页面将会自动滚动到最顶部, 自动开始滚动
+
+辅助键: "**shift**" + "**a**", => auto, 退出自动模式也如此
+
+### 11. 滚动到顶部 | 底部
+
+单键
+
+"**T**", => Top, 滚动到顶部
+
+"**R**", => Root, 滚动到底部
+
+### 12. 目录快捷键
+
+![目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20121.jpg?raw=true)
+
+"**0** - **9**" => 对应目录 1 - 10;
+
+"**<**", 上一页
+"**>**", 下一页
 
 ## 七, 页面样式调整
 
@@ -233,10 +286,7 @@ next => "**n**", 向下翻页
 ## 八, 其他
 
 1. 去重定向, 即在打开外链知乎安全中心跳转(全局生效, 包括评论区)
-
 2. 移除在为未登录状态下, 访问(问题 & 答案)页面出现的登录弹窗(**不影响正常的登录, 当你主动登录账号时**)
 3. 剪切板优化, 移除版权声明, 将部分常用的中文符号换成对应的英文符号, 如中文空心句号, 换成英文实心句号
-
 4. 对广告内容进行轻微调整....
-
-
+5. 更多功能请观看顶部的演示视频
