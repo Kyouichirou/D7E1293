@@ -1,8 +1,8 @@
 # 简介
 
-**zhihu optimizer**, 这是一款让知乎变得更好的轻量级Tampermonkey脚本....._Make Thing Better and Simpler_
+演示视频: [BiliBili](https://www.bilibili.com/video/BV1oU4y1H7VD)
 
-鉴于增加大量功能, 为了方便使用, 移步B站查看完整的使用演示视频
+**zhihu optimizer**, 这是一款让知乎变得更好的轻量级Tampermonkey脚本....._Make Thing Better and Simpler_
 
 浏览器兼容测试: **chrome 80+**(x_64)完美运行, 已知不兼容chrome最低版本为: **64**(x_86), Firefox未作兼容测试
 
