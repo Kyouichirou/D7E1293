@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0.1
+// @version      3.0.1.3
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -141,7 +141,7 @@
                         width: 60px;
                         flex-direction: column;
                         position: fixed;
-                        bottom: 10%;
+                        bottom: 7%;
                     }
                     div#assist-button-container:hover {
                         opacity: 1;
@@ -4270,10 +4270,9 @@
                 },
                 timeStampconvertor: null,
                 commandFormat(str) {
-                    //s = '$d<3 $d>7 $a=(python javascript)';
-                    const treg = /(?<=\$)[dmhyw][<>=][1-9]+/g;
+                    const treg = /(?<=\$)[dmhyw][<>=][0-9]+/g;
                     const areg = /(?<=\$)a=\(.+\)/g;
-                    const preg = /(?<=\$)p=[1-9]{5,}/g;
+                    const preg = /(?<=\$)p=[0-9]{5,}/g;
                     const t = str.match(treg);
                     const p = str.match(preg);
                     if (t && p) return null;
@@ -5074,7 +5073,7 @@
                 } else {
                     this.injectButton();
                 }
-                this.communication();
+                setTimeout(()=> this.communication(), 5000);
             },
         },
         colorAssistant: {
@@ -5177,7 +5176,7 @@
             getItem(node) {
                 //those tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code", "strong"];
+                const tags = ["a", "br", "b", "span", "code", "strong", 'u'];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     this.nodeCount += 1;
