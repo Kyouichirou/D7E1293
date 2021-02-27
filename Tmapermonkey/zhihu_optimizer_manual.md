@@ -89,10 +89,10 @@ eg: const blackKey = ["留学中介", "肖战"];
 
 关键词, blackkey需要在代码中修改, 该部分位于代码块的顶部(**该功能尚未完善, 未作全面启用**)
 
-问题, question
-答案, answer
-话题, topic
-文章, article
+- 问题, question
+- 答案, answer
+- 话题, topic
+- 文章, article
 
 ![示例](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/block.jpg?raw=true)
 
@@ -298,11 +298,11 @@ next => "**n**", 向下翻页
 
 1. 专栏搜索
 2. 收藏文章搜索, 注意需要使用**特定的语句**进行搜索
-   2.1 按关键词, 单一关键词, $a=(python), 多个关键词$a=(python 机器学习), 使用空格进行分隔, 括号必须存在
-   2.2 按时间搜索, 支持小时(hour), 天数(day), 星期(week), 月份(month), 年(year)
-       $h<24, 表示收藏时间小于24个小时, 多个条件, $d>1 $d<7, 即收藏时间大于1天, 小于7天
-   2.3 按文章ID搜索, $p=102274476
-   2.4 混合条件搜索(时间+关键词), 如: $d>3 $d<7 $a=(python javascript), 即收藏时间大于3天小于7天, 关键词包含python和JavaScript;
+   * 2.1 按关键词, 单一关键词, $a=(python), 多个关键词$a=(python 机器学习), 使用空格进行分隔, 括号必须存在
+   * 2.2 按时间搜索, 支持小时(hour), 天数(day), 星期(week), 月份(month), 年(year)
+         $h<24, 表示收藏时间小于24个小时, 多个条件, $d>1 $d<7, 即收藏时间大于1天, 小于7天
+   * 2.3 按文章ID搜索, $p=102274476
+   * 2.4 混合条件搜索(时间+关键词), 如: $d>3 $d<7 $a=(python javascript), 即收藏时间大于3天小于7天, 关键词包含python和JavaScript;
 
 ## 九, 其他
 
