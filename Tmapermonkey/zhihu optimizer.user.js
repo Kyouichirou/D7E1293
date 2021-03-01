@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0.1.3
+// @version      3.0.1.4
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1181,7 +1181,7 @@
                         ? this.Column.pagePrint()
                         : keyCode === 70
                         ? this.Column.follow()
-                        : keyCode === 82
+                        : keyCode === 76
                         ? this.Column.columnsModule.recentModule.log("p")
                         : keyCode === 83
                         ? this.Column.subscribe()
