@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0.1.4
+// @version      3.0.1.5
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -4021,6 +4021,13 @@
                     this.targetIndex = aid;
                     this.reInject();
                     isReady = false;
+                    const links = content[0].getElementsByTagName("a");
+                    for (const link of links) {
+                        const href = decodeURIComponent(link.href).split(
+                            "link.zhihu.com/?target="
+                        );
+                        if (href.length > 1) link.href = href[1];
+                    }
                 };
                 article = null;
                 //last page
@@ -5073,7 +5080,7 @@
                 } else {
                     this.injectButton();
                 }
-                setTimeout(()=> this.communication(), 5000);
+                setTimeout(() => this.communication(), 5000);
             },
         },
         colorAssistant: {
@@ -5176,7 +5183,7 @@
             getItem(node) {
                 //those tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code", "strong", 'u'];
+                const tags = ["a", "br", "b", "span", "code", "strong", "u"];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     this.nodeCount += 1;
