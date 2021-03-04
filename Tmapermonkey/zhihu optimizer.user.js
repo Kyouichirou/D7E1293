@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0.1.5
+// @version      3.0.1.6
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -2837,7 +2837,6 @@
                     width: 54px;
                     border-radius: 5px;
                 }
-                html{overflow: auto !important;}
                 div.Question-mainColumn{
                     margin: auto !important;
                     width: 100% !important;
@@ -5493,6 +5492,7 @@
                     (index === 6 || index === 7) && this.userPage.main();
                 }
                 this.inputBox.monitor();
+                index < 2 && (document.documentElement.style.overflow = 'auto');
             };
         },
         blackUserMonitor(index) {
