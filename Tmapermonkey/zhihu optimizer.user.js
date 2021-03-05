@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.0.1.6
+// @version      3.2.1.0
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -634,6 +634,338 @@
         },
     };
     const zhihu = {
+        qaReader: {
+            firstly: true,
+            readerMode: false,
+            Reader(node, aid) {
+                //adapted from http://www.360doc.com/
+                let title = document.title;
+                title = title.slice(0, title.lastIndexOf("-") - 1);
+                const meta = node.getElementsByClassName(
+                    "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related"
+                );
+                const mBackup =
+                    '<div class="AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related" itemprop="author" itemscope="" itemtype="http://schema.org/Person">No_data</div>';
+                const content = node.getElementsByClassName(
+                    "RichText ztext CopyrightRichText-richText"
+                );
+                const cBackup =
+                    '<span class="RichText ztext CopyrightRichText-richText" itemprop="text">No_data</span>';
+                const html = `
+                <div
+                    id="artfullscreen"
+                    class="artfullscreen__"
+                    style="display: block; height: -webkit-fill-available"
+                >
+                    <style type="text/css">
+                        div#artfullscreen {
+                            width: 100%;
+                            height: 100%;
+                            background: #e3e3e3;
+                            z-index: 999;
+                            position: fixed;
+                            left: 0;
+                            top: 0;
+                            text-align: left;
+                            overflow: auto;
+                            display: block;
+                        }
+                        div#artfullscreen__box {
+                            padding: 32px 60px;
+                            height: auto;
+                            overflow: hidden;
+                            background: #fff;
+                            box-shadow: 0 0 6px #999;
+                            display: table;
+                            margin: 20px auto;
+                            min-height: 95%;
+                        }
+                        div#artfullscreen__box_scr {
+                            word-break: break-word;
+                            height: auto;
+                            font-size: 16px;
+                            color: #2f2f2f;
+                            line-height: 1.5;
+                            position: relative;
+                        }
+                        h2#titiletext {
+                            font-size: 30px;
+                            font-family: simhei;
+                            color: #000;
+                            line-height: 40px;
+                            margin: 0 0 30px 0;
+                            overflow: hidden;
+                            text-align: left;
+                            word-break: break-all;
+                        }
+                    </style>
+                    <div
+                        id="artfullscreen__box"
+                        class="artfullscreen__box"
+                        style="width: 930px"
+                    >
+                        <div class="hidden_fold" style="margin-right: -45px;">
+                            <button class="fold_exit" title="exit reader mode">
+                                Exit
+                            </button>
+                        </div>
+                        <div class="artfullscreen__box_scr" id="artfullscreen__box_scr">
+                            <table style="width: 656px">
+                                <tbody>
+                                    <tr>
+                                        <td id="artContent" style="max-width: 1000px">
+                                            <h2 id="titiletext">
+                                                ${title}
+                                            </h2>
+                                            ${
+                                                meta.length > 0
+                                                    ? meta[0].outerHTML
+                                                    : mBackup
+                                            }
+                                            <hr>
+                                            <div
+                                                style="
+                                                    width: 1200px;
+                                                    margin: 0;
+                                                    padding: 0;
+                                                    height: 0;
+                                                "
+                                            ></div>
+                                            ${
+                                                content.length > 0
+                                                    ? content[0].outerHTML
+                                                    : cBackup
+                                            }
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+                document.body.insertAdjacentHTML("afterend", html);
+                this.aid = aid;
+                this.Navigator();
+                this.creatEvent();
+            },
+            Navigator() {
+                //adapted from @vizo, https://greasyfork.org/zh-CN/scripts/373008-%E7%99%BE%E5%BA%A6%E6%90%9C%E7%B4%A2%E4%BC%98%E5%8C%96sp
+                const css = `
+                    .readerpage-l,
+                    .readerpage-r {
+                        width: 300px;
+                        height: 500px;
+                        overflow: hidden;
+                        cursor: pointer;
+                        position: fixed;
+                        top: 0;
+                        bottom: 0;
+                        margin: auto;
+                        z-index: 1000;
+                    }
+                    .readerpage-l.disa,
+                    .readerpage-r.disa {
+                        cursor: not-allowed;
+                    }
+                    .readerpage-l:hover,
+                    .readerpage-r:hover {
+                        background: rgba(100, 100, 100, 0.03);
+                    }
+                    .readerpage-l::before,
+                    .readerpage-r::before {
+                        content: '';
+                        width: 100px;
+                        height: 100px;
+                        border-left: 2px solid #e7e9eb;
+                        border-bottom: 2px solid #e7e9eb;
+                        position: absolute;
+                        top: 0;
+                        bottom: 0;
+                        margin: auto;
+                    }
+                    .readerpage-l:hover::before,
+                    .readerpage-r:hover::before {
+                        border-color: #fff;
+                    }
+                    .readerpage-l {
+                        left: 0;
+                    }
+                    .readerpage-l::before {
+                        left: 45%;
+                        transform: rotate(45deg);
+                    }
+                    .readerpage-r {
+                        right: 0;
+                    }
+                    .readerpage-r::before {
+                        right: 45%;
+                        transform: rotate(225deg);
+                    }
+                    @media (max-width: 1280px) {
+                        .readerpage-l,
+                        .readerpage-r {
+                            width: 150px;
+                        }
+                    }`;
+                const [statusl, titlel] = this.prevNode
+                    ? ["", "previous answer"]
+                    : [" disa", "no more content"];
+                const [statusr, titler] = this.nextNode
+                    ? ["", "next answer"]
+                    : [" disa", "no more content"];
+                const html = `
+                        <<div id="reader_navigator">
+                            <div class="readerpage-l${statusl}" title=${escapeBlank(
+                    titlel
+                )}></div>
+                            <div class="readerpage-r${statusr}" title=${escapeBlank(
+                    titler
+                )}></div>
+                        </div>`;
+                GM_addStyle(css);
+                document.body.insertAdjacentHTML("afterend", html);
+            },
+            creatEvent() {
+                const f = this.full;
+                let button = f.getElementsByClassName("fold_exit")[0];
+                button.onclick = () => this.ShowOrExit(false);
+                button = null;
+                let n = this.nav;
+                n.children[0].onclick = () => this.prevNode && this.Previous();
+                n.children[1].onclick = () => this.nextNode && this.Next();
+                n = null;
+                this.loadLazy(f);
+            },
+            changeNav(node) {
+                const pre = node.children[0];
+                const pName = pre.className;
+                const [npName, titlel] = this.prevNode
+                    ? ["readerpage-l", "previous answer"]
+                    : ["readerpage-l disa", "no more content"];
+                if (pName !== npName) {
+                    pre.className = npName;
+                    pre.title = titlel;
+                }
+                const next = node.children[1];
+                const nextName = next.className;
+                const [nnextName, titler] = this.nextNode
+                    ? ["readerpage-r", "next answer"]
+                    : ["readerpage-r disa", "no more content"];
+                if (nextName !== nnextName) {
+                    next.className = nnextName;
+                    next.title = titler;
+                }
+            },
+            changeContent(node) {
+                const cName = "RichText ztext CopyrightRichText-richText";
+                const aName =
+                    "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
+                const content = node.getElementsByClassName(cName);
+                const author = node.getElementsByClassName(aName);
+                const f = this.full;
+                f.getElementsByClassName(cName)[0].innerHTML =
+                    content.length > 0 ? content[0].innerHTML : "No data";
+                f.getElementsByClassName(aName)[0].innerHTML =
+                    author.length > 0 ? author[0].innerHTML : "No data";
+                this.loadLazy(f);
+                this.navPannel = this.curNode = node;
+                this.changeNav(this.nav);
+            },
+            Next() {
+                this.changeContent(this.nextNode);
+            },
+            Previous() {
+                this.changeContent(this.prevNode);
+            },
+            get nav() {
+                return document.getElementById("reader_navigator");
+            },
+            get full() {
+                return document.getElementById("artfullscreen");
+            },
+            ShowOrExit(mode) {
+                const n = this.nav;
+                const display = mode ? "block" : "none";
+                n && (n.style.display = display);
+                const f = this.full;
+                f && (f.style.display = display);
+                if (mode) {
+                    this.changeNav(n);
+                } else {
+                    this.readerMode = mode;
+                    this.overFlow = false;
+                }
+            },
+            Change(node, aid) {
+                aid === this.aid
+                    ? this.ShowOrExit(true)
+                    : this.changeContent(node);
+            },
+            //load lazy pic
+            loadLazy(node) {
+                const imgs = node.getElementsByTagName("img");
+                for (const img of imgs) {
+                    const name = img.className;
+                    name &&
+                        name.endsWith("lazy") &&
+                        img.src.startsWith("data:image/svg+xml") &&
+                        (img.src = img.dataset.actualsrc);
+                }
+            },
+            /**
+             * @param {any} mode
+             */
+            set overFlow(mode) {
+                document.documentElement.style.overflow = mode
+                    ? "hidden"
+                    : "auto";
+            },
+            /**
+             * @param {{ parentNode: any; }} pnode
+             */
+            set navPannel(pnode) {
+                const className = pnode.className;
+                if (className === "QuestionAnswer-content") {
+                    this.prevNode = null;
+                    const list = document.getElementsByClassName("List-item");
+                    this.nextNode = list.length > 0 ? list[0] : null;
+                } else {
+                    const next = pnode.nextElementSibling;
+                    if (next) {
+                        const nextName = next.className;
+                        this.nextNode = nextName === "List-item" ? next : null;
+                    } else this.nextNode = null;
+                    const pre = pnode.previousElementSibling;
+                    if (pre) {
+                        const pName = pre.className;
+                        if (pName === "List-header") {
+                            const c = document.getElementsByClassName(
+                                "QuestionAnswer-content"
+                            );
+                            this.prevNode = c.length > 0 ? c[0] : null;
+                        } else {
+                            this.prevNode = pName === "list-item" ? pre : null;
+                        }
+                    } else this.prevNode = null;
+                }
+            },
+            nextNode: null,
+            prevNode: null,
+            curNode: null,
+            aid: null,
+            main(pnode, aid) {
+                //---------------------------------------check if the node has pre and next node
+                const p = pnode.parentNode;
+                this.navPannel = p;
+                this.firstly
+                    ? this.Reader(pnode, aid)
+                    : this.Change(pnode, aid);
+                this.curNode = p;
+                this.firstly = false;
+                this.readerMode = true;
+                this.overFlow = true;
+            },
+        },
         getData() {
             blackName = GM_getValue("blackname");
             (!blackName || !Array.isArray(blackName)) && (blackName = []);
@@ -1533,6 +1865,8 @@
                 },
             });
         },
+        //if has logined or the login window is not loaded when the page is loaded;
+        hasLogin: false,
         antiLogin() {
             /*
             note:
@@ -1540,10 +1874,17 @@
             so that the occurrence of the event cannot be accurately captured
             don't use dom load event =>
             */
-            let mo = new MutationObserver((events) =>
+            let mo = new MutationObserver((events) => {
+                if (this.hasLogin) {
+                    mo.disconnect();
+                    mo = null;
+                    return;
+                }
                 events.forEach((e) =>
                     e.addedNodes.forEach((node) => {
+                        const type = node.nodeType;
                         if (
+                            (type === 1 || type === 9 || type === 11) &&
                             node.getElementsByClassName("signFlowModal")
                                 .length > 0
                         ) {
@@ -1562,8 +1903,8 @@
                             }, 0);
                         }
                     })
-                )
-            );
+                );
+            });
             document.body
                 ? mo.observe(document.body, { childList: true })
                 : (document.onreadystatechange = () =>
@@ -1908,6 +2249,7 @@
                                 "element",
                                 "select",
                                 "edit",
+                                "reader",
                             ];
                             if (ends.some((e) => className.endsWith(e)))
                                 this.foldAnswer.buttonclick(target);
@@ -2619,8 +2961,8 @@
                         ? this.showFold(button, text)
                         : this[text](button);
                 },
-                getcontent(button) {
-                    const p = this.getpNode(button);
+                getcontent(button, pnode) {
+                    const p = pnode || this.getpNode(button);
                     if (!p) return null;
                     const expand = p.getElementsByClassName(
                         "Button ContentItem-rightButton ContentItem-expandButton Button--plain"
@@ -2639,6 +2981,13 @@
                     ele.contentEditable = true;
                     button.innerText = "Exit";
                     button.title = "exit editable mode";
+                },
+                Reader(button) {
+                    const pnode = this.getpNode(button);
+                    if (!pnode) return;
+                    const aid = this.getid(pnode);
+                    if (!aid) return;
+                    zhihu.qaReader.main(pnode, aid);
                 },
                 Exit(button) {
                     const ele = this.getcontent(button);
@@ -2785,7 +3134,8 @@
                         const obutton = `
                             <button class="fold_temp" title="temporarily fold the answer">Fold</button>
                             <button class="fold_edit" title="edit the answer">Edit</button>
-                            <button class="fold_select" title="select the answer">Select</button>`;
+                            <button class="fold_select" title="select the answer">Select</button>
+                            <button class="fold_reader" title="open the answer in reader">Reader</button>`;
                         const html = `
                         <div class="hidden_fold">
                             <button class="fold_block" title="fold the answer forever">Block</button>
@@ -5492,7 +5842,10 @@
                     (index === 6 || index === 7) && this.userPage.main();
                 }
                 this.inputBox.monitor();
-                index < 2 && (document.documentElement.style.overflow = 'auto');
+                if (index < 2) {
+                    document.documentElement.style.overflow = "auto";
+                    setTimeout(() => (this.hasLogin = true), 3000);
+                }
             };
         },
         blackUserMonitor(index) {
