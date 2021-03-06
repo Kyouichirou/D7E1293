@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.1.0
+// @version      3.2.2.0
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -836,6 +836,45 @@
                 n = null;
                 this.loadLazy(f);
             },
+            scroll: {
+                toTop(node) {
+                    let hTop = node.scrollTop;
+                    if (hTop === 0) return;
+                    const rate = 8;
+                    let sid = 0;
+                    const scrollToTop = () => {
+                        hTop = node.scrollTop;
+                        if (hTop > 0) {
+                            sid = window.requestAnimationFrame(scrollToTop);
+                            node.scrollTo(0, hTop - hTop / rate);
+                        } else {
+                            sid !== 0 && window.cancelAnimationFrame(sid);
+                        }
+                    };
+                    scrollToTop();
+                },
+                toBottom(node) {
+                    //take care this, if the webpage adopts waterfall flow design
+                    let sid = 0;
+                    let shTop = 0;
+                    const initial = 100;
+                    const scrollToBottom = () => {
+                        const hTop = node.scrollTop || initial;
+                        if (hTop !== shTop) {
+                            shTop = hTop;
+                            sid = window.requestAnimationFrame(scrollToBottom);
+                            node.scrollTo(0, hTop + hTop);
+                        } else {
+                            sid !== 0 && window.cancelAnimationFrame(sid);
+                            sid = 0;
+                        }
+                    };
+                    scrollToBottom();
+                },
+            },
+            keyEvent(keyCode){
+                this.readerMode && keyCode === 84 ? this.scroll.toTop(this.full) : keyCode === 82 ? this.scroll.toBottom(this.full) : null;
+            },
             changeNav(node) {
                 const pre = node.children[0];
                 const pName = pre.className;
@@ -944,7 +983,7 @@
                             );
                             this.prevNode = c.length > 0 ? c[0] : null;
                         } else {
-                            this.prevNode = pName === "list-item" ? pre : null;
+                            this.prevNode = pName === "List-item" ? pre : null;
                         }
                     } else this.prevNode = null;
                 }
@@ -5819,7 +5858,7 @@
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
-                    : null;
+                    : this.qaReader.keyEvent(keyCode);
             };
         },
         pageOfQA(index, href) {
