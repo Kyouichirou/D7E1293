@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.2.0
+// @version      3.2.2.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -776,8 +776,8 @@
                         content: '';
                         width: 100px;
                         height: 100px;
-                        border-left: 2px solid #e7e9eb;
-                        border-bottom: 2px solid #e7e9eb;
+                        border-left: 2px solid #ADAFB0;
+                        border-bottom: 2px solid #ADAFB0;
                         position: absolute;
                         top: 0;
                         bottom: 0;
@@ -854,7 +854,6 @@
                     scrollToTop();
                 },
                 toBottom(node) {
-                    //take care this, if the webpage adopts waterfall flow design
                     let sid = 0;
                     let shTop = 0;
                     const initial = 100;
@@ -872,8 +871,12 @@
                     scrollToBottom();
                 },
             },
-            keyEvent(keyCode){
-                this.readerMode && keyCode === 84 ? this.scroll.toTop(this.full) : keyCode === 82 ? this.scroll.toBottom(this.full) : null;
+            keyEvent(keyCode) {
+                this.readerMode && keyCode === 84
+                    ? this.scroll.toTop(this.full)
+                    : keyCode === 82
+                    ? this.scroll.toBottom(this.full)
+                    : null;
             },
             changeNav(node) {
                 const pre = node.children[0];
@@ -988,6 +991,11 @@
                     } else this.prevNode = null;
                 }
             },
+            removeADs(){
+                const ads = document.getElementsByClassName('Pc-word');
+                let i = ads.length;
+                if (i > 0) for (i; i--; ) ads[i].remove();
+            },
             nextNode: null,
             prevNode: null,
             curNode: null,
@@ -995,6 +1003,7 @@
             main(pnode, aid) {
                 //---------------------------------------check if the node has pre and next node
                 const p = pnode.parentNode;
+                this.removeADs();
                 this.navPannel = p;
                 this.firstly
                     ? this.Reader(pnode, aid)
