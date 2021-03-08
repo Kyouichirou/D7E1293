@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.2.1
-// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
+// @version      3.2.3.1
+// @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
 // @run-at       document-start
@@ -637,7 +637,7 @@
         qaReader: {
             firstly: true,
             readerMode: false,
-            Reader(node, aid) {
+            Reader(node) {
                 //adapted from http://www.360doc.com/
                 let title = document.title;
                 title = title.slice(0, title.lastIndexOf("-") - 1);
@@ -743,70 +743,12 @@
                         </div>
                     </div>
                 </div>`;
-                document.body.insertAdjacentHTML("afterend", html);
-                this.aid = aid;
+                document.body.insertAdjacentHTML("beforeend", html);
                 this.Navigator();
                 this.creatEvent();
             },
             Navigator() {
                 //adapted from @vizo, https://greasyfork.org/zh-CN/scripts/373008-%E7%99%BE%E5%BA%A6%E6%90%9C%E7%B4%A2%E4%BC%98%E5%8C%96sp
-                const css = `
-                    .readerpage-l,
-                    .readerpage-r {
-                        width: 300px;
-                        height: 500px;
-                        overflow: hidden;
-                        cursor: pointer;
-                        position: fixed;
-                        top: 0;
-                        bottom: 0;
-                        margin: auto;
-                        z-index: 1000;
-                    }
-                    .readerpage-l.disa,
-                    .readerpage-r.disa {
-                        cursor: not-allowed;
-                    }
-                    .readerpage-l:hover,
-                    .readerpage-r:hover {
-                        background: rgba(100, 100, 100, 0.03);
-                    }
-                    .readerpage-l::before,
-                    .readerpage-r::before {
-                        content: '';
-                        width: 100px;
-                        height: 100px;
-                        border-left: 2px solid #ADAFB0;
-                        border-bottom: 2px solid #ADAFB0;
-                        position: absolute;
-                        top: 0;
-                        bottom: 0;
-                        margin: auto;
-                    }
-                    .readerpage-l:hover::before,
-                    .readerpage-r:hover::before {
-                        border-color: #fff;
-                    }
-                    .readerpage-l {
-                        left: 0;
-                    }
-                    .readerpage-l::before {
-                        left: 45%;
-                        transform: rotate(45deg);
-                    }
-                    .readerpage-r {
-                        right: 0;
-                    }
-                    .readerpage-r::before {
-                        right: 45%;
-                        transform: rotate(225deg);
-                    }
-                    @media (max-width: 1280px) {
-                        .readerpage-l,
-                        .readerpage-r {
-                            width: 150px;
-                        }
-                    }`;
                 const [statusl, titlel] = this.prevNode
                     ? ["", "previous answer"]
                     : [" disa", "no more content"];
@@ -815,6 +757,64 @@
                     : [" disa", "no more content"];
                 const html = `
                         <<div id="reader_navigator">
+                            <style type="text/css">
+                                .readerpage-l,
+                                .readerpage-r {
+                                    width: 300px;
+                                    height: 500px;
+                                    overflow: hidden;
+                                    cursor: pointer;
+                                    position: fixed;
+                                    top: 0;
+                                    bottom: 0;
+                                    margin: auto;
+                                    z-index: 1000;
+                                }
+                                .readerpage-l.disa,
+                                .readerpage-r.disa {
+                                    cursor: not-allowed;
+                                }
+                                .readerpage-l:hover,
+                                .readerpage-r:hover {
+                                    background: rgba(100, 100, 100, 0.03);
+                                }
+                                .readerpage-l::before,
+                                .readerpage-r::before {
+                                    content: '';
+                                    width: 100px;
+                                    height: 100px;
+                                    border-left: 2px solid #ADAFB0;
+                                    border-bottom: 2px solid #ADAFB0;
+                                    position: absolute;
+                                    top: 0;
+                                    bottom: 0;
+                                    margin: auto;
+                                }
+                                .readerpage-l:hover::before,
+                                .readerpage-r:hover::before {
+                                    border-color: #fff;
+                                }
+                                .readerpage-l {
+                                    left: 0;
+                                }
+                                .readerpage-l::before {
+                                    left: 45%;
+                                    transform: rotate(45deg);
+                                }
+                                .readerpage-r {
+                                    right: 0;
+                                }
+                                .readerpage-r::before {
+                                    right: 45%;
+                                    transform: rotate(225deg);
+                                }
+                                @media (max-width: 1280px) {
+                                    .readerpage-l,
+                                    .readerpage-r {
+                                        width: 150px;
+                                    }
+                                }
+                            </style>
                             <div class="readerpage-l${statusl}" title=${escapeBlank(
                     titlel
                 )}></div>
@@ -822,8 +822,78 @@
                     titler
                 )}></div>
                         </div>`;
-                GM_addStyle(css);
-                document.body.insertAdjacentHTML("afterend", html);
+                document.body.insertAdjacentHTML("beforeend", html);
+            },
+            //click image to show the raw pic
+            imgClick: {
+                create(node, info) {
+                    const html = `
+                            <div class="ImageView is-active" style="padding-bottom: 10px">
+                                <div class="ImageView-inner" style="overflow: auto">
+                                    <img
+                                        src=${info.url}
+                                        class="ImageView-img"
+                                        alt="preview"
+                                        style="
+                                            width: ${info.width};
+                                            transform: ${info.transform};
+                                            opacity: 1;
+                                        "
+                                    />
+                                </div>
+                            </div>`;
+                    node.insertAdjacentHTML("beforeend", html);
+                },
+                imgDetail(info, target) {
+                    const w = target.dataset.rawwidth;
+                    const h = target.dataset.rawheight;
+                    const wh = window.outerHeight;
+                    const ww = window.innerWidth;
+                    const pw = ww / 2;
+                    let ws = 0;
+                    let tw = 0;
+                    let th = 0;
+                    let sc = 0;
+                    if (w >= pw) {
+                        const sw = ww * 0.98;
+                        ws = sw / 2;
+                        tw = (ww - ws) / 2;
+                        sc = 2;
+                    } else {
+                        ws = w;
+                        tw = (ww - ws) / 2;
+                        sc = 1;
+                    }
+                    th = (wh - h) / 2;
+                    info.transform = `translate(${tw}px, ${th}px) scale(${sc})`;
+                    info.width = `${w}px`;
+                },
+                isExist: false,
+                remove(box){
+                    if (!this.isExist) return
+                    const m = box.getElementsByClassName('ImageView is-active')
+                    m.length > 0 && m[0].remove();
+                    this.isExist = false;
+                },
+                event(node) {
+                    setTimeout(() => {
+                        const box = node.children[1];
+                        box.onclick = (e) => {
+                            const target = e.target;
+                            const className = target.className;
+                            if (className) {
+                                if (className.endsWith("lazy")) {
+                                    const info = {};
+                                    const url = target.dataset.original;
+                                    info.url = url;
+                                    this.imgDetail(info, target);
+                                    this.create(box, info);
+                                    this.isExist = true;
+                                } else this.remove(box);
+                            }
+                        };
+                    }, 100);
+                },
             },
             creatEvent() {
                 const f = this.full;
@@ -831,10 +901,11 @@
                 button.onclick = () => this.ShowOrExit(false);
                 button = null;
                 let n = this.nav;
-                n.children[0].onclick = () => this.prevNode && this.Previous();
-                n.children[1].onclick = () => this.nextNode && this.Next();
+                n.children[1].onclick = () => this.prevNode && this.Previous();
+                n.children[2].onclick = () => this.nextNode && this.Next();
                 n = null;
                 this.loadLazy(f);
+                this.imgClick.event(f);
             },
             scroll: {
                 toTop(node) {
@@ -879,7 +950,7 @@
                     : null;
             },
             changeNav(node) {
-                const pre = node.children[0];
+                const pre = node.children[1];
                 const pName = pre.className;
                 const [npName, titlel] = this.prevNode
                     ? ["readerpage-l", "previous answer"]
@@ -888,7 +959,7 @@
                     pre.className = npName;
                     pre.title = titlel;
                 }
-                const next = node.children[1];
+                const next = node.children[2];
                 const nextName = next.className;
                 const [nnextName, titler] = this.nextNode
                     ? ["readerpage-r", "next answer"]
@@ -898,20 +969,25 @@
                     next.title = titler;
                 }
             },
-            changeContent(node) {
+            changeContent(node, mode = true) {
                 const cName = "RichText ztext CopyrightRichText-richText";
                 const aName =
                     "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
+                const f = this.full;
+                this.imgClick.remove(f);
                 const content = node.getElementsByClassName(cName);
                 const author = node.getElementsByClassName(aName);
-                const f = this.full;
                 f.getElementsByClassName(cName)[0].innerHTML =
                     content.length > 0 ? content[0].innerHTML : "No data";
                 f.getElementsByClassName(aName)[0].innerHTML =
                     author.length > 0 ? author[0].innerHTML : "No data";
                 this.loadLazy(f);
-                this.navPannel = this.curNode = node;
-                this.changeNav(this.nav);
+                if (mode) {
+                    this.navPannel = this.curNode = node;
+                    this.changeNav(this.nav);
+                } else {
+                    this.ShowOrExit(true);
+                }
             },
             Next() {
                 this.changeContent(this.nextNode);
@@ -941,7 +1017,7 @@
             Change(node, aid) {
                 aid === this.aid
                     ? this.ShowOrExit(true)
-                    : this.changeContent(node);
+                    : this.changeContent(node, false);
             },
             //load lazy pic
             loadLazy(node) {
@@ -991,8 +1067,8 @@
                     } else this.prevNode = null;
                 }
             },
-            removeADs(){
-                const ads = document.getElementsByClassName('Pc-word');
+            removeADs() {
+                const ads = document.getElementsByClassName("Pc-word");
                 let i = ads.length;
                 if (i > 0) for (i; i--; ) ads[i].remove();
             },
@@ -1005,13 +1081,12 @@
                 const p = pnode.parentNode;
                 this.removeADs();
                 this.navPannel = p;
-                this.firstly
-                    ? this.Reader(pnode, aid)
-                    : this.Change(pnode, aid);
+                this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
                 this.curNode = p;
                 this.firstly = false;
                 this.readerMode = true;
                 this.overFlow = true;
+                this.aid = aid;
             },
         },
         getData() {
