@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.3.1
+// @version      3.2.5.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -857,6 +857,7 @@
                     if (w >= pw) {
                         const sw = ww * 0.98;
                         ws = sw / 2;
+                        ws > 900 && (ws = 900);
                         tw = (ww - ws) / 2;
                         sc = 2;
                     } else {
@@ -864,14 +865,18 @@
                         tw = (ww - ws) / 2;
                         sc = 1;
                     }
-                    th = (wh - h) / 2;
+                    th = Math.abs((wh - h) / 2);
+                    if (th > 350) {
+                        th = th / 50;
+                        sc = 1;
+                    }
                     info.transform = `translate(${tw}px, ${th}px) scale(${sc})`;
-                    info.width = `${w}px`;
+                    info.width = `${ws}px`;
                 },
                 isExist: false,
-                remove(box){
-                    if (!this.isExist) return
-                    const m = box.getElementsByClassName('ImageView is-active')
+                remove(box) {
+                    if (!this.isExist) return;
+                    const m = box.getElementsByClassName("ImageView is-active");
                     m.length > 0 && m[0].remove();
                     this.isExist = false;
                 },
@@ -885,6 +890,7 @@
                                 if (className.endsWith("lazy")) {
                                     const info = {};
                                     const url = target.dataset.original;
+                                    if (!url) return;
                                     info.url = url;
                                     this.imgDetail(info, target);
                                     this.create(box, info);
@@ -898,7 +904,8 @@
             creatEvent() {
                 const f = this.full;
                 let button = f.getElementsByClassName("fold_exit")[0];
-                button.onclick = () => this.ShowOrExit(false);
+                button.onclick = () =>
+                    !this.autoScroll.node && this.ShowOrExit(false);
                 button = null;
                 let n = this.nav;
                 n.children[1].onclick = () => this.prevNode && this.Previous();
@@ -906,6 +913,68 @@
                 n = null;
                 this.loadLazy(f);
                 this.imgClick.event(f);
+            },
+            autoScroll: {
+                stepTime: 40,
+                keyCount: 1,
+                scrollState: false,
+                scrollTime: null,
+                scrollPos: null,
+                node: null,
+                bottom: 50,
+                pageScroll(TimeStamp) {
+                    const position = this.node.scrollTop;
+                    if (this.scrollTime) {
+                        this.scrollPos =
+                            this.scrollPos !== null
+                                ? this.scrollPos +
+                                  (TimeStamp - this.scrollTime) / this.stepTime
+                                : position;
+                        this.node.scrollTo(0, this.scrollPos);
+                    }
+                    this.scrollTime = TimeStamp;
+                    if (this.scrollState) {
+                        let h = this.node.scrollHeight;
+                        h = h - window.innerHeight - this.bottom;
+                        position < h
+                            ? window.requestAnimationFrame(
+                                  this.pageScroll.bind(this)
+                              )
+                            : this.stopScroll();
+                    }
+                },
+                stopScroll() {
+                    if (this.scrollState) {
+                        this.scrollPos = null;
+                        this.scrollTime = null;
+                        this.scrollState = false;
+                        this.keyCount = 1;
+                        this.node = null;
+                    }
+                },
+                speedUP() {
+                    this.stepTime < 5
+                        ? (this.stepTime = 5)
+                        : (this.stepTime -= 5);
+                },
+                slowDown() {
+                    this.stepTime > 100
+                        ? (this.stepTime = 100)
+                        : (this.stepTime += 5);
+                },
+                start() {
+                    this.keyCount += 1;
+                    if (this.keyCount % 2 === 0) return;
+                    this.scrollState
+                        ? this.stopScroll()
+                        : ((this.scrollState = true),
+                          (this.node = document.getElementById(
+                              "artfullscreen"
+                          )),
+                          window.requestAnimationFrame(
+                              this.pageScroll.bind(this)
+                          ));
+                },
             },
             scroll: {
                 toTop(node) {
@@ -947,6 +1016,12 @@
                     ? this.scroll.toTop(this.full)
                     : keyCode === 82
                     ? this.scroll.toBottom(this.full)
+                    : keyCode === 192
+                    ? this.autoScroll.start()
+                    : keyCode === 187
+                    ? this.autoScroll.speedUP()
+                    : keyCode === 189
+                    ? this.autoScroll.slowDown()
                     : null;
             },
             changeNav(node) {
@@ -970,6 +1045,7 @@
                 }
             },
             changeContent(node, mode = true) {
+                if (this.autoScroll.node) return;
                 const cName = "RichText ztext CopyrightRichText-richText";
                 const aName =
                     "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
@@ -5936,13 +6012,15 @@
                 const className = e.target.className;
                 if (className && className.includes("DraftEditor")) return;
                 const keyCode = e.keyCode;
-                keyCode === 192
+                this.qaReader.readerMode
+                    ? this.qaReader.keyEvent(keyCode)
+                    : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
-                    : this.qaReader.keyEvent(keyCode);
+                    : null;
             };
         },
         pageOfQA(index, href) {
