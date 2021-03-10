@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.5.1
+// @version      3.2.5.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -863,12 +863,15 @@
                     } else {
                         ws = w;
                         tw = (ww - ws) / 2;
+                        ws > 600 && (ws = ws / 1.5)
                         sc = 1;
                     }
                     th = Math.abs((wh - h) / 2);
                     if (th > 350) {
                         th = th / 50;
                         sc = 1;
+                    } else {
+                        th = w / ww * tw;
                     }
                     info.transform = `translate(${tw}px, ${th}px) scale(${sc})`;
                     info.width = `${ws}px`;
