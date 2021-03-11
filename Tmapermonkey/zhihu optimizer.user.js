@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.5.2
-// @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
+// @version      3.2.6.2
+// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/main/Tmapermonkey/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
 // @run-at       document-start
@@ -845,36 +845,31 @@
                     node.insertAdjacentHTML("beforeend", html);
                 },
                 imgDetail(info, target) {
-                    const w = target.dataset.rawwidth;
-                    const h = target.dataset.rawheight;
-                    const wh = window.outerHeight;
-                    const ww = window.innerWidth;
-                    const pw = ww / 2;
-                    let ws = 0;
-                    let tw = 0;
-                    let th = 0;
+                    const rw = target.dataset.rawwidth * 1;
+                    const rh = target.dataset.rawheight * 1;
+                    const wh = window.innerHeight * 1;
+                    const ww = window.innerWidth * 1;
+                    const sww = ww * 0.98;
+                    const tw = target.width * 1;
+                    const th = target.height * 1;
+                    const xw = (ww - tw) / 2;
                     let sc = 0;
-                    if (w >= pw) {
-                        const sw = ww * 0.98;
-                        ws = sw / 2;
-                        ws > 900 && (ws = 900);
-                        tw = (ww - ws) / 2;
-                        sc = 2;
+                    let yh = 0;
+                    //if the width of raw pic is bigger than 98% width of window
+                    if (rw > sww) {
+                        sc = sww / tw;
                     } else {
-                        ws = w;
-                        tw = (ww - ws) / 2;
-                        ws > 600 && (ws = ws / 1.5)
-                        sc = 1;
+                        sc = rw / tw;
                     }
-                    th = Math.abs((wh - h) / 2);
-                    if (th > 350) {
-                        th = th / 50;
-                        sc = 1;
+                    if (rh > wh) {
+                        yh = rh > rw ? (rh - th) / 2 : (xw * th) / tw;
                     } else {
-                        th = w / ww * tw;
+                        yh = (wh - th) / 2;
                     }
-                    info.transform = `translate(${tw}px, ${th}px) scale(${sc})`;
-                    info.width = `${ws}px`;
+                    //margin
+                    yh += 10;
+                    info.transform = `translate(${xw}px, ${yh}px) scale(${sc})`;
+                    info.width = `${tw}px`;
                 },
                 isExist: false,
                 remove(box) {
@@ -890,19 +885,33 @@
                             const target = e.target;
                             const className = target.className;
                             if (className) {
+                                //click => to show raw pic
                                 if (className.endsWith("lazy")) {
-                                    const info = {};
                                     const url = target.dataset.original;
                                     if (!url) return;
+                                    const info = {};
                                     info.url = url;
                                     this.imgDetail(info, target);
                                     this.create(box, info);
                                     this.isExist = true;
+                                    //click => play gif pic
+                                } else if (className === "ztext-gif") {
+                                    let url = target.src;
+                                    const [a, b] = url.includes(".webp")
+                                        ? [".webp", ".jpg"]
+                                        : [".jpg", ".webp"];
+                                    target.src = url.replace(a, b);
+                                    target.parentNode.className =
+                                        "GifPlayer" +
+                                        (a === ".webp" ? "" : " isPlaying");
                                 } else this.remove(box);
                             }
                         };
                     }, 100);
                 },
+            },
+            imgNav(){
+
             },
             creatEvent() {
                 const f = this.full;
@@ -956,12 +965,12 @@
                     }
                 },
                 speedUP() {
-                    this.stepTime < 5
+                    this.scrollState && this.stepTime < 5
                         ? (this.stepTime = 5)
                         : (this.stepTime -= 5);
                 },
                 slowDown() {
-                    this.stepTime > 100
+                    this.scrollState && this.stepTime > 100
                         ? (this.stepTime = 100)
                         : (this.stepTime += 5);
                 },
@@ -1015,6 +1024,7 @@
                 },
             },
             keyEvent(keyCode) {
+                if (this.imgClick.isExist) return;
                 this.readerMode && keyCode === 84
                     ? this.scroll.toTop(this.full)
                     : keyCode === 82
@@ -1089,6 +1099,8 @@
                 if (mode) {
                     this.changeNav(n);
                 } else {
+                    const offsetTop = this.curNode.offsetTop;
+                    offsetTop !== window.pageYOffset &&  window.scrollTo(0, offsetTop);
                     this.readerMode = mode;
                     this.overFlow = false;
                 }
