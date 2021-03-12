@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.6.2
+// @version      3.2.7.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -844,7 +844,7 @@
                             </div>`;
                     node.insertAdjacentHTML("beforeend", html);
                 },
-                imgDetail(info, target) {
+                imgPosition(info, target) {
                     const rw = target.dataset.rawwidth * 1;
                     const rh = target.dataset.rawheight * 1;
                     const wh = window.innerHeight * 1;
@@ -872,46 +872,135 @@
                     info.width = `${tw}px`;
                 },
                 isExist: false,
-                remove(box) {
-                    if (!this.isExist) return;
-                    const m = box.getElementsByClassName("ImageView is-active");
-                    m.length > 0 && m[0].remove();
-                    this.isExist = false;
+                restore(n) {
+                    const l = n.children[1];
+                    const r = n.children[2];
+                    l.className !== this.lbackupNav[0] &&
+                        (l.className = this.lbackupNav[0]);
+                    r.className !== this.rbackupNav[0] &&
+                        (r.className = this.rbackupNav[0]);
+                    l.title = this.lbackupNav[1];
+                    r.title = this.rbackupNav[1];
+                    n = null;
                 },
-                event(node) {
+                remove(n) {
+                    if (!this.isExist) return;
+                    this.ImageView.parentNode.parentNode.remove();
+                    this.isExist = false;
+                    this.currentPicURL = null;
+                    this.restore(n);
+                    this.imgList = null;
+                    this.rbackupNav = null;
+                    this.lbackupNav = null;
+                    this.ImageView = null;
+                },
+                currentPicURL: null,
+                ImageView: null,
+                showRawPic(box, target, n) {
+                    const url = target.dataset.original;
+                    if (!url) return;
+                    const info = {};
+                    info.url = url;
+                    this.imgPosition(info, target);
+                    this.create(box, info);
+                    this.isExist = true;
+                    setTimeout(() => {
+                        const viewer = box.getElementsByClassName(
+                            "ImageView-inner"
+                        );
+                        if (viewer.length > 0)
+                            this.ImageView = viewer[0].firstElementChild;
+                    }, 10);
+                    this.currentPicURL = url;
+                    this.imgNav(box, n);
+                },
+                rbackupNav: null,
+                lbackupNav: null,
+                imgList: null,
+                backUP(node, arr) {
+                    arr.push(node.className);
+                    arr.push(node.title);
+                },
+                imgNav(box, n) {
+                    const imgs = box.getElementsByTagName("img");
+                    this.imgList = [];
+                    this.rbackupNav = [];
+                    this.lbackupNav = [];
+                    for (const img of imgs)
+                        img.className.endsWith("lazy") &&
+                            img.dataset.original &&
+                            this.imgList.push(img);
+                    const [titlel, namel, titler, namer] =
+                        this.imgList.length === 1
+                            ? [
+                                  "no more picture",
+                                  "readerpage-l disa",
+                                  "no more picture",
+                                  "readerpage-r disa",
+                              ]
+                            : [
+                                  "previous picture",
+                                  "readerpage-l",
+                                  "next picture",
+                                  "readerpage-r",
+                              ];
+                    const l = n.children[1];
+                    const r = n.children[2];
+                    this.backUP(l, this.lbackupNav);
+                    this.backUP(r, this.rbackupNav);
+                    l.title = titlel;
+                    this.lbackupNav[0] !== namel && (l.className = namel);
+                    r.title = titler;
+                    this.rbackupNav[0] !== namer && (r.className = namer);
+                },
+                changPic(mode) {
+                    if (!this.ImageView) {
+                        console.log("warning, the viewer of picture is null");
+                        return;
+                    }
+                    const i = this.imgList.length - 1;
+                    if (i === 0) return;
+                    const index = this.imgList.findIndex(
+                        (img) => img.dataset.original === this.currentPicURL
+                    );
+                    if ((index === i && mode) || (index === 0 && !mode)) {
+                        Notification("no more picture", "Reader Tips");
+                        return;
+                    }
+                    const imge = this.imgList[mode ? index + 1 : index - 1];
+                    const url = imge.dataset.original;
+                    this.currentPicURL = url;
+                    this.ImageView.src = url;
+                    const info = {};
+                    this.imgPosition(info, imge);
+                    this.ImageView.style.width = info.width;
+                    this.ImageView.style.transform = info.transform;
+                },
+                GifPlay(target) {
+                    let url = target.src;
+                    const [a, b] = url.includes(".webp")
+                        ? [".webp", ".jpg"]
+                        : [".jpg", ".webp"];
+                    target.src = url.replace(a, b);
+                    target.parentNode.className =
+                        "GifPlayer" + (a === ".webp" ? "" : " isPlaying");
+                },
+                event(node, n) {
                     setTimeout(() => {
                         const box = node.children[1];
                         box.onclick = (e) => {
                             const target = e.target;
                             const className = target.className;
                             if (className) {
-                                //click => to show raw pic
-                                if (className.endsWith("lazy")) {
-                                    const url = target.dataset.original;
-                                    if (!url) return;
-                                    const info = {};
-                                    info.url = url;
-                                    this.imgDetail(info, target);
-                                    this.create(box, info);
-                                    this.isExist = true;
-                                    //click => play gif pic
-                                } else if (className === "ztext-gif") {
-                                    let url = target.src;
-                                    const [a, b] = url.includes(".webp")
-                                        ? [".webp", ".jpg"]
-                                        : [".jpg", ".webp"];
-                                    target.src = url.replace(a, b);
-                                    target.parentNode.className =
-                                        "GifPlayer" +
-                                        (a === ".webp" ? "" : " isPlaying");
-                                } else this.remove(box);
+                                if (className.endsWith("lazy"))
+                                    this.showRawPic(box, target, n);
+                                else if (className === "ztext-gif")
+                                    this.GifPlay(target);
+                                else this.remove(n);
                             }
                         };
                     }, 100);
                 },
-            },
-            imgNav(){
-
             },
             creatEvent() {
                 const f = this.full;
@@ -920,11 +1009,10 @@
                     !this.autoScroll.node && this.ShowOrExit(false);
                 button = null;
                 let n = this.nav;
-                n.children[1].onclick = () => this.prevNode && this.Previous();
-                n.children[2].onclick = () => this.nextNode && this.Next();
-                n = null;
+                n.children[1].onclick = () => this.Previous();
+                n.children[2].onclick = () => this.Next();
                 this.loadLazy(f);
-                this.imgClick.event(f);
+                this.imgClick.event(f, n);
             },
             autoScroll: {
                 stepTime: 40,
@@ -1072,6 +1160,7 @@
                     author.length > 0 ? author[0].innerHTML : "No data";
                 this.loadLazy(f);
                 if (mode) {
+                    f.scrollTo(0, 0);
                     this.navPannel = this.curNode = node;
                     this.changeNav(this.nav);
                 } else {
@@ -1079,10 +1168,14 @@
                 }
             },
             Next() {
-                this.changeContent(this.nextNode);
+                this.imgClick.isExist
+                    ? this.imgClick.changPic(true)
+                    : this.nextNode && this.changeContent(this.nextNode);
             },
             Previous() {
-                this.changeContent(this.prevNode);
+                this.imgClick.isExist
+                    ? this.imgClick.changPic(false)
+                    : this.prevNode && this.changeContent(this.prevNode);
             },
             get nav() {
                 return document.getElementById("reader_navigator");
@@ -1099,8 +1192,10 @@
                 if (mode) {
                     this.changeNav(n);
                 } else {
+                    //exit reader mode, then move to the position of current node
                     const offsetTop = this.curNode.offsetTop;
-                    offsetTop !== window.pageYOffset &&  window.scrollTo(0, offsetTop);
+                    offsetTop !== window.pageYOffset &&
+                        window.scrollTo(0, offsetTop);
                     this.readerMode = mode;
                     this.overFlow = false;
                 }
@@ -2932,7 +3027,7 @@
                                 }
                                 if (i < 0) return;
                                 blackTopicAndQuestion.splice(i, 1);
-                                GM_setValue("", blackTopicAndQuestion);
+                                GM_setValue("blacktopicAndquestion", blackTopicAndQuestion);
                             },
                             topic() {
                                 this.remove();
