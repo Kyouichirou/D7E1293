@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.7.2
+// @version      3.2.8.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -305,6 +305,8 @@
             );
             this.table = this.transaction.objectStore(this.tbname);
             this.transaction.oncomplete = () => (this.isfinish = true);
+            this.transaction.onerror = () =>
+                console.log("warning, error on transaction");
         }
         get Table() {
             this.transaction = this.store.transaction(
@@ -317,8 +319,16 @@
             this.transaction && this.transaction.abort();
         }
         read(keyPath) {
+            let ic = 0;
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
+                while (!this.table || this.isfinish) {
+                    this.openTable();
+                    ic++;
+                    if (ic > 3) {
+                        reject("the transaction has completed");
+                        return;
+                    }
+                }
                 const request = this.table.get(keyPath);
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => reject("error");
@@ -639,6 +649,18 @@
             readerMode: false,
             Reader(node) {
                 //adapted from http://www.360doc.com/
+                const bgc = GM_getValue("articleBackground");
+                const arr = new Array(6);
+                let color = "";
+                if (bgc) {
+                    for (let i = 1; i < 7; i++)
+                        arr[i - 1] = bgc === `a_color${i}` ? " cur" : "";
+                    color = this.colors_list(bgc);
+                } else {
+                    arr.fill("", 0, 4);
+                    arr[5] = " cur";
+                    color = "#FFF";
+                }
                 let title = document.title;
                 title = title.slice(0, title.lastIndexOf("-") - 1);
                 const meta = node.getElementsByClassName(
@@ -674,7 +696,7 @@
                             padding: 32px 60px;
                             height: auto;
                             overflow: hidden;
-                            background: #fff;
+                            background: ${color};
                             box-shadow: 0 0 6px #999;
                             display: table;
                             margin: 20px auto;
@@ -704,7 +726,7 @@
                         class="artfullscreen__box"
                         style="width: 930px"
                     >
-                        <div class="hidden_fold" style="margin-right: -45px;">
+                        <div class="hidden_fold" style="display: none; margin-right: -45px;">
                             <button class="fold_exit" title="exit reader mode">
                                 Exit
                             </button>
@@ -745,6 +767,7 @@
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
                 this.Navigator();
+                this.toolBar(arr);
                 this.creatEvent();
             },
             Navigator() {
@@ -823,6 +846,220 @@
                 )}></div>
                         </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
+            },
+            toolBar(arr) {
+                const gifBase64 = `
+                data:image/gif;base64,R0lGODlhDQANAKIGABYcHwIEBP3///P7//T7/xccH////wAAACH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS41LWMwMTQgNzkuMTUxNDgxLCAyMDEzLzAzLzEzLTEyOjA5OjE1ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjQ3QzgxQkMzRUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjQ3QzgxQkM0RUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NDdDODFCQzFFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NDdDODFCQzJFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4B//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eDf3t3c29rZ2NfW1dTT0tHQz87NzMvKycjHxsXEw8LBwL++vby7urm4t7a1tLOysbCvrq2sq6qpqKempaSjoqGgn56dnJuamZiXlpWUk5KRkI+OjYyLiomIh4aFhIOCgYB/fn18e3p5eHd2dXRzcnFwb25tbGtqaWhnZmVkY2JhYF9eXVxbWllYV1ZVVFNSUVBPTk1MS0pJSEdGRURDQkFAPz49PDs6OTg3NjU0MzIxMC8uLSwrKikoJyYlJCMiISAfHh0cGxoZGBcWFRQTEhEQDw4NDAsKCQgHBgUEAwIBAAAh+QQBAAAGACwAAAAADQANAAADHWi63P7QlKgKoRbfFVpmA7B8TWgAQ0QUKSVQcGwkADs=`;
+                const jpgBase64 = `
+                data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAICAgICAgICAgICAgICAwQDAgIDBAUEBAQEBAUGBQUFBQUFBgYGBgcGBgYICAkJCAgLCwsLCwsLCwsLCwsLCwv/2wBDAQMDAwUEBQgGBggMCggKDA4NDQ0NDg4LCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwv/wgARCAARABEDAREAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAYHA//EABoBAAICAwAAAAAAAAAAAAAAAAAFAQQCAwb/2gAMAwEAAhADEAAAAbK7GNBQUtl+lsVGiDqpjeWAEBlP/8QAGBABAAMBAAAAAAAAAAAAAAAAAwABEyD/2gAIAQEAAQUChmecAAsQALDj/8QAHBEAAgICAwAAAAAAAAAAAAAAAQIDIQASEBEg/9oACAEDAQE/Acdj2b4kkbY2cjjXUV5//8QAHREAAgEEAwAAAAAAAAAAAAAAAQIAAxESIRAgMf/aAAgBAgEBPwGlSTAaHkvwiLiNRnN+v//EAB8QAQACAQMFAAAAAAAAAAAAAAECAwARElEQICIyQf/aAAgBAQAGPwLIeEPU+dKVpqVhHV2nGUrTUrCOrtOO3//EAB0QAQACAQUBAAAAAAAAAAAAAAEAEWEQICExUYH/2gAIAQEAAT8hAo4OohVlsaeaIwCSxaYjrYkRVGJ92f/aAAwDAQACAAMAAAAQymQkH//EAB4RAAEEAQUAAAAAAAAAAAAAAAEAEDFBESFRYXHB/9oACAEDAQE/EEHrJ9YcYmNndEEwgVwsMK7b/8QAHREBAAEDBQAAAAAAAAAAAAAAATEAEUEQICFRYf/aAAgBAgEBPxBisTB1Sr6OuCDHlFfLLnb/AP/EAB0QAQACAQUBAAAAAAAAAAAAAAEAESEQMVGBwdH/2gAIAQEAAT8Qz/bZqO2ZVlUZWp0xz9iiEVWy3HpfXglVsqyiOevIffNP/9k=`;
+                const html = `
+                <div
+                    class="artfullscreen_toolbar"
+                    id="artfullscreen_toolbar"
+                    style="z-index: 9999; left: 1540px"
+                >
+                    <style type="text/css">
+                        .artfullscreen_toolbar {
+                            width: 24px;
+                            height: 166px;
+                            position: absolute;
+                            top: 15px;
+                        }
+                        a#artfullscreen_closer {
+                            color: #4a4a4a;
+                            width: 30px;
+                            height: 24px;
+                            line-height: 24px;
+                            text-align: center;
+                            display: block;
+                            font-size: 28px;
+                            font-weight: bold;
+                            text-decoration: none;
+                            float: right;
+                        }
+                        .artfullscreen_toolbar>div {
+                            height: 19px;
+                            clear: both;
+                            padding: 18px 3px 0 0;
+                        }
+                        .artfullscreen_toolbar .a_colorlist,.artfullscreen_toolbar .fschange {
+                            box-shadow: 0 0 5px #ccc;
+                        }
+                        .artfullscreen_toolbar .fschange input {
+                            margin-right: 2px;
+                        }
+                        .artfullscreen_toolbar .a_bgcolor {
+                            margin-left: 0;
+                        }
+                        .a_colorlist {
+                            z-index: 2;
+                            width: 146px;
+                            height: 35px;
+                            border: 1px solid #cbcbcb;
+                            background: #fff;
+                            position: absolute;
+                            right: 38px;
+                            top: 30px;
+                            text-align: center;
+                            display: none;
+                        }
+                        .a_colorlist span {
+                            display: inline-block;
+                            width: 13px;
+                            height: 13px;
+                            overflow: hidden;
+                            border: solid 1px #cbcbcb;
+                            margin: 10px 1px 0;
+                            cursor: pointer;
+                            font-size: 12px;
+                        }
+                        .a_colorlist img {
+                            vertical-align: top;
+                            visibility: hidden;
+                        }
+                        .a_colorlist .cur img {
+                            visibility: visible !important;
+                        }
+                        .a_color1 {
+                            background: #E3EDCD !important;
+                        }
+                        .a_color2 {
+                            background: #f5f1e6 !important;
+                        }
+                        .a_color3 {
+                            background: #B6B6B6 !important;
+                        }
+                        .a_color4 {
+                            background: #FFF2E2 !important;
+                        }
+                        .a_color5 {
+                            background: #FAF9DE !important;
+                        }
+                        .a_color6 {
+                            background: #FFF !important;
+                        }
+                    </style>
+                    <a href="#" class="artfullscreen_closer" id="artfullscreen_closer">×</a>
+                    <div class="d1">
+                        <div class="a_bgcolor">
+                            <img src=${jpgBase64} />
+                            <div class="a_colorlist" style="display: none">
+                                <span class="a_color1${arr[0]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                                <span class="a_color2${arr[1]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                                <span class="a_color3${arr[2]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                                <span class="a_color4${arr[3]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                                <span class="a_color5${arr[4]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                                <span class="a_color6${arr[5]}">
+                                    <img src=${gifBase64}
+                                /></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+                document.body.insertAdjacentHTML("beforeend", html);
+                this.toolBar_event();
+            },
+            color_chooser_display(e, display) {
+                const target = e.target;
+                const localName = target.localName;
+                const c =
+                    localName === "img"
+                        ? target.nextElementSibling
+                        : target.lastElementChild;
+                c.style.display = display;
+            },
+            colors_list(name) {
+                const colors = {
+                    a_color1: "#E3EDCD",
+                    a_color2: "#f5f1e6",
+                    a_color3: "#B6B6B6",
+                    a_color4: "#FFF2E2",
+                    a_color5: "#FAF9DE",
+                    a_color6: "#FFF",
+                };
+                const color = colors[name];
+                return color ? color : "#FFF";
+            },
+            timeID: null,
+            toolBar_event() {
+                setTimeout(() => {
+                    const tool = document.getElementsByClassName(
+                        "artfullscreen_toolbar"
+                    )[0];
+                    let bg = tool.getElementsByClassName("a_bgcolor")[0];
+                    bg.onmouseenter = (e) => {
+                        if (this.timeID) {
+                            clearTimeout(this.timeID);
+                            this.timeID = null;
+                        }
+                        this.color_chooser_display(e, "block");
+                    };
+                    bg.onmouseleave = (e) =>
+                        (this.timeID = setTimeout(() => {
+                            this.timeID = null;
+                            this.color_chooser_display(e, "none");
+                        }, 300));
+                    bg = null;
+                    let closer = tool.getElementsByClassName(
+                        "artfullscreen_closer"
+                    )[0];
+                    closer.onclick = (e) => {
+                        if (!this.autoScroll.node) {
+                            let node = e.target.parentNode;
+                            let ic = 0;
+                            let cn = node.className;
+                            while (cn !== "artfullscreen_toolbar") {
+                                node = node.parentNode;
+                                if (!node || ic > 4) {
+                                    node = null;
+                                    break;
+                                }
+                                cn = className;
+                                ic++;
+                            }
+                            node && (node.style.display = 'none');
+                            this.ShowOrExit(false);
+                        }
+                    };
+                    let colorlist = tool.getElementsByClassName(
+                        "a_colorlist"
+                    )[0];
+                    colorlist.onclick = (e) => {
+                        const target = e.target;
+                        const className = target.className;
+                        if (
+                            className &&
+                            className.startsWith("a_color") &&
+                            !className.endsWith("cur")
+                        ) {
+                            const nodes = target.parentNode.children;
+                            for (const node of nodes) {
+                                const cn = node.className;
+                                if (cn.endsWith("cur")) {
+                                    node.className = cn.slice(0, cn.length - 4);
+                                    break;
+                                }
+                            }
+                            target.className = className + " cur";
+                            document.getElementById(
+                                "artfullscreen__box"
+                            ).style.background = this.colors_list(className);
+                            GM_setValue("articleBackground", className);
+                        }
+                    };
+                    colorlist = null;
+                    closer = null;
+                }, 50);
             },
             //click image to show the raw pic
             imgClick: {
@@ -1004,10 +1241,12 @@
             },
             creatEvent() {
                 const f = this.full;
+                /*
                 let button = f.getElementsByClassName("fold_exit")[0];
                 button.onclick = () =>
                     !this.autoScroll.node && this.ShowOrExit(false);
                 button = null;
+                */
                 let n = this.nav;
                 n.children[1].onclick = () => this.Previous();
                 n.children[2].onclick = () => this.Next();
@@ -1191,6 +1430,8 @@
                 f && (f.style.display = display);
                 if (mode) {
                     this.changeNav(n);
+                    const tool = document.getElementsByClassName('artfullscreen_toolbar');
+                    tool.length > 0 && (tool[0].style.display = display);
                 } else {
                     //exit reader mode, then move to the position of current node
                     const offsetTop = this.curNode.offsetTop;
@@ -3027,7 +3268,10 @@
                                 }
                                 if (i < 0) return;
                                 blackTopicAndQuestion.splice(i, 1);
-                                GM_setValue("blacktopicAndquestion", blackTopicAndQuestion);
+                                GM_setValue(
+                                    "blacktopicAndquestion",
+                                    blackTopicAndQuestion
+                                );
                             },
                             topic() {
                                 this.remove();
@@ -3469,6 +3713,7 @@
         },
         addStyle(index) {
             const common = `
+                .ModalExp-content{display: none !important;}
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
                 body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
             const showfold = `
