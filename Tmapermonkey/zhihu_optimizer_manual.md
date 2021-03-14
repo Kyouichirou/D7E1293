@@ -1,12 +1,12 @@
 # 简介
 
-演示视频: [BiliBili](https://www.bilibili.com/video/BV1oU4y1H7VD)
+![摘要](https://img.meituan.net/csc/9a1681f736e76e002a618f2dedfcc789154132.png)
 
 **zhihu optimizer**, 这是一款让知乎变得更好的轻量级Tampermonkey脚本....._Make Thing Better and Simpler_
 
 浏览器兼容测试: **chrome 80+**(x_64)完美运行, 已知不兼容chrome最低版本为: **64**(x_86), Firefox未作兼容测试
 
-**Tampermonkey**版本: 4.11.6120
+**Tampermonkey**版本: 4.+
 
 (***建议使用尽可能高版本的chrome | chromium浏览器和Tampermonkey扩展***)
 
@@ -14,9 +14,11 @@
 
 安装地址: [Greasyfork](https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js)
 
-(二选一即可)
+(***二选一即可***)
 
 推荐使用浏览器: [Centbrowser(百分浏览器)](https://www.centbrowser.cn/)
+
+演示视频(所用的脚本版本较低): [BiliBili](https://www.bilibili.com/video/BV1oU4y1H7VD)
 
 # 目录
 
@@ -41,11 +43,16 @@
     - [10. 自动模式](#10-自动模式)
     - [11. 滚动到顶部 | 底部](#11-滚动到顶部--底部)
     - [12. 目录快捷键](#12-目录快捷键)
+    - [13. 其他](#13-其他)
   - [七, 页面样式调整](#七-页面样式调整)
       - [字体:](#字体)
       - [页面内容加宽显示:](#页面内容加宽显示)
   - [八. 搜索](#八-搜索)
-  - [九, 其他](#九-其他)
+  - [九, 阅读器](#九-阅读器)
+  - [十, 其他](#十-其他)
+- [QA](#qa)
+  - [一. 数据存储](#一-数据存储)
+  - [二. 阅读器相关](#二-阅读器相关)
 
 ## 一, 屏幕颜色调节
 
@@ -59,7 +66,7 @@
 
 支持暂时关闭当前页面颜色调节, 支持完全退出页面颜色调节
 
-![颜色切换](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20089.jpg?raw=true)
+![颜色切换](https://img.meituan.net/csc/1b1423008a123aff10140b7a3f7be74235891.jpg)
 
 ## 二, 过滤器
 
@@ -81,7 +88,7 @@
 
 此按钮将在用户页面的左下角生成, eg: [故事档案局](https://www.zhihu.com/people/gu-shi-dang-an-ju-71)
 
-![Block按钮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20099.jpg?raw=true)
+![Block按钮](https://img.meituan.net/csc/772969d83a61dde92c728622de1933e2130939.jpg)
 
 ````javascript
 eg: const blackKey = ["留学中介", "肖战"];
@@ -94,7 +101,7 @@ eg: const blackKey = ["留学中介", "肖战"];
 - 话题, topic
 - 文章, article
 
-![示例](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/block.jpg?raw=true)
+![示例](https://img.meituan.net/csc/db862fca515e735a83e6754117bc34f0109228.jpg)
 
 在搜索, 话题, 答案|问题页面, 点击对应的按钮即可移除相应的项目
 
@@ -120,11 +127,11 @@ eg: const blackKey = ["留学中介", "肖战"];
 
 **需要注意的是**: 如果原文已经加粗(或者已经表示强调的内容), 标题, 链接等内容将不会受到影响
 
-![多彩页面](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20095.jpg?raw=true)
+![多彩页面](https://img.meituan.net/csc/123ced490d36fedd5bb0027ec36c9207192735.jpg)
 
 #### 代码高亮
 
-仅对于部分JavaScript的代码生效, 即知乎未进行关键字高亮的代码块, 仅突出显示关键字
+仅对于部分JavaScript的代码生效, 即知乎原页面未进行关键字高亮的代码块, 仅突出显示关键字
 
 ## 五, 搜索框控制
 
@@ -132,15 +139,15 @@ eg: const blackKey = ["留学中介", "肖战"];
 2. 移除搜索框下的热门搜索, **不影响搜索建议和搜索历史**
 3. 禁止搜索框在**空白状态**依然产生搜索的行为, 即不输入任何内容的状态下, 按回车键依然会搜索(关键词为知乎的热门搜索)
 
-![搜索清洁](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20097.jpg?raw=true)
+![搜索清洁](https://img.meituan.net/csc/0752a89f637655991bd1fbaa2fe680b068842.jpg)
 
 ## 六, 快捷键
 
-生效页面: [专栏](https://zhuanlan.zhihu.com/)
+![完整版本](https://img.meituan.net/csc/372ea55354e539416b57e49963737cf271977.png)
 
-![快捷键示意图](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20105.jpg?raw=true)
+![快捷键示意图](https://img.meituan.net/csc/1cadca7aeb2a4c0f3fd11573d894c00b116690.jpg)
 
-(由于快捷键的数量很多, 具体参看下面的内容, 上图只是部分图示)
+(由于快捷键的数量很多, **具体, 参考表格中的内容, 以表格的内容为准**)
 
 已知**占用原页面**的登录和滚动到底部快捷键
 
@@ -180,7 +187,7 @@ purple => '**p**';
 
 red => '**r**';
 
-![高亮](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20101.jpg?raw=true)
+![高亮](https://img.meituan.net/csc/db34b6284a3afad3a40f8507e200ed7c196405.jpg)
 
 ### 3. 清除高亮
 
@@ -234,7 +241,7 @@ next => "**n**", 向下翻页
 
 可以直接将生成的目录嵌入内容正文中
 
-[toc自动生成目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%202.jpg?raw=true)
+[toc自动生成目录](https://img.meituan.net/csc/d97accdcdebd059bd49ab9d513d6074077295.jpg)
 
 ### 9. 添加专栏
 
@@ -262,7 +269,7 @@ next => "**n**", 向下翻页
 
 ### 12. 目录快捷键
 
-![目录](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20121.jpg?raw=true)
+![目录](https://img.meituan.net/csc/d169ca48c56f3f031a7bfc9c998c550e129202.jpg)
 
 "**0** - **9**" => 对应目录 1 - 10;
 
@@ -294,7 +301,7 @@ next => "**n**", 向下翻页
 
 ## 八. 搜索
 
-![侧边栏](https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/images/Image%20122.jpg?raw=true)
+![侧边栏](https://img.meituan.net/csc/449ef49630137f342cae650d06142bd0217232.jpg)
 
 侧边栏在不同页面会有所不同, 只有在文章的页面可以使用搜索来检索收藏的文章
 
@@ -302,18 +309,48 @@ next => "**n**", 向下翻页
 
 1. 专栏搜索
 2. 收藏文章搜索, 注意需要使用**特定的语句**进行搜索
-   * 2.1 按关键词, 单一关键词, $a=(python), 多个关键词$a=(python 机器学习), 使用空格进行分隔, 括号必须存在
+   * 2.1 按关键词, 单一关键词, $a=(python), 多个关键词$a=(python 机器学习), 使用空格进行分隔, **括号必须存在**
+   
    * 2.2 按时间搜索, 支持小时(hour), 天数(day), 星期(week), 月份(month), 年(year)
-         $h<24, 表示收藏时间小于24个小时, 多个条件, $d>1 $d<7, 即收藏时间大于1天, 小于7天
-   * 2.3 按文章ID搜索, $p=102274476
-   * 2.4 混合条件搜索(时间+关键词), 如: $d>3 $d<7 $a=(python javascript), 即收藏时间大于3天小于7天, 关键词包含python和JavaScript;
+         $h<24, 表示收藏时间小于24个小时, **多个条件**, $d>1 $d<7, 即收藏时间大于1天, 小于7天
+   
+   * 2.3 按文章ID搜索, $p=102274476, (**精确搜索**)
+   
+   * 2.4 **混合条件**搜索(时间+关键词), 如: $d>3 $d<7 $a=(python javascript), 即收藏时间大于3天小于7天, 关键词包含python和JavaScript;
 
-## 九, 其他
+## 九, 阅读器
+
+生效页面: 答案|问题
+
+![阅读器](https://img.meituan.net/csc/6843574dc5f9fa00c67686c394d5da5e242385.jpg)
+
+## 十, 其他
 
 1. 去重定向, 即在打开外链知乎安全中心跳转(全局生效, 包括评论区)
 2. 移除在为未登录状态下, 访问(问题 & 答案)页面出现的登录弹窗(**不影响正常的登录, 当你主动登录账号时**)
 3. 剪切板优化, 移除版权声明, 将部分常用的中文符号换成对应的英文符号, 如中文空心句号, 换成英文实心句号
 4. 对广告内容进行轻微调整....
-5. 更多功能请观看顶部的演示视频
+5. 更多功能操作请观看顶部的演示视频
 
+# QA
 
+## 一. 数据存储
+
+数据的存储选择了两种不同的存储方式
+
+1. Tampermonkey自带的数据存储, 这部分的数据为相对重要的数据, 数据量较小的数据, 如关注的专栏, 屏蔽掉的用户, 屏蔽掉的话题, 问题
+
+2. [IndexedDB](https://developer.mozilla.org/zh-CN/docs/Web/API/IndexedDB_API/Using_IndexedDB), 反之, 用于大规模的数据的存储, 如收藏的文章(以及其生成的摘要, 备注, 标签等),屏蔽掉的答案或专栏文章
+
+**注:** 
+1. 使用IndexedDB存储的问题, 这是高度受制于浏览器, 如同源限制(简单的理解就是zhuanlan.zhihu.com无法和www.zhihu.com进行直接的数据访问), 限制了IndexedDB的可用性
+2. 注意IndexedDB存储的数据会在**清理浏览器**, 或者使用管家类(xx垃圾清理, 隐私保护等噱头的工具软件)"清理"电脑时, 会**一并移除**
+3. 用户所有的使用数据均为**本地存储**
+
+## 二. 阅读器相关
+
+阅读器, 即在问题|答案页面的阅读模式
+
+1. 由于知乎的答案是采用懒加载模式,(即你滚动到特定的页面时, 才加载数据), 而在阅读模式下, 是很难触发滚动来加载后续的数据, 原页面依然还有内容, 可能在阅读模式下, 但无法浏览后续答案的情况, 需要退出阅读模式, 手动下拉页面触发数据加载
+
+2. 页面潜在崩溃, 在阅读模式下采用模拟滚动来加载后续的数据, 短期内可能由于滚动过快, 过于频繁, 触发大量数据加载, 导致页面可能出现崩溃(亦或者知乎页面的反爬保护)
