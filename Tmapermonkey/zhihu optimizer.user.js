@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.8.3
+// @version      3.2.9.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -771,7 +771,7 @@
                 this.creatEvent();
             },
             Navigator() {
-                //adapted from @vizo, https://greasyfork.org/zh-CN/scripts/373008-%E7%99%BE%E5%BA%A6%E6%90%9C%E7%B4%A2%E4%BC%98%E5%8C%96sp
+                //this css adapted from @vizo, https://greasyfork.org/zh-CN/scripts/373008-%E7%99%BE%E5%BA%A6%E6%90%9C%E7%B4%A2%E4%BC%98%E5%8C%96sp
                 const [statusl, titlel] = this.prevNode
                     ? ["", "previous answer"]
                     : [" disa", "no more content"];
@@ -862,7 +862,7 @@
                         .artfullscreen_toolbar {
                             width: 24px;
                             height: 166px;
-                            position: absolute;
+                            position: fixed;
                             top: 15px;
                         }
                         a#artfullscreen_closer {
@@ -1027,7 +1027,7 @@
                                 cn = className;
                                 ic++;
                             }
-                            node && (node.style.display = 'none');
+                            node && (node.style.display = "none");
                             this.ShowOrExit(false);
                         }
                     };
@@ -1099,6 +1099,7 @@
                         sc = rw / tw;
                     }
                     if (rh > wh) {
+                        //if the height is bigger than width
                         yh = rh > rw ? (rh - th) / 2 : (xw * th) / tw;
                     } else {
                         yh = (wh - th) / 2;
@@ -1362,7 +1363,7 @@
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
-                    : null;
+                    : zhihu.multiSearch(keyCode);
             },
             changeNav(node) {
                 const pre = node.children[1];
@@ -1430,7 +1431,9 @@
                 f && (f.style.display = display);
                 if (mode) {
                     this.changeNav(n);
-                    const tool = document.getElementsByClassName('artfullscreen_toolbar');
+                    const tool = document.getElementsByClassName(
+                        "artfullscreen_toolbar"
+                    );
                     tool.length > 0 && (tool[0].style.display = display);
                 } else {
                     //exit reader mode, then move to the position of current node
@@ -3699,12 +3702,8 @@
                             <button class="fold_block" title="remove the answer from block list">Remove</button>
                             ${obutton}
                         </div>`;
-                        const label = item.getElementsByClassName(
-                            "LabelContainer-wrapper"
-                        );
-                        if (label.length > 0)
-                            label[0].insertAdjacentHTML(
-                                "afterend",
+                        item.firstElementChild.lastElementChild.insertAdjacentHTML(
+                                "beforebegin",
                                 mode ? r : html
                             );
                     }
