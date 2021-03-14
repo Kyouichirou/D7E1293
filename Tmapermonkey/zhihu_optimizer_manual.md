@@ -143,7 +143,7 @@ eg: const blackKey = ["留学中介", "肖战"];
 
 ## 六, 快捷键
 
-![完整版本](https://img.meituan.net/csc/372ea55354e539416b57e49963737cf271977.png)
+![完整版本](https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png)
 
 ![快捷键示意图](https://img.meituan.net/csc/1cadca7aeb2a4c0f3fd11573d894c00b116690.jpg)
 
