@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.0
+// @version      3.2.9.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -726,11 +726,6 @@
                         class="artfullscreen__box"
                         style="width: 930px"
                     >
-                        <div class="hidden_fold" style="display: none; margin-right: -45px;">
-                            <button class="fold_exit" title="exit reader mode">
-                                Exit
-                            </button>
-                        </div>
                         <div class="artfullscreen__box_scr" id="artfullscreen__box_scr">
                             <table style="width: 656px">
                                 <tbody>
@@ -1084,6 +1079,7 @@
                 imgPosition(info, target) {
                     const rw = target.dataset.rawwidth * 1;
                     const rh = target.dataset.rawheight * 1;
+                    const owh = window.outerHeight * 1;
                     const wh = window.innerHeight * 1;
                     const ww = window.innerWidth * 1;
                     const sww = ww * 0.98;
@@ -1098,7 +1094,7 @@
                     } else {
                         sc = rw / tw;
                     }
-                    if (rh > wh) {
+                    if (rh > owh) {
                         //if the height is bigger than width
                         yh = rh > rw ? (rh - th) / 2 : (xw * th) / tw;
                     } else {
@@ -1131,9 +1127,16 @@
                     this.rbackupNav = null;
                     this.lbackupNav = null;
                     this.ImageView = null;
+                    this.toolBar_display(true);
                 },
                 currentPicURL: null,
                 ImageView: null,
+                toolBar_display(mode) {
+                    const tool = document.getElementById(
+                        "artfullscreen_toolbar"
+                    );
+                    tool && (tool.style.display = mode ? "block" : "none");
+                },
                 showRawPic(box, target, n) {
                     const url = target.dataset.original;
                     if (!url) return;
@@ -1149,6 +1152,7 @@
                         if (viewer.length > 0)
                             this.ImageView = viewer[0].firstElementChild;
                     }, 10);
+                    this.toolBar_display(false);
                     this.currentPicURL = url;
                     this.imgNav(box, n);
                 },
@@ -1208,11 +1212,11 @@
                     const imge = this.imgList[mode ? index + 1 : index - 1];
                     const url = imge.dataset.original;
                     this.currentPicURL = url;
-                    this.ImageView.src = url;
                     const info = {};
                     this.imgPosition(info, imge);
                     this.ImageView.style.width = info.width;
                     this.ImageView.style.transform = info.transform;
+                    this.ImageView.src = url;
                 },
                 GifPlay(target) {
                     let url = target.src;
@@ -1225,7 +1229,7 @@
                 },
                 event(node, n) {
                     setTimeout(() => {
-                        const box = node.children[1];
+                        const box = node.lastElementChild;
                         box.onclick = (e) => {
                             const target = e.target;
                             const className = target.className;
@@ -1242,13 +1246,7 @@
             },
             creatEvent() {
                 const f = this.full;
-                /*
-                let button = f.getElementsByClassName("fold_exit")[0];
-                button.onclick = () =>
-                    !this.autoScroll.node && this.ShowOrExit(false);
-                button = null;
-                */
-                let n = this.nav;
+                const n = this.nav;
                 n.children[1].onclick = () => this.Previous();
                 n.children[2].onclick = () => this.Next();
                 this.loadLazy(f);
@@ -1261,7 +1259,7 @@
                 scrollTime: null,
                 scrollPos: null,
                 node: null,
-                bottom: 50,
+                bottom: 20,
                 pageScroll(TimeStamp) {
                     const position = this.node.scrollTop;
                     if (this.scrollTime) {
@@ -3703,9 +3701,9 @@
                             ${obutton}
                         </div>`;
                         item.firstElementChild.lastElementChild.insertAdjacentHTML(
-                                "beforebegin",
-                                mode ? r : html
-                            );
+                            "beforebegin",
+                            mode ? r : html
+                        );
                     }
                 },
             },
