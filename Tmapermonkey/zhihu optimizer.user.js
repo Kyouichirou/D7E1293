@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.1
+// @version      3.2.9.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1056,6 +1056,9 @@
                     closer = null;
                 }, 50);
             },
+            replace_Video(){
+
+            },
             //click image to show the raw pic
             imgClick: {
                 create(node, info) {
@@ -1102,7 +1105,7 @@
                     }
                     //margin
                     yh += 10;
-                    info.transform = `translate(${xw}px, ${yh}px) scale(${sc})`;
+                    info.transform = `translate(${xw}px, ${yh}px) scale(${sc.toFixed(4)})`;
                     info.width = `${tw}px`;
                 },
                 isExist: false,
@@ -1233,7 +1236,7 @@
                         box.onclick = (e) => {
                             const target = e.target;
                             const className = target.className;
-                            if (className) {
+                            if (className && typeof className === 'string') {
                                 if (className.endsWith("lazy"))
                                     this.showRawPic(box, target, n);
                                 else if (className === "ztext-gif")
