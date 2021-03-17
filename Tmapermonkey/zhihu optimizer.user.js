@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.2
+// @version      3.2.9.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -12,6 +12,7 @@
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      www.zhihu.com
+// @connect      lens.zhihu.com
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
@@ -644,6 +645,17 @@
         },
     };
     const zhihu = {
+        /*
+        these original functions of web will be failed in reader mode, so need to be rebuilt
+        rebuild:
+        1. gif player;
+        2. video player;
+        3. show raw picture
+        add:
+        1. picture viewer, continually open the raw picture in viewer mode;
+        note:
+        the source of video come from v-list2, which has some problems, need escape ?
+        */
         qaReader: {
             firstly: true,
             readerMode: false,
@@ -988,9 +1000,9 @@
             timeID: null,
             toolBar_event() {
                 setTimeout(() => {
-                    const tool = document.getElementsByClassName(
+                    const tool = document.getElementById(
                         "artfullscreen_toolbar"
-                    )[0];
+                    );
                     let bg = tool.getElementsByClassName("a_bgcolor")[0];
                     bg.onmouseenter = (e) => {
                         if (this.timeID) {
@@ -1056,8 +1068,123 @@
                     closer = null;
                 }, 50);
             },
-            replace_Video(){
-
+            get_video_info(v, video_id) {
+                const api = `https://lens.zhihu.com/api/v4/videos/${video_id}`;
+                xmlHTTPRequest(api).then(
+                    (json) => {
+                        typeof json === "string" && (json = JSON.parse(json));
+                        let videoURL = "";
+                        const vlb = json.playlist;
+                        const keys = Object.keys(vlb);
+                        let back = "";
+                        for (const k of keys) {
+                            if (k === "HD" || k === "FHD") {
+                                videoURL = vlb[k].play_url;
+                                break;
+                            } else back = vlb[k].play_url;
+                        }
+                        if (!videoURL && !back) return;
+                        else if (!videoURL) videoURL = back;
+                        const picURL = json.cover_url;
+                        this.replace_Video(v, picURL, videoURL);
+                    },
+                    (err) => console.log(err)
+                );
+            },
+            get_video_ID(v) {
+                let set = v.dataset.zaExtraModule;
+                if (!set) set = v.dataset.zaModuleInfo;
+                if (!set) return;
+                typeof set === "string" && (set = JSON.parse(set));
+                const content = set.card.content;
+                if (content.is_playable === false) {
+                    console.log("current video is not playable");
+                    return;
+                }
+                this.get_video_info(v, content.video_id);
+            },
+            rawVideo_html(picURL, videoURL, mode) {
+                const html = `
+                <img class="_video_cover" src=${picURL} style="object-fit: contain;${
+                    mode
+                        ? " position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;"
+                        : ""
+                }" />
+                <video preload="metadata" width="100%" controls="">
+                    <source
+                        src=${videoURL}
+                        type="video/mp4"
+                    />
+                </video>
+                <div
+                    class="_player_ico"
+                    style="
+                        position: absolute;
+                        left: 50%;
+                        top: 50%;
+                        transform: translate(-50%, -50%);
+                        ${mode ? "z-index: 2;" : ""}
+                    "
+                >
+                    <div class="_play_ico" style="width: 50px; height: 50px">
+                        <span class="_play_ico_content"
+                            ><svg viewBox="0 0 72 72" class="_ico_content">
+                                <g fill="none" fill-rule="evenodd">
+                                    <circle
+                                        cx="36"
+                                        cy="36"
+                                        r="36"
+                                        fill="#FFF"
+                                        fill-opacity=".95"
+                                    ></circle>
+                                    <path
+                                        fill="#444"
+                                        fill-rule="nonzero"
+                                        d="M50.8350169,37.0602664 L29.4767217,49.9693832 C28.900608,50.3175908 28.1558807,50.1251285 27.8133266,49.5395068 C27.701749,49.3487566 27.6428571,49.1309436 27.6428571,48.9090213 L27.6428571,23.0907876 C27.6428571,22.4094644 28.1862113,21.8571429 28.8564727,21.8571429 C29.0747919,21.8571429 29.2890685,21.9170066 29.4767217,22.0304257 L50.8350169,34.9395425 C51.4111306,35.28775 51.6004681,36.0447682 51.257914,36.6303899 C51.154433,36.8072984 51.0090531,36.9550776 50.8350169,37.0602664 Z"
+                                    ></path>
+                                </g></svg
+                        ></span>
+                    </div>
+                </div>`;
+                return html;
+            },
+            replace_Video(v, picURL, videoURL) {
+                let player = v.getElementsByClassName("VideoCard-player");
+                if (player.length > 0) {
+                    const html = this.rawVideo_html(picURL, videoURL, false);
+                    player[0].children.length === 0
+                        ? player[0].insertAdjacentHTML("afterbegin", html)
+                        : (player[0].innerHTML = html);
+                } else {
+                    player = v.getElementsByClassName(
+                        "ZVideoLinkCard-playerContainer"
+                    );
+                    if (player.length > 0) {
+                        const html = this.rawVideo_html(picURL, videoURL, true);
+                        player[0].style.paddingBottom = 0;
+                        player[0].children.length === 0
+                            ? player[0].insertAdjacentHTML("afterbegin", html)
+                            : (player[0].innerHTML = html);
+                    } else console.log("warning, the id of player is null");
+                }
+            },
+            ElementVisible(f, element) {
+                const getElementTopLeft = (obj) => {
+                    let top = 0;
+                    let left = 0;
+                    while (obj) {
+                        top += obj.offsetTop;
+                        left += obj.offsetLeft;
+                        obj = obj.offsetParent;
+                    }
+                    return { top: top, left: left };
+                };
+                const tmp = getElementTopLeft(element);
+                const offset = f.scrollTop;
+                return (
+                    tmp.top + element.clientHeight > offset &&
+                    offset + window.innerHeight > tmp.top
+                );
             },
             //click image to show the raw pic
             imgClick: {
@@ -1104,12 +1231,15 @@
                         yh = (wh - th) / 2;
                     }
                     //margin
-                    yh += 10;
-                    info.transform = `translate(${xw}px, ${yh}px) scale(${sc.toFixed(4)})`;
+                    yh += 5;
+                    info.transform = `translate(${xw}px, ${yh}px) scale(${sc.toFixed(
+                        4
+                    )})`;
                     info.width = `${tw}px`;
                 },
                 isExist: false,
                 restore(n) {
+                    //retore the status of navigator
                     const l = n.children[1];
                     const r = n.children[2];
                     l.className !== this.lbackupNav[0] &&
@@ -1230,22 +1360,96 @@
                     target.parentNode.className =
                         "GifPlayer" + (a === ".webp" ? "" : " isPlaying");
                 },
+                video_Play(video) {
+                    video.nextElementSibling.style.display = "none";
+                    video.previousElementSibling.style.display = "none";
+                    video.play();
+                },
                 event(node, n) {
                     setTimeout(() => {
                         const box = node.lastElementChild;
                         box.onclick = (e) => {
                             const target = e.target;
                             const className = target.className;
-                            if (className && typeof className === 'string') {
+                            if (className && typeof className === "string") {
                                 if (className.endsWith("lazy"))
                                     this.showRawPic(box, target, n);
                                 else if (className === "ztext-gif")
                                     this.GifPlay(target);
+                                else if (className === "_video_cover")
+                                    this.video_Play(target.nextElementSibling);
                                 else this.remove(n);
+                            } else {
+                                const localName = target.localName;
+                                if (
+                                    localName &&
+                                    (localName === "path" ||
+                                        localName === "circle")
+                                ) {
+                                    const paths = e.path;
+                                    for (const p of paths) {
+                                        if (p.className === "_player_ico") {
+                                            this.video_Play(
+                                                p.previousElementSibling
+                                            );
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         };
                     }, 100);
                 },
+            },
+            scrollListen: false,
+            video_list: null,
+            loadedList: null,
+            getVideo_element(f) {
+                //if the video element is visible, load data
+                if (this.video_list) {
+                    this.video_list = null;
+                    this.loadedList = null;
+                }
+                this.video_list = [];
+                const videoas = f.getElementsByClassName("RichText-video");
+                const videobs = f.getElementsByClassName("ZVideoLinkCard");
+                const a = videoas.length;
+                const b = videobs.length;
+                if (a + b === 0) return;
+                for (let k = 0; k < a; k++)
+                    this.ElementVisible(f, videoas[k])
+                        ? this.get_video_ID(videoas[k])
+                        : this.video_list.push(videoas[k]);
+                for (let k = 0; k < b; k++)
+                    this.ElementVisible(f, videobs[k])
+                        ? this.get_video_ID(videobs[k])
+                        : this.video_list.push(videobs[k]);
+                const i = this.video_list.length;
+                if (i > 0) {
+                    this.loadedList = new Array(i);
+                    !this.scrollListen && this.scrollEvent(f);
+                } else this.video_list = null;
+            },
+            scrollEvent(f) {
+                let unfinished = false;
+                f.onscroll = () => {
+                    if (unfinished || !this.video_list) return;
+                    unfinished = true;
+                    this.video_list.forEach((v, index) => {
+                        if (!this.loadedList[index]) {
+                            if (this.ElementVisible(f, v)) {
+                                this.loadedList[index] = true;
+                                this.get_video_ID(v);
+                            } else this.loadedList[index] = false;
+                        }
+                    });
+                    if (this.loadedList.every((e) => e)) {
+                        this.loadedList = null;
+                        this.video_list = null;
+                    }
+                    unfinished = false;
+                };
+                this.scrollListen = true;
             },
             creatEvent() {
                 const f = this.full;
@@ -1254,6 +1458,24 @@
                 n.children[2].onclick = () => this.Next();
                 this.loadLazy(f);
                 this.imgClick.event(f, n);
+                this.getVideo_element(f);
+            },
+            turnPage: {
+                main(mode, node) {
+                    const overlap = 100;
+                    const wh = window.innerHeight;
+                    let height = wh - overlap;
+                    height < 0 && (height = 0);
+                    let top = node.scrollTop;
+                    if (mode) top += height;
+                    else top < height ? (top = 0) : (top -= height);
+                    node.scrollTo(0, top);
+                },
+                start(mode, node) {
+                    window.requestAnimationFrame(
+                        this.main.bind(this, mode, node)
+                    );
+                },
             },
             autoScroll: {
                 stepTime: 40,
@@ -1262,7 +1484,6 @@
                 scrollTime: null,
                 scrollPos: null,
                 node: null,
-                bottom: 20,
                 pageScroll(TimeStamp) {
                     const position = this.node.scrollTop;
                     if (this.scrollTime) {
@@ -1275,8 +1496,7 @@
                     }
                     this.scrollTime = TimeStamp;
                     if (this.scrollState) {
-                        let h = this.node.scrollHeight;
-                        h = h - window.innerHeight - this.bottom;
+                        const h = this.node.scrollHeight - window.innerHeight;
                         position < h
                             ? window.requestAnimationFrame(
                                   this.pageScroll.bind(this)
@@ -1353,9 +1573,13 @@
                 },
             },
             keyEvent(keyCode) {
-                if (this.imgClick.isExist) return;
-                this.readerMode && keyCode === 84
+                if (this.imgClick.isExist || !this.readerMode) return;
+                keyCode === 84
                     ? this.scroll.toTop(this.full)
+                    : keyCode === 78
+                    ? this.turnPage.start(true, this.full)
+                    : keyCode === 85
+                    ? this.turnPage.start(false, this.full)
                     : keyCode === 82
                     ? this.scroll.toBottom(this.full)
                     : keyCode === 192
@@ -1386,6 +1610,24 @@
                     next.title = titler;
                 }
             },
+            /**
+             * @param {any} node
+             */
+            set answerID(node) {
+                const first = node.firstElementChild;
+                if (first.className === "ContentItem AnswerItem") {
+                    const ats = first.attributes;
+                    if (ats) {
+                        for (const a of ats) {
+                            if (a.name === "name") {
+                                this.aid = a.value;
+                                break;
+                            }
+                        }
+                    }
+                } else
+                    console.log("warning, the structure of node has changed");
+            },
             changeContent(node, mode = true) {
                 if (this.autoScroll.node) return;
                 const cName = "RichText ztext CopyrightRichText-richText";
@@ -1401,12 +1643,14 @@
                     author.length > 0 ? author[0].innerHTML : "No data";
                 this.loadLazy(f);
                 if (mode) {
-                    f.scrollTo(0, 0);
                     this.navPannel = this.curNode = node;
                     this.changeNav(this.nav);
+                    this.answerID = node;
                 } else {
                     this.ShowOrExit(true);
                 }
+                this.getVideo_element(f);
+                setTimeout(() => f.scrollTo(0, 0), 0);
             },
             Next() {
                 this.imgClick.isExist
@@ -1432,17 +1676,18 @@
                 f && (f.style.display = display);
                 if (mode) {
                     this.changeNav(n);
-                    const tool = document.getElementsByClassName(
+                    const tool = document.getElementById(
                         "artfullscreen_toolbar"
                     );
-                    tool.length > 0 && (tool[0].style.display = display);
+                    tool && (tool.style.display = display);
                 } else {
                     //exit reader mode, then move to the position of current node
-                    const offsetTop = this.curNode.offsetTop;
-                    offsetTop !== window.pageYOffset &&
-                        window.scrollTo(0, offsetTop);
-                    this.readerMode = mode;
                     this.overFlow = false;
+                    const offsetTop = this.curNode.offsetTop;
+                    this.readerMode = mode;
+                    offsetTop !== window.pageYOffset &&
+                        setTimeout(() => window.scrollTo(0, offsetTop), 0);
+                    //wait the reader is hidden, scroll to current answer
                 }
             },
             Change(node, aid) {
@@ -2822,7 +3067,8 @@
                         return;
                     }
                     let item = null;
-                    //click the expand button
+                    //click the expand button, the rich node has contained all content in q & a webpage;
+                    if (targetElements.index < 2) return;
                     if (className === targetElements.buttonClass) {
                         item = this.getiTem(target, targetElements);
                         //click the ico of expand button
@@ -2850,7 +3096,11 @@
                         for (const c of path) {
                             if (c.localName === "a") {
                                 const cl = c.className;
-                                if (cl && !cl.endsWith("external")) {
+                                if (
+                                    cl &&
+                                    typeof cl === "string" &&
+                                    !cl.endsWith("external")
+                                ) {
                                     const s = c.search;
                                     if (s.startsWith("?target=")) {
                                         e.preventDefault();
@@ -2999,10 +3249,10 @@
             },
             getTagetElements(index) {
                 const pos = {
+                    0: "answerPage",
                     1: "questionPage",
                     2: "topicPage",
                     3: "searchPage",
-                    0: "answerPage",
                 };
                 this.checked = [];
                 const targetElements = this[pos[index]](index);
@@ -3540,6 +3790,10 @@
                     button.title = "exit editable mode";
                 },
                 Reader(button) {
+                    if (this.editableMode) {
+                        Notification("please exit editable mode", "Tips");
+                        return;
+                    }
                     const pnode = this.getpNode(button);
                     if (!pnode) return;
                     const aid = this.getid(pnode);
@@ -3555,7 +3809,10 @@
                     button.title = "edit the answer";
                 },
                 Select(button) {
-                    if (this.editableMode) return;
+                    if (this.editableMode) {
+                        Notification("please exit editable mode", "Tips");
+                        return;
+                    }
                     const ele = this.getcontent(button);
                     if (!ele) return;
                     const selection = window.getSelection();
@@ -3810,6 +4067,11 @@
             localStorage.setItem("search:preset_words", "");
             localStorage.setItem("zap:SharedSession", "");
         },
+        /*
+        disable blank search hot word;
+        disable show hot seach result;
+        clear placeholder
+        */
         inputBox: {
             box: null,
             controlEventListener() {
@@ -5240,6 +5502,7 @@
                     }
                     return type;
                 },
+                //search box query command execute
                 ExecuteFunc: {
                     Resultshow(e, i, liTagRaw, timeStampconvertor) {
                         const info = {};
@@ -5467,13 +5730,16 @@
                 },
                 isZhuanlan: false,
                 searchDatabase(key) {
-                    if (key.startsWith("$") && this.isZhuanlan) {
+                    if (
+                        key.charAt(0) === "$" &&
+                        this.isZhuanlan &&
+                        key.length > 1
+                    ) {
                         const cm = ["a", "p", "d", "m", "y", "h", "w"];
-                        const sc = key.slice(1, 2);
-                        const f = cm.findIndex((e) => sc === e);
-                        if (f < 0) return false;
-                        this.initialDatabase(this.commandFormat(key));
-                        return true;
+                        if (cm.includes(key.charAt(1).toLowerCase())) {
+                            this.initialDatabase(this.commandFormat(key));
+                            return true;
+                        }
                     }
                     return false;
                 },
@@ -6365,7 +6631,12 @@
                 if (e.ctrlKey || e.altKey || e.shiftKey) return;
                 if (e.target.localName === "input") return;
                 const className = e.target.className;
-                if (className && className.includes("DraftEditor")) return;
+                if (
+                    className &&
+                    typeof className === "string" &&
+                    className.includes("DraftEditor")
+                )
+                    return;
                 const keyCode = e.keyCode;
                 this.qaReader.readerMode
                     ? this.qaReader.keyEvent(keyCode)
@@ -6375,7 +6646,7 @@
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
-                    : null;
+                    : this.multiSearch(keyCode);
             };
         },
         pageOfQA(index, href) {
