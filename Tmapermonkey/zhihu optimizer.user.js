@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.5
+// @version      3.2.9.6
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1575,13 +1575,17 @@
             keyEvent(keyCode) {
                 if (this.imgClick.isExist || !this.readerMode) return;
                 keyCode === 84
-                    ? this.scroll.toTop(this.full)
+                    ? !this.autoScroll.scrollState &&
+                      this.scroll.toTop(this.full)
                     : keyCode === 78
-                    ? this.turnPage.start(true, this.full)
+                    ? !this.autoScroll.scrollState &&
+                      this.turnPage.start(true, this.full)
                     : keyCode === 85
-                    ? this.turnPage.start(false, this.full)
+                    ? !this.autoScroll.scrollState &&
+                      this.turnPage.start(false, this.full)
                     : keyCode === 82
-                    ? this.scroll.toBottom(this.full)
+                    ? !this.autoScroll.scrollState &&
+                      this.scroll.toBottom(this.full)
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
@@ -1714,6 +1718,31 @@
                     ? "hidden"
                     : "auto";
             },
+            getAnswerItem(node) {
+                const item = node.getElementsByClassName(
+                    "ContentItem AnswerItem"
+                );
+                return item.length > 0 ? item[0] : null;
+            },
+            //check the item whether is blocked
+            blockCheck(arg) {
+                if (
+                    Object.prototype.toString.call(arg) ===
+                    "[object HTMLCollection]"
+                ) {
+                    for (const e of arg) {
+                        if (e.style.display === "none") continue;
+                        const item = this.getAnswerItem(e);
+                        if (item && item.style.display === "none") continue;
+                        return e;
+                    }
+                } else {
+                    if (arg.style.display === "none") return null;
+                    const item = this.getAnswerItem(arg);
+                    if (item && item.style.display === "none") return null;
+                    else return arg;
+                }
+            },
             /**
              * @param {{ parentNode: any; }} pnode
              */
@@ -1722,25 +1751,47 @@
                 if (className === "QuestionAnswer-content") {
                     this.prevNode = null;
                     const list = document.getElementsByClassName("List-item");
-                    this.nextNode = list.length > 0 ? list[0] : null;
+                    this.nextNode =
+                        list.length > 0 ? this.blockCheck(list) : null;
                 } else {
-                    const next = pnode.nextElementSibling;
+                    let next = pnode.nextElementSibling;
+                    this.nextNode = null;
                     if (next) {
-                        const nextName = next.className;
-                        this.nextNode = nextName === "List-item" ? next : null;
-                    } else this.nextNode = null;
-                    const pre = pnode.previousElementSibling;
+                        let nextName = next.className;
+                        while (nextName === "List-item") {
+                            if (this.blockCheck(next)) {
+                                this.nextNode = next;
+                                break;
+                            } else {
+                                next = next.nextElementSibling;
+                                if (!next) break;
+                                nextName = next.className;
+                            }
+                        }
+                    }
+                    let pre = pnode.previousElementSibling;
+                    this.prevNode = null;
                     if (pre) {
-                        const pName = pre.className;
+                        let pName = pre.className;
                         if (pName === "List-header") {
                             const c = document.getElementsByClassName(
                                 "QuestionAnswer-content"
                             );
-                            this.prevNode = c.length > 0 ? c[0] : null;
+                            this.prevNode =
+                                c.length > 0 ? this.blockCheck(c[0]) : null;
                         } else {
-                            this.prevNode = pName === "List-item" ? pre : null;
+                            while (pName === "List-item") {
+                                if (this.blockCheck(pre)) {
+                                    this.prevNode = pre;
+                                    break;
+                                } else {
+                                    pre = pre.previousElementSibling;
+                                    if (!pre) break;
+                                    pName = pre.className;
+                                }
+                            }
                         }
-                    } else this.prevNode = null;
+                    }
                 }
             },
             removeADs() {
@@ -2318,15 +2369,16 @@
                         ? this.Column.subscribe()
                         : this.noteHightlight.Marker(keyCode)
                     : keyCode === 113
-                    ? this.noteHightlight.EditDoc()
+                    ? !this.autoScroll.scrollState &&
+                      this.noteHightlight.EditDoc()
                     : keyCode === 78
-                    ? this.turnPage.start(true)
+                    ? !this.autoScroll.scrollState && this.turnPage.start(true)
                     : keyCode === 84
-                    ? this.scroll.toTop()
+                    ? !this.autoScroll.scrollState && this.scroll.toTop()
                     : keyCode === 82
-                    ? this.scroll.toBottom()
+                    ? !this.autoScroll.scrollState && this.scroll.toBottom()
                     : keyCode === 85
-                    ? this.turnPage.start(false)
+                    ? !this.autoScroll.scrollState && this.turnPage.start(false)
                     : this.multiSearch(keyCode);
             },
             keyBoardEvent() {
@@ -2677,6 +2729,7 @@
                 if (this.hasLogin) {
                     mo.disconnect();
                     mo = null;
+                    document.documentElement.style.overflow = "auto";
                     return;
                 }
                 events.forEach((e) =>
@@ -2689,16 +2742,10 @@
                         ) {
                             node.style.display = "none";
                             setTimeout(() => {
-                                const cancel = node.getElementsByClassName(
-                                    "Modal-backdrop"
-                                );
-                                if (cancel.length === 0) {
-                                    console.log("get cancel login id fail");
-                                    return;
-                                }
-                                cancel[0].click();
                                 mo.disconnect();
+                                node.remove();
                                 mo = null;
+                                document.documentElement.style.overflow = "auto";
                             }, 0);
                         }
                     })
@@ -4245,6 +4292,8 @@
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
             if (mode) {
+                this.antiLogin();
+                setTimeout(() => (this.hasLogin = true), 3000);
                 const r = GM_getValue("reader");
                 if (r) {
                     GM_addStyle(article + this.Column.clearPage(0).join(""));
@@ -6670,7 +6719,6 @@
                 }
                 this.inputBox.monitor();
                 if (index < 2) {
-                    document.documentElement.style.overflow = "auto";
                     setTimeout(() => (this.hasLogin = true), 3000);
                 }
             };
