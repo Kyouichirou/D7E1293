@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.6
+// @version      3.2.9.7
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1110,7 +1110,7 @@
                         ? " position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;"
                         : ""
                 }" />
-                <video preload="metadata" width="100%" controls="">
+                <video preload="metadata" width="100%" controls="controls">
                     <source
                         src=${videoURL}
                         type="video/mp4"
@@ -2743,9 +2743,10 @@
                             node.style.display = "none";
                             setTimeout(() => {
                                 mo.disconnect();
-                                node.remove();
                                 mo = null;
-                                document.documentElement.style.overflow = "auto";
+                                node.remove();
+                                document.documentElement.style.overflow =
+                                    "auto";
                             }, 0);
                         }
                     })
@@ -4292,8 +4293,6 @@
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
             if (mode) {
-                this.antiLogin();
-                setTimeout(() => (this.hasLogin = true), 3000);
                 const r = GM_getValue("reader");
                 if (r) {
                     GM_addStyle(article + this.Column.clearPage(0).join(""));
@@ -6702,7 +6701,6 @@
             //inject as soon as possible; may be need to concern about some eventlisteners and MO
             this.inputBox.controlEventListener();
             this.addStyle(index);
-            index < 2 && this.antiLogin();
             this.clearStorage();
             window.onload = () => {
                 if (index !== 8) {
@@ -6718,9 +6716,6 @@
                     (index === 6 || index === 7) && this.userPage.main();
                 }
                 this.inputBox.monitor();
-                if (index < 2) {
-                    setTimeout(() => (this.hasLogin = true), 3000);
-                }
             };
         },
         blackUserMonitor(index) {
@@ -6770,6 +6765,8 @@
                 : index < 0
                 ? null
                 : f && this.pageOfQA(index, href);
+            this.antiLogin();
+            setTimeout(() => (this.hasLogin = true), 3000);
             w && this.antiRedirect();
             this.shade.start();
             this.clipboardClear.event();
