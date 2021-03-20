@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.2.9.7
+// @version      3.3.0.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -662,16 +662,19 @@
             Reader(node) {
                 //adapted from http://www.360doc.com/
                 const bgc = GM_getValue("articleBackground");
-                const arr = new Array(6);
-                let color = "";
+                const arr = new Array(7);
+                let color = "#FFF";
+                const bgcM = `background-image: url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif);`;
+                let bgcimg = "";
                 if (bgc) {
-                    for (let i = 1; i < 7; i++)
+                    for (let i = 1; i < 8; i++)
                         arr[i - 1] = bgc === `a_color${i}` ? " cur" : "";
-                    color = this.colors_list(bgc);
+                    bgc === "a_color7"
+                        ? (bgcimg = bgcM)
+                        : (color = this.colors_list(bgc));
                 } else {
-                    arr.fill("", 0, 4);
+                    arr.fill("", 0);
                     arr[5] = " cur";
-                    color = "#FFF";
                 }
                 let title = document.title;
                 title = title.slice(0, title.lastIndexOf("-") - 1);
@@ -683,8 +686,7 @@
                 const content = node.getElementsByClassName(
                     "RichText ztext CopyrightRichText-richText"
                 );
-                const cBackup =
-                    '<span class="RichText ztext CopyrightRichText-richText" itemprop="text">No_data</span>';
+                const cBackup = "No_data";
                 const html = `
                 <div
                     id="artfullscreen"
@@ -709,6 +711,7 @@
                             height: auto;
                             overflow: hidden;
                             background: ${color};
+                            ${bgcimg}
                             box-shadow: 0 0 6px #999;
                             display: table;
                             margin: 20px auto;
@@ -760,11 +763,7 @@
                                                     height: 0;
                                                 "
                                             ></div>
-                                            ${
-                                                content.length > 0
-                                                    ? content[0].outerHTML
-                                                    : cBackup
-                                            }
+                                            <span class="RichText ztext CopyrightRichText-richText" itemprop="text"></span>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -773,9 +772,16 @@
                     </div>
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
-                this.Navigator();
-                this.toolBar(arr);
-                this.creatEvent();
+                setTimeout(() => {
+                    const f = this.full;
+                    f.getElementsByClassName(
+                        "RichText ztext CopyrightRichText-richText"
+                    )[0].innerHTML =
+                        content.length > 0 ? content[0].innerHTML : cBackup;
+                    this.Navigator();
+                    this.toolBar(arr);
+                    this.creatEvent(f);
+                }, 50);
             },
             Navigator() {
                 //this css adapted from @vizo, https://greasyfork.org/zh-CN/scripts/373008-%E7%99%BE%E5%BA%A6%E6%90%9C%E7%B4%A2%E4%BC%98%E5%8C%96sp
@@ -945,6 +951,9 @@
                         .a_color6 {
                             background: #FFF !important;
                         }
+                        .a_color7 {
+                            background: #EC9857 !important;
+                        }
                     </style>
                     <a href="#" class="artfullscreen_closer" id="artfullscreen_closer">×</a>
                     <div class="d1">
@@ -969,8 +978,24 @@
                                 <span class="a_color6${arr[5]}">
                                     <img src=${gifBase64}
                                 /></span>
+                                <span class="a_color7${arr[6]}" title="background image">
+                                    <img src=${gifBase64}
+                                /></span>
                             </div>
                         </div>
+                    </div>
+                    <div class="d2" style="display: none;">
+                        <i
+                            class="load_more"
+                            title="load more answers"
+                            style="
+                                height: 24px;
+                                width: 24px;
+                                margin-left: -2px;
+                                content: url(data:image/webp;base64,UklGRigBAABXRUJQVlA4TBwBAAAvP8APEFDcto3D/cc+pF35HhABt9r2Os0niZKSDrv2Dmxg6nvFENAzCkkW8AwMQR/qXEuOdP7vVeC2jTI4hhw+gn4ClWRF7lEURWplwUlDiXVynZJivw24mpHIwuhopZBcMxpsbAzUoMhWjkaLhTlxVz8APKwLSpl0Jg3QTPoSxdoDgB/XiZEPQAgGHBOlRHpPQAjAU09SckeAhQB8tCUKOUEVzKzCvyVJUUzwYmb2gimTWPqHysxChRMpXcIdGpgZKlzILEAaNHBQaIZgZuQCFQEE7m1k7guCAWYNbiGrkA0EBxQBG1JC3g1aQBHwZf6AzDPOg4w6yrzQ5MBAOp9pIN1ooFP3Vu3vrbG4t9N3I597N7ff7f1/4yNQAg==);
+                            "
+                            >More</i
+                        >
                     </div>
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
@@ -1058,12 +1083,23 @@
                                 }
                             }
                             target.className = className + " cur";
-                            document.getElementById(
+                            const box = document.getElementById(
                                 "artfullscreen__box"
-                            ).style.background = this.colors_list(className);
+                            );
+                            const bgcM =
+                                "url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif)";
+                            if (className === "a_color7") {
+                                box.style.backgroundImage = bgcM;
+                            } else {
+                                box.style.backgroundImage = "none";
+                                box.style.background = this.colors_list(
+                                    className
+                                );
+                            }
                             GM_setValue("articleBackground", className);
                         }
                     };
+                    tool.lastElementChild.onclick = () => this.loadMoreAnswer();
                     colorlist = null;
                     closer = null;
                 }, 50);
@@ -1110,7 +1146,7 @@
                         ? " position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;"
                         : ""
                 }" />
-                <video preload="metadata" width="100%" controls="controls">
+                <video preload="metadata" width="100%" controls="">
                     <source
                         src=${videoURL}
                         type="video/mp4"
@@ -1451,14 +1487,19 @@
                 };
                 this.scrollListen = true;
             },
-            creatEvent() {
-                const f = this.full;
+            createMonitor() {
+                new MutationObserver(
+                    (e) => e.length > 2 && (this.scroll_record += 3)
+                ).observe(this.curNode.parentNode, { childList: true });
+            },
+            creatEvent(f) {
                 const n = this.nav;
                 n.children[1].onclick = () => this.Previous();
                 n.children[2].onclick = () => this.Next();
                 this.loadLazy(f);
                 this.imgClick.event(f, n);
                 this.getVideo_element(f);
+                this.createMonitor();
             },
             turnPage: {
                 main(mode, node) {
@@ -1614,26 +1655,29 @@
                     next.title = titler;
                 }
             },
+            getAnswerID(node) {
+                let first = node.firstElementChild;
+                if (first.className !== "ContentItem AnswerItem")
+                    first = this.getAnswerItem(node);
+                if (!first) {
+                    console.log("warning, the structure of node has changed");
+                    return null;
+                }
+                const ats = first.attributes;
+                if (ats)
+                    for (const a of ats) if (a.name === "name") return a.value;
+            },
             /**
              * @param {any} node
              */
             set answerID(node) {
-                const first = node.firstElementChild;
-                if (first.className === "ContentItem AnswerItem") {
-                    const ats = first.attributes;
-                    if (ats) {
-                        for (const a of ats) {
-                            if (a.name === "name") {
-                                this.aid = a.value;
-                                break;
-                            }
-                        }
-                    }
-                } else
-                    console.log("warning, the structure of node has changed");
+                this.aid = this.getAnswerID(node);
             },
-            changeContent(node, mode = true) {
-                if (this.autoScroll.node) return;
+            isRunning: false,
+            scroll_record: 0,
+            changeContent(node, mode = true, direction) {
+                if (this.autoScroll.node || this.isRunning) return;
+                this.isRunning = true;
                 const cName = "RichText ztext CopyrightRichText-richText";
                 const aName =
                     "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
@@ -1647,14 +1691,46 @@
                     author.length > 0 ? author[0].innerHTML : "No data";
                 this.loadLazy(f);
                 if (mode) {
-                    this.navPannel = this.curNode = node;
-                    this.changeNav(this.nav);
                     this.answerID = node;
-                } else {
-                    this.ShowOrExit(true);
-                }
+                    // trigger the scroll event to load more answers;
+                    !(this.isSimple_page || this.allAnswser_loaded) &&
+                        setTimeout(() => {
+                            this.overFlow = false;
+                            f.style.overflow = "hidden";
+                            node.scrollIntoView();
+                            setTimeout(() => {
+                                this.scroll_record < 5 &&
+                                    window.scrollTo(
+                                        0,
+                                        0.98 *
+                                            document.documentElement
+                                                .scrollHeight
+                                    );
+                                setTimeout(() => {
+                                    this.scroll_record -= 1;
+                                    this.navPannel = this.curNode = node;
+                                    this.changeNav(this.nav);
+                                    const time = this.allAnswser_loaded
+                                        ? 350
+                                        : 0;
+                                    setTimeout(() => {
+                                        this.overFlow = true;
+                                        f.style.overflow = "auto";
+                                        this.isRunning = false;
+                                    }, time);
+                                }, 300);
+                            }, 300);
+                        }, 50);
+                } else this.ShowOrExit(true);
                 this.getVideo_element(f);
                 setTimeout(() => f.scrollTo(0, 0), 0);
+                !this.allAnswser_loaded &&
+                    this.isSimple_page &&
+                    mode &&
+                    ((this.navPannel = this.curNode = node),
+                    this.changeNav(this.nav));
+                (this.allAnswser_loaded || !mode || this.isSimple_page) &&
+                    (this.isRunning = false);
             },
             Next() {
                 this.imgClick.isExist
@@ -1685,13 +1761,18 @@
                     );
                     tool && (tool.style.display = display);
                 } else {
-                    //exit reader mode, then move to the position of current node
+                    /*
+                    exit reader mode, then move to the position of current node
+                    wait the reader is hidden, scroll to current answer
+                    */
                     this.overFlow = false;
-                    const offsetTop = this.curNode.offsetTop;
                     this.readerMode = mode;
+                    const offsetTop = this.curNode.offsetTop;
                     offsetTop !== window.pageYOffset &&
-                        setTimeout(() => window.scrollTo(0, offsetTop), 0);
-                    //wait the reader is hidden, scroll to current answer
+                        (this.isSimple_page ||
+                            this.nextNode ||
+                            this.allAnswser_loaded) &&
+                        setTimeout(() => this.curNode.scrollIntoView(), 300);
                 }
             },
             Change(node, aid) {
@@ -1743,6 +1824,55 @@
                     else return arg;
                 }
             },
+            load_status: {
+                node: null,
+                status: false,
+                _a() {
+                    this.node = document.getElementById("load_status");
+                },
+                show() {
+                    const html = `
+                        <div
+                            id="load_status"
+                            style="
+                                top: 0%;
+                                z-index: 1000;
+                                position: fixed;
+                                height: 25px;
+                                width: 50%;
+                                font-size: 14px;
+                                font-weight: 500;
+                                margin-left: 25%;
+                                text-align: center;
+                                background: #FFBB59;
+                                box-shadow: 0 0 15px #FFBB59;
+                            "
+                        >
+                            !, waiting, more answers are loading....
+                        </div>`;
+                    this._a();
+                    this.node
+                        ? (this.node.style.display = "block")
+                        : document.body.insertAdjacentHTML("beforeend", html);
+                    this.status = true;
+                },
+                hide() {
+                    !this.node && this._a();
+                    this.node.style.display = "none";
+                    this.node = null;
+                    this.status = false;
+                },
+            },
+            get Toolbar() {
+                return document.getElementById("artfullscreen_toolbar");
+            },
+            allAnswser_loaded: false,
+            more_Answer_button_display(toolbar, mode) {
+                if (!toolbar) return;
+                toolbar.lastElementChild.style.display = mode
+                    ? "block"
+                    : "none";
+            },
             /**
              * @param {{ parentNode: any; }} pnode
              */
@@ -1758,7 +1888,15 @@
                     this.nextNode = null;
                     if (next) {
                         let nextName = next.className;
-                        while (nextName === "List-item") {
+                        const arr = ["Pc-word", "List-item"];
+                        let a = arr.indexOf(nextName);
+                        let b = null;
+                        while (a > -1) {
+                            if (a === 0) {
+                                b = next.nextElementSibling;
+                                next.remove();
+                                next = b;
+                            }
                             if (this.blockCheck(next)) {
                                 this.nextNode = next;
                                 break;
@@ -1766,6 +1904,7 @@
                                 next = next.nextElementSibling;
                                 if (!next) break;
                                 nextName = next.className;
+                                a = arr.indexOf(nextName);
                             }
                         }
                     }
@@ -1780,7 +1919,15 @@
                             this.prevNode =
                                 c.length > 0 ? this.blockCheck(c[0]) : null;
                         } else {
-                            while (pName === "List-item") {
+                            const arr = ["Pc-word", "List-item"];
+                            let a = arr.indexOf(pName);
+                            let b = null;
+                            while (a > -1) {
+                                if (a === 0) {
+                                    b = pre.previousElementSibling;
+                                    pre.remove();
+                                    pre = b;
+                                }
                                 if (this.blockCheck(pre)) {
                                     this.prevNode = pre;
                                     break;
@@ -1788,9 +1935,29 @@
                                     pre = pre.previousElementSibling;
                                     if (!pre) break;
                                     pName = pre.className;
+                                    a = arr.indexOf(pName);
                                 }
                             }
                         }
+                    }
+                }
+                if (this.nextNode) this.allAnswser_loaded = false;
+                else {
+                    if (this.allAnswser_loaded || this.isSimple_page) {
+                        this.allAnswser_loaded = true;
+                        Notification(
+                            "all answers have been loaded",
+                            "Reader Tips"
+                        );
+                        return;
+                    }
+                    const button = document.getElementsByClassName(
+                        "Button QuestionAnswers-answerButton Button--blue Button--spread"
+                    );
+                    if (button.length > 0) {
+                        this.allAnswser_loaded = true;
+                        button[0].scrollIntoView();
+                        setTimeout(() => (this.navPannel = pnode), 300);
                     }
                 }
             },
@@ -1803,9 +1970,12 @@
             prevNode: null,
             curNode: null,
             aid: null,
+            items_count: 0,
+            isSimple_page: false,
             main(pnode, aid) {
                 //---------------------------------------check if the node has pre and next node
                 const p = pnode.parentNode;
+                this.isSimple_page = location.pathname.includes("/answer/");
                 this.removeADs();
                 this.navPannel = p;
                 this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
@@ -1814,6 +1984,9 @@
                 this.readerMode = true;
                 this.overFlow = true;
                 this.aid = aid;
+                this.items_count = document.getElementsByClassName(
+                    "List-item"
+                ).length;
             },
         },
         getData() {
@@ -2724,6 +2897,7 @@
             the timing of the js injection is uncertain, and for some reason the injection maybe late,
             so that the occurrence of the event cannot be accurately captured
             don't use dom load event =>
+            most of zhihu webpages require login
             */
             let mo = new MutationObserver((events) => {
                 if (this.hasLogin) {
@@ -6765,9 +6939,9 @@
                 : index < 0
                 ? null
                 : f && this.pageOfQA(index, href);
+            w && this.antiRedirect();
             this.antiLogin();
             setTimeout(() => (this.hasLogin = true), 3000);
-            w && this.antiRedirect();
             this.shade.start();
             this.clipboardClear.event();
             installTips();
