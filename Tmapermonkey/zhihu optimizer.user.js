@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.0.0
+// @version      3.3.1.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1723,14 +1723,17 @@
                         }, 50);
                 } else this.ShowOrExit(true);
                 this.getVideo_element(f);
-                setTimeout(() => f.scrollTo(0, 0), 0);
-                !this.allAnswser_loaded &&
-                    this.isSimple_page &&
-                    mode &&
-                    ((this.navPannel = this.curNode = node),
-                    this.changeNav(this.nav));
-                (this.allAnswser_loaded || !mode || this.isSimple_page) &&
-                    (this.isRunning = false);
+                //修改
+                setTimeout(() => {
+                    f.scrollTo(0, 0);
+                    !this.allAnswser_loaded &&
+                        this.isSimple_page &&
+                        mode &&
+                        ((this.navPannel = this.curNode = node),
+                        this.changeNav(this.nav));
+                    (this.allAnswser_loaded || !mode || this.isSimple_page) &&
+                        (this.isRunning = false);
+                }, 0);
             },
             Next() {
                 this.imgClick.isExist
@@ -1749,6 +1752,7 @@
                 return document.getElementById("artfullscreen");
             },
             ShowOrExit(mode) {
+                if (!mode && this.isRunning) return;
                 const n = this.nav;
                 const display = mode ? "block" : "none";
                 n && (n.style.display = display);
