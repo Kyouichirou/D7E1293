@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.1.1
+// @version      3.3.1.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -330,9 +330,21 @@
                         return;
                     }
                 }
-                const request = this.table.get(keyPath);
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject("error");
+                try {
+                    const request = this.table.get(keyPath);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject("error");
+                } catch (err) {
+                    console.log(err);
+                    const transaction = this.store.transaction(
+                        [this.tbname],
+                        this.RWmode
+                    );
+                    const table = transaction.objectStore(this.tbname);
+                    const request = table.get(keyPath);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject("error");
+                }
             });
         }
         batchCheck(tables, keyPath) {
@@ -1099,7 +1111,7 @@
                             GM_setValue("articleBackground", className);
                         }
                     };
-                    tool.lastElementChild.onclick = () => this.loadMoreAnswer();
+                    //tool.lastElementChild.onclick = () => this.loadMoreAnswer();
                     colorlist = null;
                     closer = null;
                 }, 50);
@@ -1364,7 +1376,7 @@
                     r.title = titler;
                     this.rbackupNav[0] !== namer && (r.className = namer);
                 },
-                changPic(mode) {
+                changPic(mode, show_status, f) {
                     if (!this.ImageView) {
                         console.log("warning, the viewer of picture is null");
                         return;
@@ -1375,7 +1387,10 @@
                         (img) => img.dataset.original === this.currentPicURL
                     );
                     if ((index === i && mode) || (index === 0 && !mode)) {
-                        Notification("no more picture", "Reader Tips");
+                        show_status.main(
+                            show_status.timeID ? null : f,
+                            "no more picture"
+                        );
                         return;
                     }
                     const imge = this.imgList[mode ? index + 1 : index - 1];
@@ -1494,8 +1509,8 @@
             },
             creatEvent(f) {
                 const n = this.nav;
-                n.children[1].onclick = () => this.Previous();
-                n.children[2].onclick = () => this.Next();
+                n.children[1].onclick = () => this.Previous(f);
+                n.children[2].onclick = () => this.Next(f);
                 this.loadLazy(f);
                 this.imgClick.event(f, n);
                 this.getVideo_element(f);
@@ -1633,6 +1648,10 @@
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
+                    : keyCode === 37
+                    ? this.Previous()
+                    : keyCode === 39
+                    ? this.Next()
                     : zhihu.multiSearch(keyCode);
             },
             changeNav(node) {
@@ -1693,56 +1712,53 @@
                 if (mode) {
                     this.answerID = node;
                     // trigger the scroll event to load more answers;
-                    !(this.isSimple_page || this.allAnswser_loaded) &&
-                        setTimeout(() => {
-                            this.overFlow = false;
-                            f.style.overflow = "hidden";
-                            node.scrollIntoView();
-                            setTimeout(() => {
-                                this.scroll_record < 5 &&
-                                    window.scrollTo(
-                                        0,
-                                        0.98 *
-                                            document.documentElement
-                                                .scrollHeight
-                                    );
-                                setTimeout(() => {
-                                    this.scroll_record -= 1;
-                                    this.navPannel = this.curNode = node;
-                                    this.changeNav(this.nav);
-                                    const time = this.allAnswser_loaded
-                                        ? 350
-                                        : 0;
-                                    setTimeout(() => {
-                                        this.overFlow = true;
-                                        f.style.overflow = "auto";
-                                        this.isRunning = false;
-                                    }, time);
-                                }, 300);
-                            }, 300);
-                        }, 50);
+                    this.isSimple_page || this.allAnswser_loaded
+                        ? ((this.navPannel = this.curNode = node),
+                          this.changeNav(this.nav))
+                        : setTimeout(() => {
+                              this.overFlow = false;
+                              f.style.overflow = "hidden";
+                              node.scrollIntoView();
+                              setTimeout(() => {
+                                  this.scroll_record < 5 &&
+                                      window.scrollTo(
+                                          0,
+                                          0.98 *
+                                              document.documentElement
+                                                  .scrollHeight
+                                      );
+                                  setTimeout(() => {
+                                      this.scroll_record -= 1;
+                                      this.navPannel = this.curNode = node;
+                                      this.changeNav(this.nav);
+                                      const time = this.allAnswser_loaded
+                                          ? 350
+                                          : 0;
+                                      setTimeout(() => {
+                                          this.overFlow = true;
+                                          f.style.overflow = "auto";
+                                          this.isRunning = false;
+                                      }, time);
+                                  }, 300);
+                              }, 300);
+                          }, 50);
                 } else this.ShowOrExit(true);
                 this.getVideo_element(f);
                 //修改
                 setTimeout(() => {
                     f.scrollTo(0, 0);
-                    !this.allAnswser_loaded &&
-                        this.isSimple_page &&
-                        mode &&
-                        ((this.navPannel = this.curNode = node),
-                        this.changeNav(this.nav));
                     (this.allAnswser_loaded || !mode || this.isSimple_page) &&
                         (this.isRunning = false);
                 }, 0);
             },
-            Next() {
+            Next(f) {
                 this.imgClick.isExist
-                    ? this.imgClick.changPic(true)
+                    ? this.imgClick.changPic(true, this.show_status, f)
                     : this.nextNode && this.changeContent(this.nextNode);
             },
-            Previous() {
+            Previous(f) {
                 this.imgClick.isExist
-                    ? this.imgClick.changPic(false)
+                    ? this.imgClick.changPic(false, this.show_status, f)
                     : this.prevNode && this.changeContent(this.prevNode);
             },
             get nav() {
@@ -1828,13 +1844,9 @@
                     else return arg;
                 }
             },
-            load_status: {
+            show_status: {
                 node: null,
-                status: false,
-                _a() {
-                    this.node = document.getElementById("load_status");
-                },
-                show() {
+                show(f, tips, color) {
                     const html = `
                         <div
                             id="load_status"
@@ -1842,29 +1854,50 @@
                                 top: 0%;
                                 z-index: 1000;
                                 position: fixed;
-                                height: 25px;
+                                height: 24px;
                                 width: 50%;
                                 font-size: 14px;
                                 font-weight: 500;
                                 margin-left: 25%;
                                 text-align: center;
-                                background: #FFBB59;
+                                background: ${color};
+                                opacity: 0.8;
                                 box-shadow: 0 0 15px #FFBB59;
                             "
                         >
-                            !, waiting, more answers are loading....
+                        ${tips}...
                         </div>`;
-                    this._a();
-                    this.node
-                        ? (this.node.style.display = "block")
-                        : document.body.insertAdjacentHTML("beforeend", html);
-                    this.status = true;
+                    const anode = document.createElement("div");
+                    f.appendChild(anode);
+                    anode.outerHTML = html;
+                    setTimeout(() => (this.node = f.lastElementChild), 0);
                 },
-                hide() {
-                    !this.node && this._a();
-                    this.node.style.display = "none";
-                    this.node = null;
-                    this.status = false;
+                remove() {
+                    if (this.node) {
+                        this.timeID && clearTimeout(this.timeID);
+                        this.node.remove();
+                        this.node = null;
+                        this.timeID = null;
+                    }
+                },
+                changeTips(tips) {
+                    this.node.innerText = tips;
+                },
+                timeout(time) {
+                    this.timeID && clearTimeout(this.timeID);
+                    this.timeID = setTimeout(
+                        () => ((this.timeID = null), this.remove()),
+                        time
+                    );
+                },
+                timeID: null,
+                main(f, tips = "", time = 2500, type = 1) {
+                    const color = "#FFBB59";
+                    const typeTips = type === 1 ? "Tips: " : "";
+                    f
+                        ? this.show(f, typeTips + tips, color)
+                        : this.changeTips(typeTips + tips);
+                    this.timeout(time);
                 },
             },
             get Toolbar() {
@@ -1949,9 +1982,9 @@
                 else {
                     if (this.allAnswser_loaded || this.isSimple_page) {
                         this.allAnswser_loaded = true;
-                        Notification(
-                            "all answers have been loaded",
-                            "Reader Tips"
+                        this.show_status.main(
+                            this.show_status.timeID ? null : this.full,
+                            "all answers have been loaded"
                         );
                         return;
                     }
@@ -2845,7 +2878,11 @@
                     olive: "rgb(207, 230, 161)",
                 };
                 let color = GM_getValue("color");
-                (color && (color = colors[color])) || (color = colors.yellow);
+                color && (color = colors[color]);
+                if (!color) {
+                    const h = new Date().getHours();
+                    color = h > 8 && h < 18 ? colors.yellow : colors.grey;
+                }
                 const opacity = this.opacity;
                 this.cover(color, opacity);
                 const UpperCase = (e) =>
@@ -3344,7 +3381,7 @@
                     }
                 };
             },
-            topicAndquestion(targetElements, info) {
+            topicAndquestion(targetElements, info, index) {
                 const items = document.getElementsByClassName(
                     "ContentItem-meta"
                 );
@@ -3357,7 +3394,10 @@
                         const username = a[--i].innerText;
                         if (username === info.username) {
                             const t = this.getiTem(item, targetElements);
-                            t && this.setDisplay(t, info);
+                            t &&
+                                (index === 0
+                                    ? this.setDisplay(t.parentNode, info)
+                                    : this.setDisplay(t, info));
                         }
                     }
                 }
@@ -3407,7 +3447,7 @@
                                 this.setDisplay(item, info);
                         }
                     }
-                } else this.topicAndquestion(targetElements, info);
+                } else this.topicAndquestion(targetElements, info, index);
             },
             //standby, commmunication between others and column
             connectColumn() {
@@ -3539,7 +3579,8 @@
                 const items = document.getElementsByClassName(
                     targetElements.header
                 );
-                for (const item of items) this.check(item, targetElements, 0);
+                for (const item of items)
+                    this.check(item.parentNode, targetElements, 0);
                 const node = document.getElementsByClassName(
                     targetElements.backupClass
                 );
