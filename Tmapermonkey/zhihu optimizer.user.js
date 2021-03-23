@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.1.2
+// @version      3.3.1.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1388,7 +1388,7 @@
                     );
                     if ((index === i && mode) || (index === 0 && !mode)) {
                         show_status.main(
-                            show_status.timeID ? null : f,
+                            show_status.node ? null : f,
                             "no more picture"
                         );
                         return;
@@ -1557,16 +1557,24 @@
                             ? window.requestAnimationFrame(
                                   this.pageScroll.bind(this)
                               )
-                            : this.stopScroll();
+                            : this.stopScroll(true);
                     }
                 },
-                stopScroll() {
+                autoReader: null,
+                scrollEnd: false,
+                stopScroll(mode) {
                     if (this.scrollState) {
                         this.scrollPos = null;
                         this.scrollTime = null;
                         this.scrollState = false;
                         this.keyCount = 1;
-                        this.node = null;
+                        mode && this.autoReader && !this.scrollEnd
+                            ? (setTimeout(() => this.autoReader(), 1500),
+                              setTimeout(
+                                  () => ((this.keyCount = 2), this.start()),
+                                  3500
+                              ))
+                            : (this.node = null);
                     }
                 },
                 speedUP() {
@@ -1583,7 +1591,7 @@
                     this.keyCount += 1;
                     if (this.keyCount % 2 === 0) return;
                     this.scrollState
-                        ? this.stopScroll()
+                        ? this.stopScroll(false)
                         : ((this.scrollState = true),
                           (this.node = document.getElementById(
                               "artfullscreen"
@@ -1628,9 +1636,29 @@
                     scrollToBottom();
                 },
             },
-            keyEvent(keyCode) {
-                if (this.imgClick.isExist || !this.readerMode) return;
-                keyCode === 84
+            autoReader_mode: false,
+            autoReader() {
+                if (this.autoReader_mode) {
+                    this.autoReader_mode = false;
+                    this.show_status.istimeout = true;
+                    this.show_status.main(
+                        null,
+                        "auto reader mode has ben cancelled"
+                    );
+                    this.autoScroll.autoReader = null;
+                } else {
+                    this.show_status.main(this.full, "Auto Mode", 0, 0, false);
+                    this.autoReader_mode = true;
+                    this.autoScroll.autoReader = this.Next.bind(this);
+                }
+            },
+            keyEvent(keyCode, shift) {
+                if (this.imgClick.isExist) return;
+                shift
+                    ? keyCode === 65
+                        ? this.autoReader()
+                        : null
+                    : keyCode === 84
                     ? !this.autoScroll.scrollState &&
                       this.scroll.toTop(this.full)
                     : keyCode === 78
@@ -1695,7 +1723,11 @@
             isRunning: false,
             scroll_record: 0,
             changeContent(node, mode = true, direction) {
-                if (this.autoScroll.node || this.isRunning) return;
+                if (
+                    (!this.autoReader_mode && this.autoScroll.node) ||
+                    this.isRunning
+                )
+                    return;
                 this.isRunning = true;
                 const cName = "RichText ztext CopyrightRichText-richText";
                 const aName =
@@ -1754,7 +1786,12 @@
             Next(f) {
                 this.imgClick.isExist
                     ? this.imgClick.changPic(true, this.show_status, f)
-                    : this.nextNode && this.changeContent(this.nextNode);
+                    : this.nextNode
+                    ? (this.changeContent(this.nextNode),
+                      this.autoReader_mode &&
+                          (this.autoScroll.scrollEnd = false))
+                    : this.autoReader_mode &&
+                      (this.autoScroll.scrollEnd = true);
             },
             Previous(f) {
                 this.imgClick.isExist
@@ -1846,7 +1883,7 @@
             },
             show_status: {
                 node: null,
-                show(f, tips, color) {
+                show(f, tips, info) {
                     const html = `
                         <div
                             id="load_status"
@@ -1860,13 +1897,15 @@
                                 font-weight: 500;
                                 margin-left: 25%;
                                 text-align: center;
-                                background: ${color};
+                                color: ${info.color};
+                                background: ${info.bgc};
                                 opacity: 0.8;
                                 box-shadow: 0 0 15px #FFBB59;
                             "
                         >
-                        ${tips}...
+                        ${info.text + tips}...
                         </div>`;
+                    this.remove();
                     const anode = document.createElement("div");
                     f.appendChild(anode);
                     anode.outerHTML = html;
@@ -1878,10 +1917,28 @@
                         this.node.remove();
                         this.node = null;
                         this.timeID = null;
+                        this.istimeout = true;
+                        this.backText = "";
+                        this.backColor = "";
                     }
                 },
-                changeTips(tips) {
-                    this.node.innerText = tips;
+                backText: "",
+                backColor: "",
+                changeTips(tips, time, info) {
+                    if (this.node) {
+                        if (this.istimeout) this.timeout(time);
+                        else {
+                            this.backText = this.node.innerText;
+                            this.backColor = this.node.style.background;
+                            this.timeID = setTimeout(() => {
+                                this.timeID = null;
+                                this.node.innerText = this.backText;
+                                this.node.style.background = this.backColor;
+                            }, time);
+                        }
+                        this.node.innerText = tips;
+                        this.node.style.background = info.bgc;
+                    }
                 },
                 timeout(time) {
                     this.timeID && clearTimeout(this.timeID);
@@ -1891,13 +1948,32 @@
                     );
                 },
                 timeID: null,
-                main(f, tips = "", time = 2500, type = 1) {
-                    const color = "#FFBB59";
-                    const typeTips = type === 1 ? "Tips: " : "";
+                istimeout: true,
+                main(f, tips, type = 1, time = 2500, istimeout = true) {
+                    const types = {
+                        0: {
+                            text: "",
+                            bgc: "#FFBB59",
+                            color: "#0A0A0D",
+                        },
+                        1: {
+                            text: "Tips: ",
+                            bgc: "#E1B5BA",
+                            color: "#0A0A0D",
+                        },
+                        2: {
+                            text: "Warning: ",
+                            bgc: "#FF3300",
+                            color: "#0A0A0D",
+                        },
+                    };
+                    const info = types[type];
                     f
-                        ? this.show(f, typeTips + tips, color)
-                        : this.changeTips(typeTips + tips);
-                    this.timeout(time);
+                        ? this.show(f, tips, info)
+                        : this.changeTips(info.text + tips, time, info);
+                    this.istimeout &&
+                        (this.istimeout = istimeout) &&
+                        this.timeout(time);
                 },
             },
             get Toolbar() {
@@ -1980,10 +2056,14 @@
                 }
                 if (this.nextNode) this.allAnswser_loaded = false;
                 else {
-                    if (this.allAnswser_loaded || this.isSimple_page) {
+                    if (
+                        (this.allAnswser_loaded || this.isSimple_page) &&
+                        this.isShowTips
+                    ) {
                         this.allAnswser_loaded = true;
+                        this.isShowTips = false;
                         this.show_status.main(
-                            this.show_status.timeID ? null : this.full,
+                            this.show_status.node ? null : this.full,
                             "all answers have been loaded"
                         );
                         return;
@@ -2007,8 +2087,8 @@
             prevNode: null,
             curNode: null,
             aid: null,
-            items_count: 0,
             isSimple_page: false,
+            isShowTips: false,
             main(pnode, aid) {
                 //---------------------------------------check if the node has pre and next node
                 const p = pnode.parentNode;
@@ -2021,9 +2101,7 @@
                 this.readerMode = true;
                 this.overFlow = true;
                 this.aid = aid;
-                this.items_count = document.getElementsByClassName(
-                    "List-item"
-                ).length;
+                this.isShowTips = true;
             },
         },
         getData() {
@@ -2252,15 +2330,6 @@
                 if (!type) return;
                 const select = this.Selection;
                 if (!select.anchorNode || select.isCollapsed) return;
-                /*
-                const colors = {
-                    red: "rgb(255, 128, 128)",
-                    green: "rgb(170, 255, 170)",
-                    yellow: "rgb(255, 255, 170)",
-                    purple: "rgb(255, 170, 255)",
-                };
-                const color = colors[type];
-                */
                 let i = select.rangeCount;
                 const r = select.getRangeAt(--i);
                 let start = r.startContainer;
@@ -6895,7 +6964,7 @@
         },
         QASkeyBoardEvent() {
             document.onkeydown = (e) => {
-                if (e.ctrlKey || e.altKey || e.shiftKey) return;
+                if (e.ctrlKey || e.altKey) return;
                 if (e.target.localName === "input") return;
                 const className = e.target.className;
                 if (
@@ -6904,9 +6973,12 @@
                     className.includes("DraftEditor")
                 )
                     return;
+                const r = this.qaReader.readerMode;
+                const shift = e.shiftKey;
+                if (shift && !r) return;
                 const keyCode = e.keyCode;
-                this.qaReader.readerMode
-                    ? this.qaReader.keyEvent(keyCode)
+                r
+                    ? this.qaReader.keyEvent(keyCode, shift)
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
