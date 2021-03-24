@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.1.3
+// @version      3.3.2.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -153,6 +153,53 @@
                 <button class="assist-button block" style="color: black;" title=${title}>${name}</button>
             </div>`;
         document.documentElement.insertAdjacentHTML("beforeend", html);
+    };
+    const createPopup = () => {
+        const html = `
+        <div
+            id="autoscroll-tips"
+            style="
+                top: 45%;
+                left: 45%;
+                position: fixed;
+                background: whitesmoke;
+                width: 210px;
+                height: 96px;
+                z-index: 1000;
+            "
+        >
+            <div class="autotips_content" style="margin: 5px 5px 5px 22px">
+                <span class="tips-header">Auto Scroll Mode</span>
+                <br />
+                <span class="tips_show" style="font-size: 12px"
+                    >After 3s, auto load next page</span
+                >
+                <br />
+                <button
+                    style="
+                        width: 60px;
+                        height: 24px;
+                        box-shadow: 3px 4px 1px #888888;
+                        margin-top: 10px;
+                        margin-right: 10px;
+                        border: rgb(247, 232, 176) solid 1.2px;
+                    "
+                >
+                    OK
+                </button>
+                <button
+                    style="
+                        width: 60px;
+                        height: 24px;
+                        box-shadow: 3px 4px 1px #888888;
+                        border: white solid 1px;
+                    "
+                >
+                    Cancel
+                </button>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
     };
     const xmlHTTPRequest = (url, time = 2500, rType = false) => {
         return new Promise(function (resolve, reject) {
@@ -1562,19 +1609,62 @@
                 },
                 autoReader: null,
                 scrollEnd: false,
+                autoButton_event() {
+                    createPopup();
+                    const tips = document.getElementById("autoscroll-tips");
+                    let buttons = tips.getElementsByTagName("button");
+                    const id = setTimeout(() => {
+                        tips.remove();
+                        this.autoReader();
+                    }, 3000);
+                    buttons[0].onclick = () => {
+                        clearTimeout(id);
+                        clearTimeout(this.timeID);
+                        tips.remove();
+                        this.autoReader();
+                    };
+                    buttons[1].onclick = () => {
+                        clearTimeout(id);
+                        clearTimeout(this.timeID);
+                        this.timeID = null;
+                        tips.remove();
+                    };
+                    buttons = null;
+                },
+                timeID: null,
                 stopScroll(mode) {
                     if (this.scrollState) {
                         this.scrollPos = null;
                         this.scrollTime = null;
                         this.scrollState = false;
                         this.keyCount = 1;
-                        mode && this.autoReader && !this.scrollEnd
-                            ? (setTimeout(() => this.autoReader(), 1500),
-                              setTimeout(
-                                  () => ((this.keyCount = 2), this.start()),
-                                  3500
-                              ))
-                            : (this.node = null);
+                        if (mode && this.autoReader && !this.scrollEnd) {
+                            const stop = Date.now();
+                            const gap = new Date(
+                                stop - this.stopwatch
+                            ).getSeconds();
+                            const wtime =
+                                gap < 30
+                                    ? 1500
+                                    : gap > 60 && gap < 90
+                                    ? 1800
+                                    : gap > 300
+                                    ? 3000
+                                    : 2100;
+                            gap > 300
+                                ? this.autoButton_event()
+                                : setTimeout(() => this.autoReader(), wtime);
+                            this.timeID = setTimeout(() => {
+                                this.keyCount = 2;
+                                this.start();
+                                this.timeID = null;
+                            }, wtime + 2000);
+                        } else {
+                            this.timeID && clearTimeout(this.timeID);
+                            this.timeID = null;
+                            this.node = null;
+                        }
+                        this.stopwatch = 0;
                     }
                 },
                 speedUP() {
@@ -1587,18 +1677,23 @@
                         ? (this.stepTime = 100)
                         : (this.stepTime += 5);
                 },
+                stopwatch: 0,
                 start() {
                     this.keyCount += 1;
                     if (this.keyCount % 2 === 0) return;
-                    this.scrollState
-                        ? this.stopScroll(false)
-                        : ((this.scrollState = true),
-                          (this.node = document.getElementById(
-                              "artfullscreen"
-                          )),
-                          window.requestAnimationFrame(
-                              this.pageScroll.bind(this)
-                          ));
+                    if (this.scrollState) this.stopScroll(false);
+                    else {
+                        this.timeID &&
+                            (clearTimeout(this.timeID), (this.timeID = null));
+                        this.stopwatch = Date.now();
+                        (this.scrollState = true),
+                            (this.node = document.getElementById(
+                                "artfullscreen"
+                            ));
+                        window.requestAnimationFrame(
+                            this.pageScroll.bind(this)
+                        );
+                    }
                 },
             },
             scroll: {
@@ -2539,51 +2634,7 @@
                         : n[0].children[--i].click());
             },
             popup() {
-                const html = `
-                <div
-                    id="autoscroll-tips"
-                    style="
-                        top: 45%;
-                        left: 45%;
-                        position: fixed;
-                        background: whitesmoke;
-                        width: 210px;
-                        height: 96px;
-                        z-index: 1000;
-                    "
-                >
-                    <div class="autotips_content" style="margin: 5px 5px 5px 22px">
-                        <span class="tips-header">Auto Scroll Mode</span>
-                        <br />
-                        <span class="tips_show" style="font-size: 12px"
-                            >After 3s, auto load next page</span
-                        >
-                        <br />
-                        <button
-                            style="
-                                width: 60px;
-                                height: 24px;
-                                box-shadow: 3px 4px 1px #888888;
-                                margin-top: 10px;
-                                margin-right: 10px;
-                                border: rgb(247, 232, 176) solid 1.2px;
-                            "
-                        >
-                            OK
-                        </button>
-                        <button
-                            style="
-                                width: 60px;
-                                height: 24px;
-                                box-shadow: 3px 4px 1px #888888;
-                                border: white solid 1px;
-                            "
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>`;
-                document.documentElement.insertAdjacentHTML("beforeend", html);
+                createPopup();
                 const tips = document.getElementById("autoscroll-tips");
                 let buttons = tips.getElementsByTagName("button");
                 const id = setTimeout(() => {
