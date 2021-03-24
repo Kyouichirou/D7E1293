@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.2.0
+// @version      3.3.2.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -154,7 +154,7 @@
             </div>`;
         document.documentElement.insertAdjacentHTML("beforeend", html);
     };
-    const createPopup = () => {
+    const createPopup = (wtime = 3) => {
         const html = `
         <div
             id="autoscroll-tips"
@@ -172,7 +172,7 @@
                 <span class="tips-header">Auto Scroll Mode</span>
                 <br />
                 <span class="tips_show" style="font-size: 12px"
-                    >After 3s, auto load next page</span
+                    >After ${wtime}s, auto load next page</span
                 >
                 <br />
                 <button
@@ -1105,7 +1105,7 @@
                         "artfullscreen_closer"
                     )[0];
                     closer.onclick = (e) => {
-                        if (!this.autoScroll.node) {
+                        if (!this.autoScroll.node || this.autoReader_mode) {
                             let node = e.target.parentNode;
                             let ic = 0;
                             let cn = node.className;
@@ -1610,18 +1610,18 @@
                 autoReader: null,
                 scrollEnd: false,
                 autoButton_event() {
-                    createPopup();
+                    createPopup(5);
                     const tips = document.getElementById("autoscroll-tips");
                     let buttons = tips.getElementsByTagName("button");
                     const id = setTimeout(() => {
                         tips.remove();
-                        this.autoReader();
-                    }, 3000);
+                        !this.auto_pause && this.autoReader();
+                    }, 5000);
                     buttons[0].onclick = () => {
                         clearTimeout(id);
                         clearTimeout(this.timeID);
                         tips.remove();
-                        this.autoReader();
+                        !this.auto_pause && this.autoReader();
                     };
                     buttons[1].onclick = () => {
                         clearTimeout(id);
@@ -1632,37 +1632,45 @@
                     buttons = null;
                 },
                 timeID: null,
+                auto_pause: false,
                 stopScroll(mode) {
                     if (this.scrollState) {
                         this.scrollPos = null;
                         this.scrollTime = null;
                         this.scrollState = false;
                         this.keyCount = 1;
+                        //修改 scrollend
                         if (mode && this.autoReader && !this.scrollEnd) {
+                            if (this.auto_pause) return;
                             const stop = Date.now();
-                            const gap = new Date(
-                                stop - this.stopwatch
-                            ).getSeconds();
+                            const gap = Math.floor(
+                                (stop - this.stopwatch) / 1000
+                            );
                             const wtime =
                                 gap < 30
-                                    ? 1500
-                                    : gap > 60 && gap < 90
                                     ? 1800
-                                    : gap > 300
-                                    ? 3000
-                                    : 2100;
-                            gap > 300
+                                    : gap > 60 && gap < 90
+                                    ? 2400
+                                    : gap > 240
+                                    ? 5000
+                                    : 3000;
+                            gap > 240
                                 ? this.autoButton_event()
-                                : setTimeout(() => this.autoReader(), wtime);
+                                : setTimeout(
+                                      () =>
+                                          !this.auto_pause && this.autoReader(),
+                                      wtime
+                                  );
                             this.timeID = setTimeout(() => {
+                                this.timeID = null;
+                                if (this.auto_pause) return;
                                 this.keyCount = 2;
                                 this.start();
-                                this.timeID = null;
-                            }, wtime + 2000);
+                            }, wtime + 3500);
                         } else {
                             this.timeID && clearTimeout(this.timeID);
                             this.timeID = null;
-                            this.node = null;
+                            !this.autoReader && (this.node = null);
                         }
                         this.stopwatch = 0;
                     }
@@ -1686,7 +1694,8 @@
                         this.timeID &&
                             (clearTimeout(this.timeID), (this.timeID = null));
                         this.stopwatch = Date.now();
-                        (this.scrollState = true),
+                        this.scrollState = true;
+                        !this.node &&
                             (this.node = document.getElementById(
                                 "artfullscreen"
                             ));
@@ -1741,11 +1750,22 @@
                         "auto reader mode has ben cancelled"
                     );
                     this.autoScroll.autoReader = null;
+                    this.autoScroll.auto_pause = false;
+                    this.autoScroll.node = null;
+                    this.auto_pause_mode = false;
                 } else {
                     this.show_status.main(this.full, "Auto Mode", 0, 0, false);
                     this.autoReader_mode = true;
                     this.autoScroll.autoReader = this.Next.bind(this);
                 }
+            },
+            auto_pause_mode: false,
+            auto_pause() {
+                this.autoScroll.auto_pause = this.auto_pause_mode = !this
+                    .auto_pause_mode;
+                this.show_status.auto_scroll_change(
+                    this.auto_pause_mode ? "Auto Mode_Paused" : "Auto Mode"
+                );
             },
             keyEvent(keyCode, shift) {
                 if (this.imgClick.isExist) return;
@@ -1753,6 +1773,8 @@
                     ? keyCode === 65
                         ? this.autoReader()
                         : null
+                    : keyCode === 65
+                    ? this.autoReader_mode && this.auto_pause()
                     : keyCode === 84
                     ? !this.autoScroll.scrollState &&
                       this.scroll.toTop(this.full)
@@ -1841,7 +1863,8 @@
                     // trigger the scroll event to load more answers;
                     this.isSimple_page || this.allAnswser_loaded
                         ? ((this.navPannel = this.curNode = node),
-                          this.changeNav(this.nav))
+                          this.changeNav(this.nav),
+                          setTimeout(() => (this.isRunning = false), 400))
                         : setTimeout(() => {
                               this.overFlow = false;
                               f.style.overflow = "hidden";
@@ -1859,15 +1882,15 @@
                                       this.navPannel = this.curNode = node;
                                       this.changeNav(this.nav);
                                       const time = this.allAnswser_loaded
-                                          ? 350
+                                          ? 500
                                           : 0;
                                       setTimeout(() => {
                                           this.overFlow = true;
                                           f.style.overflow = "auto";
                                           this.isRunning = false;
                                       }, time);
-                                  }, 300);
-                              }, 300);
+                                  }, 350);
+                              }, 350);
                           }, 50);
                 } else this.ShowOrExit(true);
                 this.getVideo_element(f);
@@ -1876,7 +1899,7 @@
                     f.scrollTo(0, 0);
                     (this.allAnswser_loaded || !mode || this.isSimple_page) &&
                         (this.isRunning = false);
-                }, 0);
+                }, 300);
             },
             Next(f) {
                 this.imgClick.isExist
@@ -1891,7 +1914,10 @@
             Previous(f) {
                 this.imgClick.isExist
                     ? this.imgClick.changPic(false, this.show_status, f)
-                    : this.prevNode && this.changeContent(this.prevNode);
+                    : this.prevNode &&
+                      (this.autoReader_mode &&
+                          (this.autoScroll.scrollEnd = false),
+                      this.changeContent(this.prevNode));
             },
             get nav() {
                 return document.getElementById("reader_navigator");
@@ -1919,6 +1945,11 @@
                     */
                     this.overFlow = false;
                     this.readerMode = mode;
+                    if (document.title === "出了一点问题") {
+                        confirm("the webpage has crashed, is reload?") &&
+                            location.reload();
+                        return;
+                    }
                     const offsetTop = this.curNode.offsetTop;
                     offsetTop !== window.pageYOffset &&
                         (this.isSimple_page ||
@@ -2034,6 +2065,9 @@
                         this.node.innerText = tips;
                         this.node.style.background = info.bgc;
                     }
+                },
+                auto_scroll_change(tips) {
+                    this.node.innerText = tips;
                 },
                 timeout(time) {
                     this.timeID && clearTimeout(this.timeID);
@@ -2151,26 +2185,37 @@
                 }
                 if (this.nextNode) this.allAnswser_loaded = false;
                 else {
-                    if (
-                        (this.allAnswser_loaded || this.isSimple_page) &&
-                        this.isShowTips
-                    ) {
+                    if (this.allAnswser_loaded || this.isSimple_page) {
                         this.allAnswser_loaded = true;
+                        this.isShowTips &&
+                            this.show_status.main(
+                                this.show_status.node ? null : this.full,
+                                "all answers have been loaded"
+                            );
                         this.isShowTips = false;
-                        this.show_status.main(
-                            this.show_status.node ? null : this.full,
-                            "all answers have been loaded"
-                        );
                         return;
                     }
                     const button = document.getElementsByClassName(
                         "Button QuestionAnswers-answerButton Button--blue Button--spread"
                     );
-                    if (button.length > 0) {
-                        this.allAnswser_loaded = true;
-                        button[0].scrollIntoView();
-                        setTimeout(() => (this.navPannel = pnode), 300);
-                    }
+                    this.allAnswser_loaded = true;
+                    button.length > 0
+                        ? button[0].scrollIntoView()
+                        : (this.isShowTips &&
+                              window.scrollTo(
+                                  0,
+                                  0.75 * document.documentElement.scrollHeight
+                              ),
+                          setTimeout(
+                              () =>
+                                  window.scrollTo(
+                                      0,
+                                      0.98 *
+                                          document.documentElement.scrollHeight
+                                  ),
+                              100
+                          ));
+                    setTimeout(() => (this.navPannel = pnode), 350);
                 }
             },
             removeADs() {
@@ -2189,13 +2234,26 @@
                 const p = pnode.parentNode;
                 this.isSimple_page = location.pathname.includes("/answer/");
                 this.removeADs();
-                this.navPannel = p;
+                if (this.isSimple_page) this.navPannel = p;
                 this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
                 this.curNode = p;
+                !this.isSimple_page &&
+                    setTimeout(() => {
+                        window.scrollTo(
+                            0,
+                            0.75 * document.documentElement.scrollHeight
+                        );
+                        setTimeout(
+                            () => (
+                                (this.overFlow = true),
+                                ((this.navPannel = p), this.changeNav(this.nav))
+                            ),
+                            300
+                        );
+                    }, 100);
                 this.firstly = false;
-                this.readerMode = true;
-                this.overFlow = true;
                 this.aid = aid;
+                this.readerMode = true;
                 this.isShowTips = true;
             },
         },
