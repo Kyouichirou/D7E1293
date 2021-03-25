@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.2.1
+// @version      3.3.2.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1326,7 +1326,10 @@
                         yh = (wh - th) / 2;
                     }
                     //margin
-                    yh += 5;
+                    if (yh > wh) {
+                        yh = yh / 2;
+                        while (yh > wh) yh = yh / 2;
+                    } else yh += 5;
                     info.transform = `translate(${xw}px, ${yh}px) scale(${sc.toFixed(
                         4
                     )})`;
@@ -1463,10 +1466,11 @@
                     video.previousElementSibling.style.display = "none";
                     video.play();
                 },
-                event(node, n) {
+                event(node, n, scroll) {
                     setTimeout(() => {
                         const box = node.lastElementChild;
                         box.onclick = (e) => {
+                            if (scroll.scrollState) return;
                             const target = e.target;
                             const className = target.className;
                             if (className && typeof className === "string") {
@@ -1559,7 +1563,7 @@
                 n.children[1].onclick = () => this.Previous(f);
                 n.children[2].onclick = () => this.Next(f);
                 this.loadLazy(f);
-                this.imgClick.event(f, n);
+                this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
                 this.createMonitor();
             },
@@ -1648,12 +1652,12 @@
                             );
                             const wtime =
                                 gap < 30
-                                    ? 1800
+                                    ? 2000
                                     : gap > 60 && gap < 90
-                                    ? 2400
+                                    ? 3000
                                     : gap > 240
                                     ? 5000
-                                    : 3000;
+                                    : 4000;
                             gap > 240
                                 ? this.autoButton_event()
                                 : setTimeout(
@@ -1686,6 +1690,7 @@
                         : (this.stepTime += 5);
                 },
                 stopwatch: 0,
+                startID: null,
                 start() {
                     this.keyCount += 1;
                     if (this.keyCount % 2 === 0) return;
@@ -1699,9 +1704,14 @@
                             (this.node = document.getElementById(
                                 "artfullscreen"
                             ));
-                        window.requestAnimationFrame(
-                            this.pageScroll.bind(this)
-                        );
+                        this.startID &&
+                            (clearTimeout(this.startID), (this.startID = null));
+                        this.startID = setTimeout(() => {
+                            this.startID = null;
+                            window.requestAnimationFrame(
+                                this.pageScroll.bind(this)
+                            );
+                        }, 600);
                     }
                 },
             },
@@ -1768,8 +1778,13 @@
                 );
             },
             keyEvent(keyCode, shift) {
-                if (this.imgClick.isExist) return;
-                shift
+                this.imgClick.isExist
+                    ? keyCode === 37
+                        ? this.Previous()
+                        : keyCode === 39
+                        ? this.Next()
+                        : null
+                    : shift
                     ? keyCode === 65
                         ? this.autoReader()
                         : null
@@ -1926,7 +1941,8 @@
                 return document.getElementById("artfullscreen");
             },
             ShowOrExit(mode) {
-                if (!mode && this.isRunning) return;
+                if (!mode && (this.isRunning || this.autoScroll.scrollState))
+                    return;
                 const n = this.nav;
                 const display = mode ? "block" : "none";
                 n && (n.style.display = display);
@@ -2769,6 +2785,22 @@
                     ? !this.autoScroll.scrollState && this.turnPage.start(false)
                     : this.multiSearch(keyCode);
             },
+            noColorful() {
+                const color = GM_getValue("nocolofultext");
+                if (color) {
+                    GM_setValue("nocolofultext", false);
+                    const text = "the feature of colorful text has been enable";
+                    zhihu.colorAssistant.main();
+                    Notification(text, "Tips");
+                } else {
+                    if (!confirm("disable colorful text?")) return;
+                    GM_setValue("nocolofultext", true);
+                    const text = "colorful text has been disable";
+                    Notification(text, "Tips");
+                    confirm("reload current webpage?") &&
+                        (sessionStorage.clear(), location.reload());
+                }
+            },
             keyBoardEvent() {
                 window.onkeydown = (e) => {
                     if (e.ctrlKey || e.altKey) return;
@@ -2789,6 +2821,8 @@
                     shift
                         ? keyCode === 65
                             ? this.zhuanlanAuto()
+                            : keyCode === 84
+                            ? this.noColorful()
                             : this.Others.call(zhihu, keyCode, shift)
                         : keyCode === 192
                         ? this.start()
@@ -2840,6 +2874,16 @@
                         >
                             <div style="padding: 2.5%; font-weight: bold; font-size: 18px">
                                 Support Me!
+                                <span
+                                    class="shorts_cut"
+                                    style="font-size: 12px; font-weight: normal; float: right"
+                                >
+                                    <a
+                                        href="https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png"
+                                        target="_blank"
+                                        >Shortcuts</a
+                                    >
+                                </span>
                             </div>
                             <div style="font-style: italic; font-size: 16px; padding-left: 2%">
                                 Make Thing Better &amp;&amp; Simpler!
@@ -5575,9 +5619,10 @@
                     const href = e.target.previousElementSibling.href;
                     if (location.href === href) return;
                     const className = e.target.className;
-                    if (className === "list_date_follow")
+                    if (className === "list_date_follow") {
+                        sessionStorage.clear();
                         window.open(href, "_self");
-                    else if (className !== "list_date") return;
+                    } else if (className !== "list_date") return;
                     const content = document.getElementsByClassName(
                         "RichText ztext Post-RichText"
                     );
@@ -5810,7 +5855,8 @@
                                     const a =
                                         e.target.previousElementSibling.href;
                                     location.href !== a &&
-                                        window.open(a, "_self");
+                                        (sessionStorage.clear(),
+                                        window.open(a, "_self"));
                                 }
                             };
                         }
@@ -6947,6 +6993,7 @@
                 },
             },
             main() {
+                if (GM_getValue("nocolofultext")) return;
                 let holder = document.getElementsByClassName(
                     "RichText ztext Post-RichText"
                 );
