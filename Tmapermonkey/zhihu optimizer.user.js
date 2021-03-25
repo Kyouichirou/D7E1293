@@ -3124,7 +3124,7 @@
                     window.open(this.Protocols + url + parameter, "_blank");
                 },
                 Google() {
-                    this.Search("https://cn.bing.com/search?q=");
+                    this.Search("cn.bing.com/search?q=");
                 },
                 Douban() {
                     this.Search("www.douban.com/search?q=");
