@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.2
+// @version      3.3.3.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -710,51 +710,96 @@
         1. gif player;
         2. video player;
         3. show raw picture
+        4. time clock
         add:
         1. picture viewer, continually open the raw picture in viewer mode;
         note:
         the source of video come from v-list2, which has some problems, need escape ?
         */
         qaReader: {
-            time_module:{
-                get formated_Time(){
-                    const date = new Date();
-                    const info = {};
-                    const hs = date.getHours().toString();
-                    const ms = date.getMinutes().toString()
-                    const [fh, sh] = [hs[0], hs[1]];
-                    const [fm, sm] = [ms[0], ms[1]]
-                    info.fhbu = info.fhbd = fh === '0' ? '9' : (parseInt(fh) - 1).toString();
-                    info.fhau = info.fhad = fh;
-
-                    info.shbu = info.shad = sh === '0' ? '9' : (parseInt(sh) - 1).toString();
-                    info.shau = info.shad = sh;
-
-                    info.fmbu = info.fmbd = fm === '0' ? '9' : (parseInt(fm) - 1).toString();
-                    info.fmau = info.fmad = fm;
-
-                    info.smbu = info.smbd = sm === '0' ? '9' : (parseInt(sm) - 1).toString();
-                    info.smau = info.smad = sm;
-                    return info
+            time_module: {
+                /*
+                1. adapted from https://zyjacya-in-love.github.io/flipclock-webpage/#
+                2. html and css is adopted;
+                3. rebuild js
+                */
+                getPrevios(value) {
+                    return value === "0"
+                        ? "9"
+                        : (parseInt(value) - 1).toString();
                 },
-                clock(){
-                    const info = this.formated_Time;
+                get formated_Time() {
+                    const time = this.Date_format;
+                    const info = {};
+                    info.hour = time.h;
+                    this.time_arr = [...time.string];
+                    info.before = this.time_arr.map((e) => this.getPrevios(e));
+                    return info;
+                },
+                time_arr: null,
+                create_Module(className, value) {
                     const html = `
-                    <div
-                        id="clock_box"
-                        style="
-                            top: 2%;
-                            width: 20%;
-                            float: left;
-                            left: 50px;
-                            z-index: 1000;
-                            position: fixed;
-                        "
-                    >
+                        <li class=${className}>
+                            <a href="#"
+                                ><div class="up">
+                                    <div class="shadow"></div>
+                                    <div class="inn">${value}</div>
+                                </div>
+                                <div class="down">
+                                    <div class="shadow"></div>
+                                    <div class="inn">${value}</div>
+                                </div></a
+                            >
+                        </li>`;
+                    return html;
+                },
+                removeClassname(node) {
+                    node.className = "";
+                },
+                addNewClassName(node, newName) {
+                    node.className = newName;
+                },
+                exe(clname, node, e, index) {
+                    const ul = node.getElementsByClassName(clname)[0];
+                    this.removeClassname(ul.firstElementChild);
+                    this.addNewClassName(
+                        ul.lastElementChild,
+                        "flip-clock-before"
+                    );
+                    ul.insertAdjacentHTML(
+                        "beforeend",
+                        this.create_Module("flip-clock-active", e)
+                    );
+                    ul.firstElementChild.remove();
+                    this.time_arr[index] = e;
+                },
+                f0(node, e, index) {
+                    this.exe("flip ahour", node, e, index);
+                },
+                f1(node, e, index) {
+                    this.exe("flip bhour", node, e, index);
+                },
+                f2(node, e, index) {
+                    this.exe("flip play aminute", node, e, index);
+                },
+                firstRun: false,
+                f3(node, e, index) {
+                    this.exe("flip play bminute", node, e, index);
+                    this.firstRun = true;
+                },
+                change_time_status(node, value) {
+                    const a = node
+                        .getElementsByClassName("flip-clock-meridium")[0]
+                        .getElementsByTagName("a")[0];
+                    a.innerText = value;
+                    this.currentHour = value;
+                },
+                clock() {
+                    const css = `
                         <style>
                             .clock {
                                 width: auto;
-                                zoom: 0.5;
+                                zoom: 0.6;
                             }
                             .flip-clock-dot {
                                 background: #ccc;
@@ -766,7 +811,7 @@
                                 font-family: "Microsoft YaHei";
                                 color: #ccc;
                                 text-align: center;
-                                zoom: 0.5;
+                                zoom: 0.6;
                             }
                             #box {
                                 display: table;
@@ -895,7 +940,7 @@
                                 -ms-transform-origin: 50% 100%;
                                 -o-transform-origin: 50% 100%;
                                 transform-origin: 50% 100%;
-                                top: 0;
+                                top: -0.1px;
                             }
                             .flip-clock-wrapper ul li a div.up:after {
                                 content: "";
@@ -1279,7 +1324,22 @@
                                     opacity: 0;
                                 }
                             }
-                        </style>
+                        </style>`;
+                    const info = this.formated_Time;
+                    const pref = "flip-clock-";
+                    const html = `
+                    <div
+                        id="clock_box"
+                        style="
+                            top: 2%;
+                            width: 20%;
+                            float: left;
+                            left: 50px;
+                            z-index: 1000;
+                            position: fixed;
+                        "
+                    >
+                        ${css}
                         <div id="content">
                             <div class="clock flip-clock-wrapper" id="flipclock">
                                 <span class="flip-clock-divider"
@@ -1287,131 +1347,115 @@
                                     ><span class="flip-clock-dot top"></span
                                     ><span class="flip-clock-dot bottom"></span
                                 ></span>
-                                <ul class="flip">
-                                    <li class="flip-clock-before">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fhbu}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fhbd}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                    <li class="flip-clock-active">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fhau}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fhad}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                </ul>
-                                <ul class="flip">
-                                    <li class="flip-clock-before">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.shbu}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.shbd}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                    <li class="flip-clock-active">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.shau}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.shad}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                </ul>
+                                <ul class="flip ahour">${this.create_Module(
+                                    pref + "before",
+                                    info.before[0]
+                                )}${this.create_Module(
+                        pref + "active",
+                        this.time_arr[0]
+                    )}</ul>
+                                <ul class="flip bhour">${this.create_Module(
+                                    pref + "before",
+                                    info.before[1]
+                                )}${this.create_Module(
+                        pref + "active",
+                        this.time_arr[1]
+                    )}</ul>
                                 <span class="flip-clock-divider"
                                     ><span class="flip-clock-label"></span
                                     ><span class="flip-clock-dot top"></span
                                     ><span class="flip-clock-dot bottom"></span
                                 ></span>
-                                <ul class="flip play">
-                                    <li class="flip-clock-before">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fmbu}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fmbd}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                    <li class="flip-clock-active">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fmau}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.fmad}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                </ul>
-                                <ul class="flip play">
-                                    <li class="flip-clock-before">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.smbu}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.smbd}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                    <li class="flip-clock-active">
-                                        <a href="#"
-                                            ><div class="up">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.smau}</div>
-                                            </div>
-                                            <div class="down">
-                                                <div class="shadow"></div>
-                                                <div class="inn">${info.smad}</div>
-                                            </div></a
-                                        >
-                                    </li>
-                                </ul>
+                                <ul class="flip play aminute">${this.create_Module(
+                                    pref + "before",
+                                    info.before[2]
+                                )}${this.create_Module(
+                        pref + "active",
+                        this.time_arr[2]
+                    )}</ul>
+                                <ul class="flip play bminute">${this.create_Module(
+                                    pref + "before",
+                                    info.before[3]
+                                )}${this.create_Module(
+                        pref + "active",
+                        this.time_arr[3]
+                    )}</ul>
                                 <ul class="flip-clock-meridium">
-                                    <li><a href="#">PM</a></li>
+                                    <li><a href="#">${(this.currentHour = this.getCurrentHour_status(
+                                        info.hour
+                                    ))}</a></li>
                                 </ul>
                             </div>
                         </div>
                     </div>`;
-                    document.body.insertAdjacentHTML('beforeend', html);
+                    document.body.insertAdjacentHTML("beforeend", html);
+                    this.event();
                 },
-                event(){
-
-                }
+                getCurrentHour_status(hour) {
+                    return hour > 11 ? "PM" : "AM";
+                },
+                currentHour: 0,
+                get Date_format() {
+                    const date = new Date();
+                    const h = date.getHours();
+                    let hs = "0" + h.toString();
+                    hs = hs.slice(-2);
+                    const m = date.getMinutes();
+                    let ms = "0" + m.toString();
+                    ms = ms.slice(-2);
+                    return { h: h, string: hs + ms };
+                },
+                change(node) {
+                    const time = this.Date_format;
+                    [...time.string].forEach(
+                        (s, index) =>
+                            s !== this.time_arr[index] &&
+                            this["f" + index](node, s, index)
+                    );
+                    const ts = this.getCurrentHour_status(time.h);
+                    ts !== this.currentHour &&
+                        this.change_time_status(node, ts);
+                },
+                get clock_box() {
+                    return document.getElementById("clock_box");
+                },
+                event() {
+                    setTimeout(() => {
+                        const clock = this.clock_box;
+                        let id = setInterval(() => {
+                            !this.paused && this.change(clock);
+                            if (this.firstRun) {
+                                clearInterval(id);
+                                setInterval(
+                                    () => !this.paused && this.change(clock),
+                                    60 * 1000
+                                );
+                            }
+                        }, 1000);
+                    }, 0);
+                },
+                /**
+                 * @param {any} e
+                 */
+                set clock_paused(e) {
+                    const box = this.clock_box;
+                    box.style.display = e ? "none" : "block";
+                    !e && this.change(box);
+                    this.paused = e;
+                },
+                paused: false,
+                main() {
+                    this.clock();
+                },
             },
             firstly: true,
             readerMode: false,
             Reader(node) {
-                //adapted from http://www.360doc.com/
+                /*
+                1. adapted from http://www.360doc.com/
+                2. css and html is adopted;
+                3. rebuild js
+                */
                 const bgc = GM_getValue("articleBackground");
                 const arr = new Array(7);
                 let color = "#FFF";
@@ -2258,7 +2302,7 @@
                 this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
                 this.createMonitor();
-                this.time_module.clock();
+                this.time_module.main();
             },
             turnPage: {
                 main(mode, node) {
@@ -2647,11 +2691,13 @@
                         "artfullscreen_toolbar"
                     );
                     tool && (tool.style.display = display);
+                    this.time_module.clock_paused = false;
                 } else {
                     /*
                     exit reader mode, then move to the position of current node
                     wait the reader is hidden, scroll to current answer
                     */
+                    this.time_module.clock_paused = true;
                     this.overFlow = false;
                     this.readerMode = mode;
                     if (document.title === "出了一点问题") {
@@ -3124,7 +3170,7 @@
                     window.open(this.Protocols + url + parameter, "_blank");
                 },
                 Google() {
-                    this.Search("cn.bing.com/search?q=");
+                    this.Search("cn.bing.com/results?q=");
                 },
                 Douban() {
                     this.Search("www.douban.com/search?q=");
@@ -5426,6 +5472,12 @@
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
+            unsafeWindow.setInterval = new Proxy(unsafeWindow.setInterval, {
+                apply: (target, thisArg, args) => {
+                    args[1] === 2000 && (args[1] = 10000000);
+                    return target.apply(thisArg, args);
+                },
+            });
             if (mode) {
                 const r = GM_getValue("reader");
                 if (r) {
