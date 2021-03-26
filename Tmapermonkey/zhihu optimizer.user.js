@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.3
+// @version      3.3.3.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -710,9 +710,9 @@
         1. gif player;
         2. video player;
         3. show raw picture
-        4. time clock
         add:
         1. picture viewer, continually open the raw picture in viewer mode;
+        2. time clock
         note:
         the source of video come from v-list2, which has some problems, need escape ?
         */
@@ -721,7 +721,7 @@
                 /*
                 1. adapted from https://zyjacya-in-love.github.io/flipclock-webpage/#
                 2. html and css is adopted;
-                3. rebuild js
+                3. rebuild js, the original js is too big;
                 */
                 getPrevios(value) {
                     return value === "0"
@@ -3933,6 +3933,21 @@
                 : (document.onreadystatechange = () =>
                       mo && mo.observe(document.body, { childList: true }));
         },
+        //the original js(int.js) of zhihu, which will cause stuck autoscroll
+        anti_setInterval() {
+            unsafeWindow.setInterval = new Proxy(unsafeWindow.setInterval, {
+                apply: (target, thisArg, args) => {
+                    const f = args[0];
+                    let fn = "";
+                    f && (fn = f.name);
+                    fn &&
+                        fn === "i" &&
+                        args[1] === 2000 &&
+                        (args[1] = 10000000);
+                    return target.apply(thisArg, args);
+                },
+            });
+        },
         Filter: {
             checked: null,
             //click the ico of button
@@ -5472,12 +5487,6 @@
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
-            unsafeWindow.setInterval = new Proxy(unsafeWindow.setInterval, {
-                apply: (target, thisArg, args) => {
-                    args[1] === 2000 && (args[1] = 10000000);
-                    return target.apply(thisArg, args);
-                },
-            });
             if (mode) {
                 const r = GM_getValue("reader");
                 if (r) {
@@ -5490,6 +5499,7 @@
                     window.onload = () => this.ErrorAutoClose();
                     return;
                 }
+                this.anti_setInterval();
                 this.Column.isZhuanlan = true;
                 window.onload = () => {
                     this.colorAssistant.main();
@@ -7892,6 +7902,7 @@
         pageOfQA(index, href) {
             //inject as soon as possible; may be need to concern about some eventlisteners and MO
             this.inputBox.controlEventListener();
+            index < 2 && this.anti_setInterval();
             this.addStyle(index);
             this.clearStorage();
             window.onload = () => {
