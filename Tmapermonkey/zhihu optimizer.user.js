@@ -3171,7 +3171,7 @@
                     window.open(this.Protocols + url + parameter, "_blank");
                 },
                 Google() {
-                    this.Search("www.dogedoge.com/results?q=");
+                    this.Search("cn.bing.com/results?q=");
                 },
                 Douban() {
                     this.Search("www.douban.com/search?q=");
