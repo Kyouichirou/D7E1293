@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.4
+// @version      3.3.3.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -22,6 +22,7 @@
 // @grant        GM_getTab
 // @grant        GM_getTabs
 // @grant        GM_saveTab
+// @grant        GM_info
 // @grant        window.onurlchange
 // @grant        window.close
 // @match        https://*.zhihu.com/*
@@ -3170,7 +3171,7 @@
                     window.open(this.Protocols + url + parameter, "_blank");
                 },
                 Google() {
-                    this.Search("cn.bing.com/results?q=");
+                    this.Search("www.dogedoge.com/results?q=");
                 },
                 Douban() {
                     this.Search("www.douban.com/search?q=");
@@ -3620,8 +3621,11 @@
                                     <a
                                         href="https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png"
                                         target="_blank"
+                                        title="shortcuts diagram"
+                                        style="color: #2b638b"
                                         >Shortcuts</a
                                     >
+                                    <span> || Version: ${GM_info.script.version}</span>
                                 </span>
                             </div>
                             <div style="font-style: italic; font-size: 16px; padding-left: 2%">
@@ -3891,7 +3895,7 @@
                 },
             });
         },
-        //if has logined or the login window is not loaded when the page is loaded;
+        //if has logined or the login window is not loaded(or be blocked) when the page is loaded;
         hasLogin: false,
         antiLogin() {
             /*
@@ -3949,6 +3953,13 @@
             });
         },
         Filter: {
+            /*
+            1. userName
+            2. question
+            3. answer
+            4. article
+            5. content keyword
+            */
             checked: null,
             //click the ico of button
             svgCheck(node, targetElements) {
