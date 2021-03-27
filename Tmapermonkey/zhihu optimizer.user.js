@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.5
+// @version      3.3.3.6
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -2163,31 +2163,38 @@
                     r.title = titler;
                     this.rbackupNav[0] !== namer && (r.className = namer);
                 },
+                change_time_id: null,
                 changPic(mode, show_status, f) {
-                    if (!this.ImageView) {
-                        console.log("warning, the viewer of picture is null");
-                        return;
-                    }
-                    const i = this.imgList.length - 1;
-                    if (i === 0) return;
-                    const index = this.imgList.findIndex(
-                        (img) => img.dataset.original === this.currentPicURL
-                    );
-                    if ((index === i && mode) || (index === 0 && !mode)) {
-                        show_status.main(
-                            show_status.node ? null : f,
-                            "no more picture"
+                    this.change_time_id && clearTimeout(this.change_time_id);
+                    this.change_time_id = setTimeout(() => {
+                        this.change_time_id = null;
+                        if (!this.ImageView) {
+                            console.log(
+                                "warning, the viewer of picture is null"
+                            );
+                            return;
+                        }
+                        const i = this.imgList.length - 1;
+                        if (i === 0) return;
+                        const index = this.imgList.findIndex(
+                            (img) => img.dataset.original === this.currentPicURL
                         );
-                        return;
-                    }
-                    const imge = this.imgList[mode ? index + 1 : index - 1];
-                    const url = imge.dataset.original;
-                    this.currentPicURL = url;
-                    const info = {};
-                    this.imgPosition(info, imge);
-                    this.ImageView.style.width = info.width;
-                    this.ImageView.style.transform = info.transform;
-                    this.ImageView.src = url;
+                        if ((index === i && mode) || (index === 0 && !mode)) {
+                            show_status.main(
+                                show_status.node ? null : f,
+                                "no more picture"
+                            );
+                            return;
+                        }
+                        const imge = this.imgList[mode ? index + 1 : index - 1];
+                        const url = imge.dataset.original;
+                        this.currentPicURL = url;
+                        const info = {};
+                        this.imgPosition(info, imge);
+                        this.ImageView.style.width = info.width;
+                        this.ImageView.style.transform = info.transform;
+                        this.ImageView.src = url;
+                    }, 300);
                 },
                 GifPlay(target) {
                     let url = target.src;
@@ -2592,66 +2599,73 @@
             },
             isRunning: false,
             scroll_record: 0,
+            chang_time_id: null,
+            //settimeout => prevent too many times of operation
             changeContent(node, mode = true, direction) {
-                if (
-                    (!this.autoReader_mode && this.autoScroll.node) ||
-                    this.isRunning
-                )
-                    return;
-                this.isRunning = true;
-                const cName = "RichText ztext CopyrightRichText-richText";
-                const aName =
-                    "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
-                const f = this.full;
-                this.imgClick.remove(f);
-                const content = node.getElementsByClassName(cName);
-                const author = node.getElementsByClassName(aName);
-                f.getElementsByClassName(cName)[0].innerHTML =
-                    content.length > 0 ? content[0].innerHTML : "No data";
-                f.getElementsByClassName(aName)[0].innerHTML =
-                    author.length > 0 ? author[0].innerHTML : "No data";
-                this.loadLazy(f);
-                if (mode) {
-                    this.answerID = node;
-                    // trigger the scroll event to load more answers;
-                    this.isSimple_page || this.allAnswser_loaded
-                        ? ((this.navPannel = this.curNode = node),
-                          this.changeNav(this.nav),
-                          setTimeout(() => (this.isRunning = false), 400))
-                        : setTimeout(() => {
-                              this.overFlow = false;
-                              f.style.overflow = "hidden";
-                              node.scrollIntoView();
-                              setTimeout(() => {
-                                  this.scroll_record < 5 &&
-                                      window.scrollTo(
-                                          0,
-                                          0.98 *
-                                              document.documentElement
-                                                  .scrollHeight
-                                      );
+                this.chang_time_id && clearTimeout(this.chang_time_id);
+                this.chang_time_id = setTimeout(() => {
+                    this.chang_time_id = null;
+                    if (
+                        (!this.autoReader_mode && this.autoScroll.node) ||
+                        this.isRunning
+                    )
+                        return;
+                    this.isRunning = true;
+                    const cName = "RichText ztext CopyrightRichText-richText";
+                    const aName =
+                        "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
+                    const f = this.full;
+                    this.imgClick.remove(f);
+                    const content = node.getElementsByClassName(cName);
+                    const author = node.getElementsByClassName(aName);
+                    f.getElementsByClassName(cName)[0].innerHTML =
+                        content.length > 0 ? content[0].innerHTML : "No data";
+                    f.getElementsByClassName(aName)[0].innerHTML =
+                        author.length > 0 ? author[0].innerHTML : "No data";
+                    this.loadLazy(f);
+                    if (mode) {
+                        this.answerID = node;
+                        // trigger the scroll event to load more answers;
+                        this.isSimple_page || this.allAnswser_loaded
+                            ? ((this.navPannel = this.curNode = node),
+                              this.changeNav(this.nav),
+                              setTimeout(() => (this.isRunning = false), 400))
+                            : setTimeout(() => {
+                                  this.overFlow = false;
+                                  f.style.overflow = "hidden";
+                                  node.scrollIntoView();
                                   setTimeout(() => {
-                                      this.scroll_record -= 1;
-                                      this.navPannel = this.curNode = node;
-                                      this.changeNav(this.nav);
-                                      const time = this.allAnswser_loaded
-                                          ? 500
-                                          : 0;
+                                      this.scroll_record < 5 &&
+                                          window.scrollTo(
+                                              0,
+                                              0.98 *
+                                                  document.documentElement
+                                                      .scrollHeight
+                                          );
                                       setTimeout(() => {
-                                          this.overFlow = true;
-                                          f.style.overflow = "auto";
-                                          this.isRunning = false;
-                                      }, time);
+                                          this.scroll_record -= 1;
+                                          this.navPannel = this.curNode = node;
+                                          this.changeNav(this.nav);
+                                          const time = this.allAnswser_loaded
+                                              ? 500
+                                              : 0;
+                                          setTimeout(() => {
+                                              this.overFlow = true;
+                                              f.style.overflow = "auto";
+                                              this.isRunning = false;
+                                          }, time);
+                                      }, 350);
                                   }, 350);
-                              }, 350);
-                          }, 50);
-                } else this.ShowOrExit(true);
-                this.getVideo_element(f);
-                //修改
-                setTimeout(() => {
-                    f.scrollTo(0, 0);
-                    (this.allAnswser_loaded || !mode || this.isSimple_page) &&
-                        (this.isRunning = false);
+                              }, 50);
+                    } else this.ShowOrExit(true);
+                    this.getVideo_element(f);
+                    setTimeout(() => {
+                        f.scrollTo(0, 0);
+                        (this.allAnswser_loaded ||
+                            !mode ||
+                            this.isSimple_page) &&
+                            (this.isRunning = false);
+                    }, 300);
                 }, 300);
             },
             Next(f) {
