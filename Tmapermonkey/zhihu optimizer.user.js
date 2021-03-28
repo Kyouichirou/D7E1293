@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.6
+// @version      3.3.3.7
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -706,7 +706,7 @@
     };
     const zhihu = {
         /*
-        these original functions of web will be failed in reader mode, so need to be rebuilt
+        these original functions of zhihu webpage will be failed in reader mode, so need to be rebuilt
         rebuild:
         1. gif player;
         2. video player;
@@ -721,7 +721,7 @@
             time_module: {
                 /*
                 1. adapted from https://zyjacya-in-love.github.io/flipclock-webpage/#
-                2. html and css is adopted;
+                2. html and css is adopted, and some codes have been reedited or cutted;
                 3. rebuild js, the original js is too big;
                 */
                 getPrevios(value) {
@@ -807,12 +807,6 @@
                             }
                             .flip-clock-meridium a {
                                 color: #ccc;
-                            }
-                            h1 {
-                                font-family: "Microsoft YaHei";
-                                color: #ccc;
-                                text-align: center;
-                                zoom: 0.6;
                             }
                             #box {
                                 display: table;
@@ -2310,7 +2304,7 @@
                 this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
                 this.createMonitor();
-                this.time_module.main();
+                setTimeout(() => this.time_module.main(), 300);
             },
             turnPage: {
                 main(mode, node) {
@@ -6467,34 +6461,44 @@
                 article = null;
                 //last page
                 let isCollapsed = false;
+                let change_time_id = null;
                 buttons[0].onclick = () => {
-                    !isCollapsed &&
-                        (this.previous
-                            ? (mode
-                                  ? Reflect.apply(this.homePage.add, this, [
-                                        this.homePage.initial,
-                                        "r",
-                                        false,
-                                    ])
-                                  : this.requestData(this.previous),
-                              (aid = 0),
-                              this.changeSelect(false))
-                            : this.showTips("no more content"));
+                    change_time_id && clearTimeout(change_time_id);
+                    change_time_id = setTimeout(() => {
+                        change_time_id = null;
+                        !isCollapsed &&
+                            (this.previous
+                                ? (mode
+                                      ? Reflect.apply(this.homePage.add, this, [
+                                            this.homePage.initial,
+                                            "r",
+                                            false,
+                                        ])
+                                      : this.requestData(this.previous),
+                                  (aid = 0),
+                                  this.changeSelect(false))
+                                : this.showTips("no more content"));
+                    }, 300);
                 };
                 //next page
+                let change_time_id_a;
                 buttons[1].onclick = () => {
-                    !isCollapsed &&
-                        (this.next
-                            ? (mode
-                                  ? Reflect.apply(this.homePage.add, this, [
-                                        this.homePage.initial,
-                                        "f",
-                                        false,
-                                    ])
-                                  : this.requestData(this.next),
-                              (aid = 0),
-                              this.changeSelect(true))
-                            : this.showTips("no more content"));
+                    change_time_id_a && clearTimeout(change_time_id_a);
+                    change_time_id_a = setTimeout(() => {
+                        change_time_id_a = null;
+                        !isCollapsed &&
+                            (this.next
+                                ? (mode
+                                      ? Reflect.apply(this.homePage.add, this, [
+                                            this.homePage.initial,
+                                            "f",
+                                            false,
+                                        ])
+                                      : this.requestData(this.next),
+                                  (aid = 0),
+                                  this.changeSelect(true))
+                                : this.showTips("no more content"));
+                    }, 300);
                 };
                 //hide the sidebar
                 buttons[2].onclick = function () {
