@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.7
+// @version      3.3.3.8
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -722,19 +722,16 @@
                 /*
                 1. adapted from https://zyjacya-in-love.github.io/flipclock-webpage/#
                 2. html and css is adopted, and some codes have been reedited or cutted;
-                3. rebuild js, the original js is too big;
+                3. rebuild js, the original js is too big, intricate or complicated;
                 */
-                getPrevios(value) {
-                    return value === "0"
-                        ? "9"
-                        : (parseInt(value) - 1).toString();
-                },
                 get formated_Time() {
                     const time = this.Date_format;
                     const info = {};
                     info.hour = time.h;
                     this.time_arr = [...time.string];
-                    info.before = this.time_arr.map((e) => this.getPrevios(e));
+                    info.before = this.time_arr.map((e) =>
+                        e === "0" ? "9" : (parseInt(e) - 1).toString()
+                    );
                     return info;
                 },
                 time_arr: null,
@@ -1389,15 +1386,15 @@
                 getCurrentHour_status(hour) {
                     return hour > 11 ? "PM" : "AM";
                 },
-                currentHour: 0,
+                currentHour: "",
                 get Date_format() {
                     const date = new Date();
                     const h = date.getHours();
-                    let hs = "0" + h.toString();
-                    hs = hs.slice(-2);
-                    const m = date.getMinutes();
-                    let ms = "0" + m.toString();
-                    ms = ms.slice(-2);
+                    const hs = "".slice.call(`0${h.toString()}`, -2);
+                    const ms = "".slice.call(
+                        `0${date.getMinutes().toString()}`,
+                        -2
+                    );
                     return { h: h, string: hs + ms };
                 },
                 change(node) {
@@ -1934,7 +1931,7 @@
                 <img class="_video_cover" src=${picURL} style="object-fit: contain;${
                     mode
                         ? " position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;"
-                        : ""
+                        : " width: 100%;"
                 }" />
                 <video preload="metadata" width="100%" controls="">
                     <source
