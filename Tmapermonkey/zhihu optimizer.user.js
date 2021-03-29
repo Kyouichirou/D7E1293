@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.8
+// @version      3.3.3.9
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -1427,7 +1427,7 @@
                     }, 0);
                 },
                 /**
-                 * @param {any} e
+                 * @param {boolean} e
                  */
                 set clock_paused(e) {
                     const box = this.clock_box;
@@ -1928,12 +1928,8 @@
             },
             rawVideo_html(picURL, videoURL, mode) {
                 const html = `
-                <img class="_video_cover" src=${picURL} style="object-fit: contain;${
-                    mode
-                        ? " position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;"
-                        : " width: 100%;"
-                }" />
-                <video preload="metadata" width="100%" controls="">
+                <img class="_video_cover" src=${picURL} style="object-fit: cover; position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;" />
+                <video preload="metadata" width="100%" height="-webkit-fill-available" controls="">
                     <source
                         src=${videoURL}
                         type="video/mp4"
@@ -1946,7 +1942,7 @@
                         left: 50%;
                         top: 50%;
                         transform: translate(-50%, -50%);
-                        ${mode ? "z-index: 2;" : ""}
+                        z-index: 2;
                     "
                 >
                     <div class="_play_ico" style="width: 50px; height: 50px">
@@ -2548,6 +2544,8 @@
                     ? this.Previous()
                     : keyCode === 39
                     ? this.Next()
+                    : keyCode === 27
+                    ? this.ShowOrExit(false)
                     : zhihu.multiSearch(keyCode);
             },
             changeNav(node) {
@@ -2736,7 +2734,7 @@
                 }
             },
             /**
-             * @param {any} mode
+             * @param {boolean} mode
              */
             set overFlow(mode) {
                 document.documentElement.style.overflow = mode
@@ -5268,8 +5266,8 @@
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
                     line-height: 30px !important;
-                    margin: 40px 60px !important;
-                    padding: 40px 50px !important;
+                    margin: 35px 0px !important;
+                    padding: 25px 30px !important;
                     border: 6px dashed rgba(133,144,166,0.2) !important;
                     border-radius: 6px !important;
                 }
@@ -5283,8 +5281,18 @@
                     font-size: 0px !important;
                     text-align: right;
                 }`;
-            const hotsearch =
-                ".Card.TopSearch{display: none !important;}.List-item{position: inherit !important;}";
+            const search = `
+                .SearchMain{width: 930px !important;}
+                .SearchSideBar,
+                .Card.TopSearch{display: none !important;}
+                .KfeCollection-PcCollegeCard-wrapper,
+                .List-item{border: 1px solid transparent;}
+                .List-item{position: inherit !important;}
+                .KfeCollection-PcCollegeCard-wrapper,
+                .List-item:hover {
+                    border: 1px solid #B9D5FF;
+                    box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.10);
+                }`;
             const topicAndquestion = `
                 ${showfold}
                 .hidden_fold {
@@ -5304,14 +5312,28 @@
                     border-radius: 5px;
                     margin-top: 2px;
                 }`;
+            const topic = `
+                .ContentLayout{width: 100% !important;}
+                .ContentLayout-mainColumn{
+                    margin-left: 23%;
+                    width: 930px !important;
+                }
+                .ContentLayout-sideColumn{
+                    margin-right: 15%;
+                }
+                .List-item.TopicFeedItem{border: 1px solid transparent;}
+                .List-item.TopicFeedItem:hover {
+                    border: 1px solid #B9D5FF;
+                    box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.10);
+                }`;
             GM_addStyle(
                 common +
                     (index < 2
                         ? contentstyle + inpustyle
                         : index === 3
-                        ? inpustyle + hotsearch + topicAndquestion
+                        ? inpustyle + search + topicAndquestion
                         : index === 2
-                        ? inpustyle + topicAndquestion
+                        ? inpustyle + topicAndquestion + topic
                         : inpustyle)
             );
         },
@@ -7996,7 +8018,7 @@
                 : f && this.pageOfQA(index, href);
             w && this.antiRedirect();
             this.antiLogin();
-            setTimeout(() => (this.hasLogin = true), 3000);
+            setTimeout(() => (this.hasLogin = true), 15000);
             this.shade.start();
             this.clipboardClear.event();
             installTips();
