@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.3.10
+// @version      3.3.4.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -13,6 +13,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      www.zhihu.com
 // @connect      lens.zhihu.com
+// @connect      api.zhihu.com
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
@@ -2183,14 +2184,107 @@
                         this.ImageView.src = url;
                     }, 300);
                 },
-                GifPlay(target) {
-                    let url = target.src;
+                no_mp4_giflist: null,
+                gif_time_id: null,
+                GifPlay(target, className) {
+                    this.gif_time_id && clearTimeout(this.gif_time_id);
+                    this.gif_time_id = setTimeout(() => {
+                        this.gif_time_id = null;
+                        if (className.endsWith("gif2mp4")) {
+                            this.gif_pNode_className(target, !target.paused);
+                            target.paused ? target.play() : target.pause();
+                            return;
+                        }
+                        const url = target.src;
+                        const reg = /(?<=-)\w+(?=_)/;
+                        const match = url.match(reg);
+                        if (!match) {
+                            console.log("get id of gif pic fail");
+                            return;
+                        }
+                        const id = match[0];
+                        if (this.no_mp4_giflist) {
+                            if (this.no_mp4_giflist.includes(id)) {
+                                this.Gif_Pic(url, target);
+                                return;
+                            }
+                        } else this.no_mp4_giflist = [];
+                        this.Gif_MP4(id).then(
+                            (src) => {
+                                if (!src) {
+                                    this.no_mp4_giflist.push(id);
+                                    this.Gif_Pic(url, target);
+                                    return;
+                                }
+                                target.insertAdjacentHTML(
+                                    "beforebegin",
+                                    this.gif_vidoe_raw(src, url)
+                                );
+                                setTimeout(() => {
+                                    this.gif_pNode_className(target, false);
+                                    target.previousElementSibling.play();
+                                    target.className =
+                                        className + " GifPlayer-gif2mp4Image";
+                                }, 50);
+                            },
+                            () =>
+                                Notification(
+                                    "get the play url of gif_mp4 fail",
+                                    "Reader Tips"
+                                )
+                        );
+                    }, 300);
+                },
+                gif_pNode_className(target, mode) {
+                    target.parentNode.className =
+                        "GifPlayer" + (mode ? "" : " isPlaying");
+                },
+                gif_vidoe_raw(src, pic) {
+                    const html = `
+                        <video
+                            class="ztext-gif GifPlayer-gif2mp4"
+                            src=${src}"
+                            data-thumbnail=${pic}
+                            poster=${pic}
+                            data-size="normal"
+                            preload="metadata"
+                            loop=""
+                            playsinline=""
+                            style="width: auto !important; height: auto !important;"
+                        ></video>`;
+                    return html;
+                },
+                Gif_Pic(url, target) {
                     const [a, b] = url.includes(".webp")
                         ? [".webp", ".jpg"]
                         : [".jpg", ".webp"];
                     target.src = url.replace(a, b);
-                    target.parentNode.className =
-                        "GifPlayer" + (a === ".webp" ? "" : " isPlaying");
+                    this.gif_pNode_className(target, a === ".webp");
+                },
+                Gif_MP4(id) {
+                    return new Promise((resolve, reject) => {
+                        const api = `https://api.zhihu.com/gif2mp4/v2-${id}`;
+                        xmlHTTPRequest(api).then(
+                            (json) => {
+                                typeof json === "string" &&
+                                    (json = JSON.parse(json));
+                                const plist = json.playlist;
+                                let src = "";
+                                let b = "";
+                                for (const e of Object.keys(plist)) {
+                                    if (e === "SD") {
+                                        src = plist[e].play_url;
+                                        break;
+                                    } else b = plist[e].play_url;
+                                }
+                                resolve(src ? src : b);
+                            },
+                            (err) => {
+                                console.log(err);
+                                reject(null);
+                            }
+                        );
+                    });
                 },
                 video_Play(video) {
                     video.nextElementSibling.style.display = "none";
@@ -2207,8 +2301,8 @@
                             if (className && typeof className === "string") {
                                 if (className.endsWith("lazy"))
                                     this.showRawPic(box, target, n);
-                                else if (className === "ztext-gif")
-                                    this.GifPlay(target);
+                                else if (className.startsWith("ztext-gif"))
+                                    this.GifPlay(target, className);
                                 else if (className === "_video_cover")
                                     this.video_Play(target.nextElementSibling);
                                 else this.remove(n);
@@ -2996,20 +3090,22 @@
                 if (this.isSimple_page) this.navPannel = p;
                 this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
                 this.curNode = p;
-                !this.isSimple_page &&
-                    setTimeout(() => {
-                        window.scrollTo(
-                            0,
-                            0.75 * document.documentElement.scrollHeight
-                        );
-                        setTimeout(
-                            () => (
-                                (this.overFlow = true),
-                                ((this.navPannel = p), this.changeNav(this.nav))
-                            ),
-                            300
-                        );
-                    }, 100);
+                !this.isSimple_page
+                    ? setTimeout(() => {
+                          window.scrollTo(
+                              0,
+                              0.75 * document.documentElement.scrollHeight
+                          );
+                          setTimeout(
+                              () => (
+                                  (this.overFlow = true),
+                                  ((this.navPannel = p),
+                                  this.changeNav(this.nav))
+                              ),
+                              300
+                          );
+                      }, 100)
+                    : (this.overFlow = true);
                 this.firstly = false;
                 this.aid = aid;
                 this.readerMode = true;
