@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.4.0
+// @version      3.3.4.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -603,7 +603,7 @@
                 }
             }
             const note = prompt(
-                "you can input something to hightlight this article, eg: this article is about advantage python usage"
+                "you can input something to highlight this article, eg: this article is about advantage python usage"
             );
             info.tags = tags;
             const title = document.title;
@@ -3294,7 +3294,7 @@
             const name = Names[keyCode];
             name && methods[name]();
         },
-        noteHightlight: {
+        noteHighlight: {
             editable: false,
             disableSiderbar(pevent) {
                 const column = document.getElementById("column_lists");
@@ -3601,7 +3601,7 @@
             Others(keyCode, shift) {
                 shift
                     ? keyCode === 67
-                        ? this.noteHightlight.removeMark()
+                        ? this.noteHighlight.removeMark()
                         : keyCode === 219
                         ? this.Column.pagePrint()
                         : keyCode === 70
@@ -3610,10 +3610,10 @@
                         ? this.Column.columnsModule.recentModule.log("p")
                         : keyCode === 83
                         ? this.Column.subscribe()
-                        : this.noteHightlight.Marker(keyCode)
+                        : this.noteHighlight.Marker(keyCode)
                     : keyCode === 113
                     ? !this.autoScroll.scrollState &&
-                      this.noteHightlight.EditDoc()
+                      this.noteHighlight.EditDoc()
                     : keyCode === 78
                     ? !this.autoScroll.scrollState && this.turnPage.start(true)
                     : keyCode === 84
@@ -4347,7 +4347,9 @@
                 lasttarget: null,
                 index: 0,
                 change: false,
+                stat: false,
                 color(target) {
+                    if (!this.stat) return;
                     this.restore();
                     const colors = ["green", "red", "blue", "purple"];
                     target.style.color = colors[this.index];
@@ -4373,6 +4375,7 @@
             },
             clickMonitor(node, targetElements) {
                 const tags = ["blockquote", "p", "br", "li"];
+                this.colorIndicator.stat = GM_getValue("highlight");
                 node.onclick = (e) => {
                     const target = e.target;
                     const localName = target.localName;
@@ -6498,7 +6501,7 @@
                     //if under autoscroll mode, => not allow to click
                     if (
                         Reflect.get(zhihu.autoScroll, "scrollState") ||
-                        Reflect.get(zhihu.noteHightlight, "editable")
+                        Reflect.get(zhihu.noteHighlight, "editable")
                     )
                         return;
                     if (isReady) {
@@ -7772,7 +7775,7 @@
                 this.blue = !this.blue;
                 this.index = this.blue ? 0 : 255;
             },
-            codeHightlight(node) {
+            codeHighlight(node) {
                 const keywords = [
                     "abstract",
                     "arguments",
@@ -7919,7 +7922,7 @@
                         //the continuity of content is interrupted, reset the color;
                         this.resetColor();
                         if (node.className === "highlight") {
-                            this.codeHightlight(node);
+                            this.codeHighlight(node);
                             node.title = tips;
                             code = true;
                         }
@@ -8017,6 +8020,19 @@
                     );
             },
         },
+        click_Highlight() {
+            let h = GM_getValue("highlight");
+            h = !h;
+            GM_setValue("highlight", h);
+            Notification(
+                `the feature of "click to highlight content" has been ${
+                    h ? "enable" : "disable"
+                }`,
+                "Tips"
+            );
+            this.Filter.colorIndicator.stat = h;
+            !h && this.Filter.colorIndicator.restore();
+        },
         QASkeyBoardEvent() {
             document.onkeydown = (e) => {
                 if (e.ctrlKey || e.altKey) return;
@@ -8030,10 +8046,13 @@
                     return;
                 const r = this.qaReader.readerMode;
                 const shift = e.shiftKey;
-                if (shift && !r) return;
                 const keyCode = e.keyCode;
                 r
                     ? this.qaReader.keyEvent(keyCode, shift)
+                    : shift
+                    ? keyCode === 72
+                        ? this.click_Highlight()
+                        : null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
