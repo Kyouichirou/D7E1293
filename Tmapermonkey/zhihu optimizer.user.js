@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.4.1
+// @version      3.3.4.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -248,6 +248,29 @@
             tmpArr.pop();
         }
         return rndArr;
+    };
+    const elementVisible = {
+        getElementTopLeft(obj) {
+            let top = 0;
+            while (obj) {
+                top += obj.offsetTop;
+                obj = obj.offsetParent;
+            }
+            return top;
+        },
+        check(wh, element, offset) {
+            const tp = this.getElementTopLeft(element);
+            return tp + element.clientHeight > offset && offset + wh > tp;
+        },
+        main(fNode, args) {
+            const offset = fNode.scrollTop;
+            const wh = window.innerHeight;
+            const type = Object.prototype.toString.call(args);
+            if (type === "[object HTMLCollection]") {
+                for (const e of args) if (this.check(wh, e, offset)) return e;
+                return null;
+            } else return this.check(twh, args, offset);
+        },
     };
     class Database {
         /*
@@ -1844,7 +1867,7 @@
                                     node = null;
                                     break;
                                 }
-                                cn = className;
+                                cn = node.className;
                                 ic++;
                             }
                             node && (node.style.display = "none");
@@ -1987,24 +2010,6 @@
                             : (player[0].innerHTML = html);
                     } else console.log("warning, the id of player is null");
                 }
-            },
-            ElementVisible(f, element) {
-                const getElementTopLeft = (obj) => {
-                    let top = 0;
-                    let left = 0;
-                    while (obj) {
-                        top += obj.offsetTop;
-                        left += obj.offsetLeft;
-                        obj = obj.offsetParent;
-                    }
-                    return { top: top, left: left };
-                };
-                const tmp = getElementTopLeft(element);
-                const offset = f.scrollTop;
-                return (
-                    tmp.top + element.clientHeight > offset &&
-                    offset + window.innerHeight > tmp.top
-                );
             },
             //click image to show the raw pic
             imgClick: {
@@ -2344,11 +2349,11 @@
                 const b = videobs.length;
                 if (a + b === 0) return;
                 for (let k = 0; k < a; k++)
-                    this.ElementVisible(f, videoas[k])
+                    elementVisible.main(f, videoas[k])
                         ? this.get_video_ID(videoas[k])
                         : this.video_list.push(videoas[k]);
                 for (let k = 0; k < b; k++)
-                    this.ElementVisible(f, videobs[k])
+                    elementVisible.main(f, videobs[k])
                         ? this.get_video_ID(videobs[k])
                         : this.video_list.push(videobs[k]);
                 const i = this.video_list.length;
@@ -2364,7 +2369,7 @@
                     unfinished = true;
                     this.video_list.forEach((v, index) => {
                         if (!this.loadedList[index]) {
-                            if (this.ElementVisible(f, v)) {
+                            if (elementVisible(f, v)) {
                                 this.loadedList[index] = true;
                                 this.get_video_ID(v);
                             } else this.loadedList[index] = false;
@@ -8033,10 +8038,15 @@
             this.Filter.colorIndicator.stat = h;
             !h && this.Filter.colorIndicator.restore();
         },
+        key_open_Reader(){
+            const items = document.getElementsByClassName('ContentItem AnswerItem');
+            const e = elementVisible.main(document.documentElement, items);
+            e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e));
+        },
         QASkeyBoardEvent() {
             document.onkeydown = (e) => {
-                if (e.ctrlKey || e.altKey) return;
-                if (e.target.localName === "input") return;
+                if (e.ctrlKey || e.altKey || e.target.localName === "input")
+                    return;
                 const className = e.target.className;
                 if (
                     className &&
@@ -8052,7 +8062,7 @@
                     : shift
                     ? keyCode === 72
                         ? this.click_Highlight()
-                        : null
+                        : keyCode === 82 ? !this.autoScroll.scrollState && this.key_open_Reader(): null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
