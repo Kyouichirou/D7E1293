@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.4.3
+// @version      3.3.5.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -3229,13 +3229,17 @@
             write(text) {
                 window.navigator.clipboard.writeText(text);
             },
+            replace_ZH: true,
             event() {
+                this.replace_ZH =
+                    GM_getValue("clipboard") === false ? false : true;
                 document.oncopy = (e) => {
                     e.preventDefault();
                     e.stopImmediatePropagation();
-                    let copytext = getSelection();
-                    if (!copytext) return;
-                    this.clear(copytext);
+                    const copytext = getSelection();
+                    copytext && this.replace_ZH
+                        ? this.clear(copytext)
+                        : this.write(copytext);
                 };
             },
         },
@@ -8105,6 +8109,32 @@
             this.Filter.colorIndicator.stat = h;
             !h && this.Filter.colorIndicator.restore();
         },
+        key_ctrl_clip() {
+            let c = GM_getValue("clipboard");
+            c = !(c === false ? false : true);
+            GM_setValue("clipboard", c);
+            Notification(
+                `the feature of "clipboard clear" has been ${
+                    c ? "enable" : "disable"
+                }`,
+                "Tips"
+            );
+            this.clipboardClear.replace_ZH = c;
+        },
+        key_ctrl_sync() {
+            GM_addValueChangeListener(
+                "clipboard",
+                (name, oldValue, newValue, remote) =>
+                    remote && (this.clipboardClear.replace_ZH = newValue)
+            );
+            GM_addValueChangeListener(
+                "highlight",
+                (name, oldValue, newValue, remote) =>
+                    remote &&
+                    ((this.Filter.colorIndicator.stat = newValue),
+                    !newValue && this.Filter.colorIndicator.restore())
+            );
+        },
         key_open_Reader() {
             const items = document.getElementsByClassName(
                 "ContentItem AnswerItem"
@@ -8133,6 +8163,8 @@
                         ? this.click_Highlight()
                         : keyCode === 82
                         ? !this.autoScroll.scrollState && this.key_open_Reader()
+                        : keyCode === 69
+                        ? this.key_ctrl_clip()
                         : null
                     : keyCode === 192
                     ? this.autoScroll.start()
@@ -8218,6 +8250,7 @@
             this.shade.start();
             this.clipboardClear.event();
             installTips();
+            this.key_ctrl_sync();
         },
     };
     zhihu.start();
