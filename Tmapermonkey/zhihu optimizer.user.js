@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.4.2
+// @version      3.3.4.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -14,6 +14,7 @@
 // @connect      www.zhihu.com
 // @connect      lens.zhihu.com
 // @connect      api.zhihu.com
+// @connect      www.cnblogs.com
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
@@ -203,12 +204,18 @@
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
     };
-    const xmlHTTPRequest = (url, time = 2500, rType = false) => {
+    const xmlHTTPRequest = (
+        url,
+        time = 2500,
+        responeType = "json",
+        rType = false
+    ) => {
         return new Promise(function (resolve, reject) {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: url,
                 timeout: time,
+                responseType: responeType,
                 onload: (response) => {
                     if (response.status == 200) {
                         if (rType) {
@@ -249,8 +256,9 @@
         }
         return rndArr;
     };
+    //hidden element = false
     const elementVisible = {
-        getElementTopLeft(obj) {
+        getElementTop(obj) {
             let top = 0;
             while (obj) {
                 top += obj.offsetTop;
@@ -259,7 +267,7 @@
             return top;
         },
         check(wh, element, offset) {
-            const tp = this.getElementTopLeft(element);
+            const tp = this.getElementTop(element);
             return tp + element.clientHeight > offset && offset + wh > tp;
         },
         main(fNode, args) {
@@ -270,6 +278,31 @@
                 for (const e of args) if (this.check(wh, e, offset)) return e;
                 return null;
             } else return this.check(twh, args, offset);
+        },
+    };
+    /*
+    convert image to base64 code
+    just support a little type of image, chrome, don't support gif type
+    support type, test on this site: https://kangax.github.io/jstests/toDataUrl_mime_type_test/
+    */
+    const imageConvertor = {
+        canvas(image, format) {
+            const canvas = document.createElement("canvas");
+            const context2D = canvas.getContext("2d");
+            context2D.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            context2D.drawImage(image, 0, 0);
+            return canvas.toDataURL("image/" + format, 0.92); //0-1, default: 0.92, the quality of pic
+        },
+        main(imgURL, format = "webp") {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = imgURL;
+                img.crossOrigin = "";
+                img.onload = () => resolve(this.canvas(img, format));
+                img.onerror = (err) => reject(err);
+            });
         },
     };
     class Database {
@@ -1475,14 +1508,19 @@
                 const bgc = GM_getValue("articleBackground");
                 const arr = new Array(7);
                 let color = "#FFF";
-                const bgcM = `background-image: url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif);`;
                 let bgcimg = "";
                 if (bgc) {
                     for (let i = 1; i < 8; i++)
                         arr[i - 1] = bgc === `a_color${i}` ? " cur" : "";
-                    bgc === "a_color7"
-                        ? (bgcimg = bgcM)
-                        : (color = this.colors_list(bgc));
+                    if (bgc === "a_color7") {
+                        const bgcM = `background-image: url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif);`;
+                        bgcimg = `background-image: url(${GM_getValue(
+                            "readerbgimg"
+                        )});`;
+                        bgcimg.length < 50 &&
+                            ((bgcimg = bgcM),
+                            GM_setValue("readerbgimg_mark", false));
+                    } else color = this.colors_list(bgc);
                 } else {
                     arr.fill("", 0);
                     arr[5] = " cur";
@@ -1897,10 +1935,11 @@
                             const box = document.getElementById(
                                 "artfullscreen__box"
                             );
-                            const bgcM =
-                                "url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif)";
                             if (className === "a_color7") {
-                                box.style.backgroundImage = bgcM;
+                                const img = GM_getValue("readerbgimg");
+                                box.style.backgroundImage =
+                                    (img && `url(${img})`) ||
+                                    "url(https://www.cnblogs.com/skins/coffee/images/bg_body.gif)";
                             } else {
                                 box.style.backgroundImage = "none";
                                 box.style.background = this.colors_list(
@@ -3081,40 +3120,68 @@
                 let i = ads.length;
                 if (i > 0) for (i; i--; ) ads[i].remove();
             },
+            backgroundImage_cache() {
+                if (GM_getValue("readerbgimg_mark")) return;
+                const url =
+                    "https://www.cnblogs.com/skins/coffee/images/bg_body.gif";
+                xmlHTTPRequest(url, 2500, "blob").then(
+                    (blob) => {
+                        const file = new FileReader();
+                        file.readAsDataURL(blob);
+                        file.onload = (result) => {
+                            if (result.target.readyState !== 2) return;
+                            GM_setValue("readerbgimg", result.target.result);
+                            GM_setValue("readerbgimg_mark", true);
+                            console.log(
+                                "background image has been cached successfully"
+                            );
+                        };
+                        file.onerror = (err) => console.log(err);
+                    },
+                    (err) => console.log(err)
+                );
+            },
             nextNode: null,
             prevNode: null,
             curNode: null,
             aid: null,
             isSimple_page: false,
             isShowTips: false,
+            initial_id: null,
             main(pnode, aid) {
                 //---------------------------------------check if the node has pre and next node
-                const p = pnode.parentNode;
-                this.isSimple_page = location.pathname.includes("/answer/");
-                this.removeADs();
-                if (this.isSimple_page) this.navPannel = p;
-                this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
-                this.curNode = p;
-                !this.isSimple_page
-                    ? setTimeout(() => {
-                          window.scrollTo(
-                              0,
-                              0.75 * document.documentElement.scrollHeight
-                          );
-                          setTimeout(
-                              () => (
-                                  (this.overFlow = true),
-                                  ((this.navPannel = p),
-                                  this.changeNav(this.nav))
-                              ),
-                              300
-                          );
-                      }, 100)
-                    : (this.overFlow = true);
-                this.firstly = false;
-                this.aid = aid;
-                this.readerMode = true;
-                this.isShowTips = true;
+                this.initial_id && clearTimeout(this.initial_id);
+                this.initial_id = setTimeout(() => {
+                    this.initial_id = null;
+                    const p = pnode.parentNode;
+                    this.isSimple_page = location.pathname.includes("/answer/");
+                    this.removeADs();
+                    if (this.isSimple_page) this.navPannel = p;
+                    this.firstly
+                        ? (this.Reader(pnode), this.backgroundImage_cache())
+                        : this.Change(pnode, aid);
+                    this.curNode = p;
+                    !this.isSimple_page
+                        ? setTimeout(() => {
+                              window.scrollTo(
+                                  0,
+                                  0.75 * document.documentElement.scrollHeight
+                              );
+                              setTimeout(
+                                  () => (
+                                      (this.overFlow = true),
+                                      ((this.navPannel = p),
+                                      this.changeNav(this.nav))
+                                  ),
+                                  300
+                              );
+                          }, 100)
+                        : (this.overFlow = true);
+                    this.firstly = false;
+                    this.aid = aid;
+                    this.readerMode = true;
+                    this.isShowTips = true;
+                }, 300);
             },
         },
         getData() {
@@ -5392,7 +5459,7 @@
                 .KfeCollection-PcCollegeCard-wrapper,
                 .List-item{border: 1px solid transparent;}
                 .List-item{position: inherit !important;}
-                .KfeCollection-PcCollegeCard-wrapper,
+                .KfeCollection-PcCollegeCard-wrapper:hover,
                 .List-item:hover {
                     border: 1px solid #B9D5FF;
                     box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.10);
@@ -8038,8 +8105,10 @@
             this.Filter.colorIndicator.stat = h;
             !h && this.Filter.colorIndicator.restore();
         },
-        key_open_Reader(){
-            const items = document.getElementsByClassName('ContentItem AnswerItem');
+        key_open_Reader() {
+            const items = document.getElementsByClassName(
+                "ContentItem AnswerItem"
+            );
             const e = elementVisible.main(document.documentElement, items);
             e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e));
         },
@@ -8062,7 +8131,9 @@
                     : shift
                     ? keyCode === 72
                         ? this.click_Highlight()
-                        : keyCode === 82 ? !this.autoScroll.scrollState && this.key_open_Reader(): null
+                        : keyCode === 82
+                        ? !this.autoScroll.scrollState && this.key_open_Reader()
+                        : null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
