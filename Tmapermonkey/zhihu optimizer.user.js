@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.0
+// @version      3.3.6.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -47,6 +47,10 @@
 (() => {
     "use strict";
     const blackKey = ["留学中介", "肖战"];
+    const Shortcuts_URL =
+        "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png";
+    const UserManual =
+        "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
     let blackName = null;
     let blackTopicAndQuestion = null;
     const Notification = (content = "", title = "", duration = 2500, func) => {
@@ -57,18 +61,39 @@
             onclick: func,
         });
     };
+    const showDetail = (info, bc = "green") => {
+        const t = info.title,
+            c = info.content,
+            a = [
+                "%c ".concat(t, " %c ").concat(c, " "),
+                "padding: 1px; border-radius: 3px 0 0 3px; color: #fff; font-size: 14px; background: ".concat(
+                    "#606060",
+                    ";"
+                ),
+                "padding: 1px; border-radius: 0 3px 3px 0; color: #fff; font-size: 14px; background: ".concat(
+                    bc,
+                    ";"
+                ),
+            ];
+        (function () {
+            let e;
+            window.console &&
+                "function" === typeof window.console.log &&
+                (e = console).log.apply(e, arguments);
+        }.apply(null, a),
+            a);
+    };
     const installTips = () => {
         //first time run, open the usermanual webpage
         if (GM_getValue("initial")) return;
-        const usermanual =
-            "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
         GM_setValue("initial", true);
         Notification(
             "thanks for installing, please read user manual carefully",
             "Tips",
             6000
         );
-        GM_openInTab(usermanual, { insert: true });
+        GM_setValue("installeddate", Date.now());
+        GM_openInTab(UserManual, { insert: true });
     };
     const mergeArray = (origin, target) => {
         origin = origin.concat(target);
@@ -162,9 +187,10 @@
         <div
             id="autoscroll-tips"
             style="
-                top: 45%;
-                left: 45%;
-                position: fixed;
+                position: absolute;
+                top:50%;
+                left:50%;
+                transform: translate(-50%,-50%);
                 background: whitesmoke;
                 width: 210px;
                 height: 96px;
@@ -393,14 +419,33 @@
         get Tablenames() {
             return this.store.objectStoreNames;
         }
+        get DBname(){
+            return this.store.name;
+        }
         get Indexnames() {
             return this.table.indexNames;
         }
         get DBversion() {
             return this.store.version;
         }
-        getTablecount(key) {
-            return this.table.count(key);
+        get Table() {
+            this.transaction = this.store.transaction(
+                [this.tbname],
+                this.RWmode
+            );
+            return this.transaction.objectStore(this.tbname);
+        }
+        get Datacount() {
+            return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
+                const req = this.table.count();
+                req.onsuccess = (e) =>
+                    resolve({
+                        count: e.target.result,
+                        name: e.target.source.anme,
+                    });
+                req.onerror = (e) => reject(e);
+            });
         }
         //take care the transaction, must make sure the transaction is alive when you need deal with something continually
         openTable() {
@@ -413,13 +458,6 @@
             this.transaction.oncomplete = () => (this.isfinish = true);
             this.transaction.onerror = () =>
                 console.log("warning, error on transaction");
-        }
-        get Table() {
-            this.transaction = this.store.transaction(
-                [this.tbname],
-                this.RWmode
-            );
-            return this.transaction.objectStore(this.tbname);
         }
         rollback() {
             this.transaction && this.transaction.abort();
@@ -488,22 +526,17 @@
                 };
             });
         }
-        getAll(){
-            return new Promise((resolve, reject)=> {
+        get All() {
+            return new Promise((resolve, reject) => {
                 if (!this.table || this.isfinish) this.openTable();
                 const request = this.table.getAll();
-                const req = this.table.count();
-                request.onsuccess = (e) => {
-                    console.log(e);
-                }
-                request.onerror = (e)=> {
-                    console.log(e);
-                }
-                req.onsuccess = (e)=> {
-                    console.log(e)
-                }
-                req.onerror = (e)=> console.log(e);
-            })
+                request.onsuccess = (e) =>
+                    resolve({
+                        name: e.target.source.name,
+                        data: e.target.result
+                    });
+                request.onerror = (e) => reject(e);
+            });
         }
         updateRecord(keyPath) {
             return new Promise((resolve, reject) => {
@@ -526,8 +559,8 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
+                if (!this.table || this.isfinish) this.openTable();
                 //keep cursor
-                if (mode && (!this.table || this.isfinish)) this.openTable();
                 if (mode) {
                     this.read(info[keyPath]).then(
                         (result) => {
@@ -701,6 +734,9 @@
                 () => console.log("add this anser to folded list fail")
             );
         },
+        get DBname(){
+            return this.db.DBname;
+        },
         get Table() {
             return this.db.Table;
         },
@@ -750,8 +786,24 @@
             mode && this.db.close();
             this.db = null;
         },
-        getAll(){
-            this.db.getAll();
+        get dataCount() {
+            return new Promise((resolve, reject) => {
+                this.db.dataCount.then(
+                    (result) => resolve(result),
+                    (err) => {
+                        console.log(err);
+                        reject(null);
+                    }
+                );
+            });
+        },
+        get getAll() {
+            return new Promise((resolve, reject) => {
+                this.db.All().then(
+                    (result) => resolve(result),
+                    (err) => reject(err)
+                );
+            });
         },
         initial(tableNames, mode = false, keyPath = "pid") {
             return new Promise((resolve, reject) => {
@@ -782,25 +834,88 @@
         },
     };
     const MangeData = {
-        download(text, filename){
-            const a = document.createElement('a');
-            a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-            a.setAttribute('download', filename);
-            a.style.display = 'none';
+        download(text, filename) {
+            const a = document.createElement("a");
+            a.setAttribute(
+                "href",
+                "data:text/plain;charset=utf-8," + encodeURIComponent(text)
+            );
+            a.setAttribute("download", filename);
+            a.style.display = "none";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            Notification('the operation of backup DB data has successfully', 'Tips');
         },
-        getDB(){
-
+        importData: {
+            create(){
+                const html = `
+                <div
+                    id="read_local_text"
+                    style="
+                        background: lightgray;
+                        width: 360px;
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        height: 360px;
+                        border: 1px solid #ccc !important;
+                        box-shadow: 1px 1px 4px #888888;
+                    "
+                >
+                    <h2 style="text-align: center; margin: 5px">IndexedDB Data Import</h2>
+                    <hr />
+                    <input
+                        type="file"
+                        class="read-local-txt-input"
+                        id="readTxt"
+                        accept=".txt"
+                        style="margin-top: 35%; margin-left: 25%"
+                    />
+                </div>`;
+                document.body.insertAdjacentHTML('beforeend', html);
+                this.event();
+            },
+            event(){
+                const p = document.getElementById('read_local_text');
+                const i = p.getElementsByTagName('input')[0];
+                i.onchange = (e) => {
+                    const r = new FileReader();
+                    //default encode is UTF-8;
+                    r.readAsText(e.target.files[0]);
+                    r.onload = (e) => {
+                        console.log(e.target.result);
+                    }
+                    r.onerror = (e)=> {
+                        console.log(e);
+                        Notification('import data fail', "Warning");
+                    }
+                }
+            }
         },
-        importData(){
-
+        exportData() {
+            dataBaseInstance.getAll.then(
+                (results) => {
+                    if (results.data.length === 0) {
+                        Notification(
+                            "the database has not yet stored the data",
+                            "DB Tips"
+                        );
+                        return;
+                    }
+                    this.download(
+                        JSON.stringify(results),
+                        `DB_Backup_${results.name}_${Date.now()}.txt`
+                    );
+                },
+                (e) => {
+                    console.log(e);
+                    Notification("the operation of backup DB data fail", "Warning");
+                }
+            );
         },
-        exportData(){
-            dataBaseInstance.getAll();
-        }
-    }
+    };
     const zhihu = {
         /*
         these original functions of zhihu webpage will be failed in reader mode, so need to be rebuilt
@@ -3364,6 +3479,7 @@
                 77: "MDN",
                 66: "BiliBili",
                 90: "Zhihu",
+                80: "Python",
             };
             const methods = {
                 Protocols: "https://",
@@ -3402,6 +3518,12 @@
                 },
                 BiliBili() {
                     this.Search("search.bilibili.com/all?keyword=");
+                },
+                Python() {
+                    this.Search(
+                        "docs.python.org/zh-cn/3/search.html?q=",
+                        "&check_keywords=yes&area=default"
+                    );
                 },
                 AboutMe() {
                     zhihu.shade.Support.main();
@@ -3714,6 +3836,22 @@
                       this.disableEvent(true),
                       window.requestAnimationFrame(this.pageScroll.bind(this)));
             },
+            noColorful() {
+                const color = GM_getValue("nocolofultext");
+                if (color) {
+                    GM_setValue("nocolofultext", false);
+                    const text = "the feature of colorful text has been enable";
+                    zhihu.colorAssistant.main();
+                    Notification(text, "Tips");
+                } else {
+                    if (!confirm("disable colorful text?")) return;
+                    GM_setValue("nocolofultext", true);
+                    const text = "colorful text has been disable";
+                    Notification(text, "Tips");
+                    confirm("reload current webpage?") &&
+                        (sessionStorage.clear(), location.reload());
+                }
+            },
             Others(keyCode, shift) {
                 shift
                     ? keyCode === 67
@@ -3740,21 +3878,8 @@
                     ? !this.autoScroll.scrollState && this.turnPage.start(false)
                     : this.multiSearch(keyCode);
             },
-            noColorful() {
-                const color = GM_getValue("nocolofultext");
-                if (color) {
-                    GM_setValue("nocolofultext", false);
-                    const text = "the feature of colorful text has been enable";
-                    zhihu.colorAssistant.main();
-                    Notification(text, "Tips");
-                } else {
-                    if (!confirm("disable colorful text?")) return;
-                    GM_setValue("nocolofultext", true);
-                    const text = "colorful text has been disable";
-                    Notification(text, "Tips");
-                    confirm("reload current webpage?") &&
-                        (sessionStorage.clear(), location.reload());
-                }
+            check_common_key(shift, keyCode) {
+                return this.common_KeyEevnt(shift, keyCode);
             },
             keyBoardEvent() {
                 window.onkeydown = (e) => {
@@ -3767,6 +3892,8 @@
                         return;
                     const keyCode = e.keyCode;
                     const shift = e.shiftKey;
+                    if (this.check_common_key.call(zhihu, shift, keyCode))
+                        return;
                     if (keyCode === 68 || (shift && keyCode === 71)) {
                         //68, d, default is login shortcut of zhihu
                         //71, g, + shift, default is scroll to the bottom of webpage
@@ -3821,9 +3948,10 @@
                                 width: 700px;
                                 font-size: 16px;
                                 height: 468px;
-                                position: fixed;
-                                left: 31%;
-                                top: 25%;
+                                position: absolute;
+                                top:50%;
+                                left:50%;
+                                transform: translate(-50%,-50%);
                                 z-index: 100000;
                             "
                         >
@@ -5476,6 +5604,7 @@
                     max-width: 1000px !important;
                     min-width: 1000px !important;
                 }
+                .RichContent.RichContent--unescapable{width: 100% !important;}
                 .RichText-MCNLinkCardContainer,
                 div.Question-sideColumn,.Kanshan-container{display: none !important;}
                 figure{max-width: 70% !important;}
@@ -8160,6 +8289,7 @@
                 "Tips"
             );
             this.clipboardClear.replace_ZH = c;
+            return true;
         },
         key_ctrl_sync() {
             GM_addValueChangeListener(
@@ -8182,6 +8312,77 @@
             const e = elementVisible.main(document.documentElement, items);
             e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e));
         },
+        show_Total() {
+            const date = GM_getValue("installeddate");
+            if (!date) return;
+            dataBaseInstance.dataCount.then(
+                (result) => {
+                    const c = "red";
+                    showDetail({
+                        title: "Current Version:",
+                        content: GM_info.script.version,
+                    });
+                    showDetail(
+                        { title: "Black Keywords:", content: blackKey.length },
+                        c
+                    );
+                    showDetail(
+                        { title: "Blocked Users:", content: blackName.length },
+                        c
+                    );
+                    showDetail(
+                        { title: "Blocked Users:", content: blackName.length },
+                        c
+                    );
+                    showDetail(
+                        {
+                            title: "Blocked Answers/Articles:",
+                            content: result.count,
+                        },
+                        c
+                    );
+                    showDetail(
+                        {
+                            title: "Blocked Questions/Topics:",
+                            content: blackTopicAndQuestion.length,
+                        },
+                        c
+                    );
+                    showDetail({
+                        title: "Installed Date:",
+                        content: new Date(date).toString(),
+                    });
+                    showDetail({
+                        title: "Service Time:",
+                        content:
+                            "This JS has provided you with more than " +
+                            ((Date.now() - date) / 1000 / 60 / 60 / 24).toFixed(
+                                0
+                            ) +
+                            " Days of service",
+                    });
+                },
+                () => console.log("get database data count fail")
+            );
+        },
+        common_KeyEevnt(shift, keyCode) {
+            if (shift) {
+                const url =
+                    keyCode === 85
+                        ? UserManual
+                        : keyCode === 83
+                        ? Shortcuts_URL
+                        : keyCode === 69
+                        ? this.key_ctrl_clip()
+                        : null;
+                if (url) {
+                    typeof url === "string" &&
+                        GM_openInTab(url, { insert: true });
+                    return true;
+                }
+            }
+            return false;
+        },
         QASkeyBoardEvent() {
             document.onkeydown = (e) => {
                 if (e.ctrlKey || e.altKey || e.target.localName === "input")
@@ -8193,9 +8394,10 @@
                     className.includes("DraftEditor")
                 )
                     return;
-                const r = this.qaReader.readerMode;
                 const shift = e.shiftKey;
                 const keyCode = e.keyCode;
+                if (this.common_KeyEevnt(shift, keyCode)) return;
+                const r = this.qaReader.readerMode;
                 r
                     ? this.qaReader.keyEvent(keyCode, shift)
                     : shift
@@ -8203,9 +8405,9 @@
                         ? this.click_Highlight()
                         : keyCode === 82
                         ? !this.autoScroll.scrollState && this.key_open_Reader()
-                        : keyCode === 69
-                        ? this.key_ctrl_clip()
-                        : keyCode === 66 ? MangeData.exportData(): null
+                        : keyCode === 66
+                        ? MangeData.exportData()
+                        : keyCode === 73 ? MangeData.importData.create() : null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
