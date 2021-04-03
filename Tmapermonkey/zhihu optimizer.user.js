@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.5.0
+// @version      3.3.6.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -488,6 +488,23 @@
                 };
             });
         }
+        getAll(){
+            return new Promise((resolve, reject)=> {
+                if (!this.table || this.isfinish) this.openTable();
+                const request = this.table.getAll();
+                const req = this.table.count();
+                request.onsuccess = (e) => {
+                    console.log(e);
+                }
+                request.onerror = (e)=> {
+                    console.log(e);
+                }
+                req.onsuccess = (e)=> {
+                    console.log(e)
+                }
+                req.onerror = (e)=> console.log(e);
+            })
+        }
         updateRecord(keyPath) {
             return new Promise((resolve, reject) => {
                 this.read(keyPath).then(
@@ -509,8 +526,8 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
                 //keep cursor
+                if (mode && (!this.table || this.isfinish)) this.openTable();
                 if (mode) {
                     this.read(info[keyPath]).then(
                         (result) => {
@@ -733,6 +750,9 @@
             mode && this.db.close();
             this.db = null;
         },
+        getAll(){
+            this.db.getAll();
+        },
         initial(tableNames, mode = false, keyPath = "pid") {
             return new Promise((resolve, reject) => {
                 if (!Array.isArray(tableNames)) {
@@ -761,6 +781,26 @@
             });
         },
     };
+    const MangeData = {
+        download(text, filename){
+            const a = document.createElement('a');
+            a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            a.setAttribute('download', filename);
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        },
+        getDB(){
+
+        },
+        importData(){
+
+        },
+        exportData(){
+            dataBaseInstance.getAll();
+        }
+    }
     const zhihu = {
         /*
         these original functions of zhihu webpage will be failed in reader mode, so need to be rebuilt
@@ -8165,7 +8205,7 @@
                         ? !this.autoScroll.scrollState && this.key_open_Reader()
                         : keyCode === 69
                         ? this.key_ctrl_clip()
-                        : null
+                        : keyCode === 66 ? MangeData.exportData(): null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
