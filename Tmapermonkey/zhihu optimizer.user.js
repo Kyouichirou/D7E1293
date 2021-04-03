@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.1
+// @version      3.3.6.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -308,7 +308,7 @@
     };
     /*
     convert image to base64 code
-    just support a little type of image, chrome, don't support gif type
+    just support a little type of image, chrome, don't support image/gif type
     support type, test on this site: https://kangax.github.io/jstests/toDataUrl_mime_type_test/
     */
     const imageConvertor = {
@@ -419,7 +419,7 @@
         get Tablenames() {
             return this.store.objectStoreNames;
         }
-        get DBname(){
+        get DBname() {
             return this.store.name;
         }
         get Indexnames() {
@@ -526,16 +526,27 @@
                 };
             });
         }
-        get All() {
-            return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
-                const request = this.table.getAll();
-                request.onsuccess = (e) =>
-                    resolve({
-                        name: e.target.source.name,
-                        data: e.target.result
+        getAll(tables) {
+            return new Promise((resolve) => {
+                const arr = [];
+                for (const t of tables) {
+                    const transaction = this.store.transaction(
+                        this.store.objectStoreNames,
+                        this.RWmode
+                    );
+                    const table = transaction.objectStore(t);
+                    const rq = new Promise((reso, rej) => {
+                        const req = table.getAll();
+                        req.onsuccess = (e) =>
+                            reso({
+                                name: e.target.source.name,
+                                data: e.target.result,
+                            });
+                        req.onerror = () => rej(t);
                     });
-                request.onerror = (e) => reject(e);
+                    arr.push(rq);
+                }
+                Promise.allSettled(arr).then((results) => resolve(results));
             });
         }
         updateRecord(keyPath) {
@@ -559,7 +570,7 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
+                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -567,7 +578,7 @@
                             if (!result) {
                                 this.add(info).then(
                                     () => resolve(true),
-                                    (err) => reject(err)
+                                    (err) => reject(info)
                                 );
                             } else {
                                 const op = this.table.put(
@@ -576,18 +587,23 @@
                                 op.onsuccess = () => resolve(true);
                                 op.onerror = (e) => {
                                     console.log(e);
-                                    reject("error");
+                                    reject(info);
                                 };
                             }
                         },
                         (err) => console.log(err)
                     );
                 } else {
-                    const op = this.table.put(info);
+                    const transaction = this.store.transaction(
+                        [this.tbname],
+                        this.RWmode
+                    );
+                    const table = transaction.objectStore(this.tbname);
+                    const op = table.put(info);
                     op.onsuccess = () => resolve(true);
                     op.onerror = (e) => {
                         console.log(e);
-                        reject("error");
+                        reject(info);
                     };
                 }
             });
@@ -734,7 +750,7 @@
                 () => console.log("add this anser to folded list fail")
             );
         },
-        get DBname(){
+        get DBname() {
             return this.db.DBname;
         },
         get Table() {
@@ -780,7 +796,13 @@
             );
         },
         update(info) {
-            this.db.update(info);
+            return this.db.update(info);
+        },
+        /**
+         * @param {String} name
+         */
+        set TableName(name) {
+            this.db.tbname = name;
         },
         close(mode = true) {
             mode && this.db.close();
@@ -797,13 +819,10 @@
                 );
             });
         },
-        get getAll() {
-            return new Promise((resolve, reject) => {
-                this.db.All().then(
-                    (result) => resolve(result),
-                    (err) => reject(err)
-                );
-            });
+        getAll(tables) {
+            return new Promise((resolve) =>
+                this.db.getAll(tables).then((result) => resolve(result))
+            );
         },
         initial(tableNames, mode = false, keyPath = "pid") {
             return new Promise((resolve, reject) => {
@@ -834,21 +853,9 @@
         },
     };
     const MangeData = {
-        download(text, filename) {
-            const a = document.createElement("a");
-            a.setAttribute(
-                "href",
-                "data:text/plain;charset=utf-8," + encodeURIComponent(text)
-            );
-            a.setAttribute("download", filename);
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            Notification('the operation of backup DB data has successfully', 'Tips');
-        },
         importData: {
-            create(){
+            isRunning: false,
+            create(mode) {
                 const html = `
                 <div
                     id="read_local_text"
@@ -871,49 +878,215 @@
                         class="read-local-txt-input"
                         id="readTxt"
                         accept=".txt"
+                        ${mode ? 'multiple="multiple"' : ""}
                         style="margin-top: 35%; margin-left: 25%"
                     />
                 </div>`;
-                document.body.insertAdjacentHTML('beforeend', html);
-                this.event();
+                document.body.insertAdjacentHTML("beforeend", html);
+                this.event(mode);
             },
-            event(){
-                const p = document.getElementById('read_local_text');
-                const i = p.getElementsByTagName('input')[0];
-                i.onchange = (e) => {
+            notice(filename) {
+                console.log(`this file(${filename}) does not match current DB`);
+            },
+            checkFile_format(json, filename, lists) {
+                if (!json || !lists.includes(json.name)) {
+                    this.notice(filename);
+                    return null;
+                }
+                const data = json.data;
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    this.notice(filename);
+                    return null;
+                }
+                return data;
+            },
+            remove(mode) {
+                this.timeID && clearTimeout(this.timeID, (this.timeID = null));
+                this.node && (this.node.remove(), (this.node = null));
+                mode && dataBaseInstance.db && dataBaseInstance.close();
+
+            },
+            node: null,
+            isRunning: false,
+            timeID: null,
+            read_file(file, lists) {
+                return new Promise((resolve, reject) => {
                     const r = new FileReader();
                     //default encode is UTF-8;
-                    r.readAsText(e.target.files[0]);
+                    r.readAsText(file);
                     r.onload = (e) => {
-                        console.log(e.target.result);
-                    }
-                    r.onerror = (e)=> {
+                        const result = e.target.result;
+                        if (!result) {
+                            reject(file.name);
+                            return;
+                        }
+                        try {
+                            const json = JSON.parse(result);
+                            const data = this.checkFile_format(
+                                json,
+                                file.name,
+                                lists
+                            );
+                            if (!data) {
+                                reject(file.name);
+                                return;
+                            }
+                            dataBaseInstance.TableName = json.name;
+                            const arr = data.map((e) =>
+                                dataBaseInstance.update(e)
+                            );
+                            Promise.allSettled(arr).then((results) => {
+                                results.forEach(
+                                    (e) =>
+                                        e.status === "rejected" &&
+                                        console.log(
+                                            `ID of ${e.value.name} has failed to import`
+                                        )
+                                );
+                                Notification(
+                                    `the data(${file.name}) import operation has completed`,
+                                    "Tips",
+                                    3500
+                                );
+                                resolve(file.name);
+                            });
+                        } catch (error) {
+                            console.log(error);
+                            reject(file.name);
+                        }
+                    };
+                    r.onerror = (e) => {
                         console.log(e);
-                        Notification('import data fail', "Warning");
-                    }
-                }
-            }
-        },
-        exportData() {
-            dataBaseInstance.getAll.then(
-                (results) => {
-                    if (results.data.length === 0) {
-                        Notification(
-                            "the database has not yet stored the data",
-                            "DB Tips"
-                        );
-                        return;
-                    }
-                    this.download(
-                        JSON.stringify(results),
-                        `DB_Backup_${results.name}_${Date.now()}.txt`
+                        reject(file.name);
+                    };
+                });
+            },
+            loadFile(e, lists, mode) {
+                this.isRunning = true;
+                const arr = [];
+                for (const file of e.target.files)
+                    arr.push(this.read_file(file, lists));
+                Promise.allSettled(arr).then((results) => {
+                    results.forEach((e) =>
+                        console.log(
+                            e.status === "rejected"
+                                ? "failed to import file to DB"
+                                : "import file to DB successfully"
+                        )
                     );
-                },
-                (e) => {
-                    console.log(e);
-                    Notification("the operation of backup DB data fail", "Warning");
-                }
-            );
+                    this.timeID = setTimeout(
+                        () => ((this.timeID = null), this.remove()),
+                        1000
+                    );
+                    Notification(
+                        "the operation import data to DB has finished",
+                        "Tips"
+                    );
+                    this.isRunning = false;
+                    mode && dataBaseInstance.close();
+                });
+            },
+            event(mode) {
+                this.node = document.getElementById("read_local_text");
+                let i = this.node.getElementsByTagName("input")[0];
+                i.onchange = (e) => {
+                    if (e.target.files.length === 0) return;
+                    if (
+                        !confirm(
+                            "take care! are you sure to start importing data?"
+                        )
+                    )
+                        return;
+                    if (mode) {
+                        const lists = ["collection", "preference"];
+                        !dataBaseInstance.db
+                            ? dataBaseInstance.initial(lists, true).then(
+                                  () => this.loadFile(e, lists, true),
+                                  (e) => {
+                                      console.log(e);
+                                      Notification(
+                                          "failed to initialize DB",
+                                          "Warning"
+                                      );
+                                  }
+                              )
+                            : this.loadFile(e, lists, true);
+                    } else this.loadFile(e, ["foldedAnswer"]);
+                };
+                i = null;
+            },
+            main(mode) {
+                !this.isRunning && this.node
+                    ? this.remove(mode)
+                    : this.create(mode);
+            },
+        },
+        exportData: {
+            _download(text, filename) {
+                const a = document.createElement("a");
+                a.setAttribute(
+                    "href",
+                    "data:text/plain;charset=utf-8," + encodeURIComponent(text)
+                );
+                a.setAttribute("download", filename);
+                a.style.display = "none";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            },
+            _getData(tables, mode) {
+                dataBaseInstance.getAll(tables).then((results) => {
+                    let i = 0;
+                    for (const result of results) {
+                        if (result.status === "rejected") {
+                            Notification(
+                                `the operation of backup DB(${result.value}) data fail`,
+                                "Warning"
+                            );
+                            continue;
+                        }
+                        if (result.value.data.length === 0) {
+                            Notification(
+                                `the database(${result.value.name}) has not yet stored the data`,
+                                "DB Tips"
+                            );
+                        }
+                        setTimeout(
+                            () =>
+                                this._download(
+                                    JSON.stringify(result.value),
+                                    `DB_Backup_${
+                                        result.value.name
+                                    }_${Date.now()}.txt`
+                                ),
+                            i
+                        );
+                        i += 2000;
+                    }
+                    !mode && dataBaseInstance.close();
+                });
+            },
+            _QAwebPage() {
+                this._getData(["foldedAnswer"], true);
+            },
+            _columnPage() {
+                dataBaseInstance.initial(["collection", "preference"]).then(
+                    (result) =>
+                        result === 0
+                            ? Notification(
+                                  "the database has not yet been established",
+                                  "DB Tips"
+                              )
+                            : this._getData(
+                                  ["collection", "preference"],
+                                  false
+                              ),
+                    (e) => console.log(e)
+                );
+            },
+            main(mode = true) {
+                mode ? this._QAwebPage() : this._columnPage();
+            },
         },
     };
     const zhihu = {
@@ -3903,8 +4076,12 @@
                     shift
                         ? keyCode === 65
                             ? this.zhuanlanAuto()
+                            : keyCode === 66
+                            ? MangeData.exportData.main(false)
                             : keyCode === 84
                             ? this.noColorful()
+                            : keyCode === 73
+                            ? MangeData.importData.main(true)
                             : this.Others.call(zhihu, keyCode, shift)
                         : keyCode === 192
                         ? this.start()
@@ -8406,8 +8583,10 @@
                         : keyCode === 82
                         ? !this.autoScroll.scrollState && this.key_open_Reader()
                         : keyCode === 66
-                        ? MangeData.exportData()
-                        : keyCode === 73 ? MangeData.importData.create() : null
+                        ? MangeData.exportData.main(true)
+                        : keyCode === 73
+                        ? MangeData.importData.main(false)
+                        : null
                     : keyCode === 192
                     ? this.autoScroll.start()
                     : keyCode === 187
