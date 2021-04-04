@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.3
+// @version      3.3.6.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -61,27 +61,34 @@
             onclick: func,
         });
     };
-    const showDetail = (info, bc = "green") => {
-        const t = info.title,
-            c = info.content,
-            a = [
-                "%c ".concat(t, " %c ").concat(c, " "),
-                "padding: 1px; border-radius: 3px 0 0 3px; color: #fff; font-size: 14px; background: ".concat(
-                    "#606060",
-                    ";"
-                ),
-                "padding: 1px; border-radius: 0 3px 3px 0; color: #fff; font-size: 14px; background: ".concat(
-                    bc,
-                    ";"
-                ),
-            ];
-        (function () {
-            let e;
-            window.console &&
-                "function" === typeof window.console.log &&
-                (e = console).log.apply(e, arguments);
-        }.apply(null, a),
-            a);
+    const colorful_Console = {
+        colors: {
+            warning: "#F73E3E",
+            Tips: "#327662",
+            info: "#1475b2",
+        },
+        main(info, bc) {
+            const t = info.title,
+                c = info.content,
+                a = [
+                    "%c ".concat(t, " %c ").concat(c, " "),
+                    "padding: 1px; border-radius: 3px 0 0 3px; color: #fff; font-size: 12px; background: ".concat(
+                        "#606060",
+                        ";"
+                    ),
+                    "padding: 1px; border-radius: 0 3px 3px 0; color: #fff; font-size: 12px; background: ".concat(
+                        bc,
+                        ";"
+                    ),
+                ];
+            (function () {
+                let e;
+                window.console &&
+                    "function" === typeof window.console.log &&
+                    (e = console).log.apply(e, arguments);
+            }.apply(null, a),
+                a);
+        },
     };
     const installTips = () => {
         //first time run, open the usermanual webpage
@@ -344,7 +351,7 @@
                     : indexedDB.open(dbname, version);
             this.RWmode = rwmode ? "readwrite" : "readonly";
             this.tbname = tbname;
-            const getIndex = (fieldname) => this.table.index(fieldname);
+            const getIndex = (fieldname) => this.Table.index(fieldname);
         }
         Initialize() {
             return new Promise((resolve, reject) => {
@@ -408,9 +415,7 @@
             });
         }
         storeEvent() {
-            this.store.onclose = () => {
-                console.log("closing...");
-            };
+            this.store.onclose = () => console.log("closing...");
             this.store.onerror = () => (this.storeErr = true);
         }
         get checkTable() {
@@ -434,7 +439,7 @@
                 req.onsuccess = (e) =>
                     resolve({
                         count: e.target.result,
-                        name: e.target.source.anme,
+                        name: e.target.source.name,
                     });
                 req.onerror = (e) => reject(e);
             });
@@ -589,7 +594,7 @@
                 };
             });
         }
-        //note: create a index must lauch from onupgradeneeded event;
+        //note: create a index must lauch from onupgradeneeded event; we need triggle update event
         createIndex(indexName, keyPath, objectParameters) {
             if (!this.updateEvent) {
                 console.log("this function must be through onupgradeneeded");
@@ -770,15 +775,13 @@
             mode && this.db.close();
             this.db = null;
         },
-        get dataCount() {
-            return new Promise((resolve, reject) => {
-                this.db.dataCount.then(
-                    (result) => resolve(result),
-                    (err) => {
-                        console.log(err);
-                        reject(null);
-                    }
-                );
+        getdataCount(tables) {
+            return new Promise((resolve) => {
+                const arr = tables.map((t) => {
+                    this.TableName = t;
+                    return this.db.Datacount;
+                });
+                Promise.allSettled(arr).then((results) => resolve(results));
             });
         },
         getAll(tables) {
@@ -862,10 +865,9 @@
                 }
                 return data;
             },
-            remove(mode) {
+            remove() {
                 this.timeID && clearTimeout(this.timeID, (this.timeID = null));
                 this.node && (this.node.remove(), (this.node = null));
-                mode && dataBaseInstance.db && dataBaseInstance.close();
             },
             node: null,
             isRunning: false,
@@ -892,7 +894,8 @@
                                 reject(file.name);
                                 return;
                             }
-                            dataBaseInstance.TableName = json.name;
+                            const tname = json.name;
+                            dataBaseInstance.TableName = tname;
                             const arr = data.map((e) =>
                                 dataBaseInstance.update(e)
                             );
@@ -905,7 +908,7 @@
                                         )
                                 );
                                 Notification(
-                                    `the data(${file.name}) import operation has completed`,
+                                    `the data(${tname}) import operation has completed`,
                                     "Tips",
                                     3500
                                 );
@@ -922,7 +925,7 @@
                     };
                 });
             },
-            loadFile(e, lists, mode) {
+            loadFile(e, lists) {
                 this.isRunning = true;
                 const arr = [];
                 for (const file of e.target.files)
@@ -931,20 +934,19 @@
                     results.forEach((e) =>
                         console.log(
                             e.status === "rejected"
-                                ? "failed to import file to DB"
-                                : "import file to DB successfully"
+                                ? `failed to import file(${e.value}) to DB`
+                                : `import file(${e.value}) to DB successfully`
                         )
                     );
                     this.timeID = setTimeout(
                         () => ((this.timeID = null), this.remove()),
-                        1000
+                        1200
                     );
                     Notification(
                         "the operation import data to DB has finished",
                         "Tips"
                     );
                     this.isRunning = false;
-                    mode && dataBaseInstance.close();
                 });
             },
             event(mode) {
@@ -958,27 +960,16 @@
                         )
                     )
                         return;
-                    if (mode) {
-                        const lists = ["collection", "preference"];
-                        !dataBaseInstance.db
-                            ? dataBaseInstance.initial(lists, true).then(
-                                  () => this.loadFile(e, lists, true),
-                                  (e) => {
-                                      console.log(e);
-                                      Notification(
-                                          "failed to initialize DB",
-                                          "Warning"
-                                      );
-                                  }
-                              )
-                            : this.loadFile(e, lists, true);
-                    } else this.loadFile(e, ["foldedAnswer"]);
+                    const lists = mode
+                        ? ["collection", "preference"]
+                        : ["foldedAnswer"];
+                    this.loadFile(e, lists);
                 };
                 i = null;
             },
             main(mode) {
                 !this.isRunning && this.node
-                    ? this.remove(mode)
+                    ? this.remove()
                     : this.create(mode);
             },
         },
@@ -995,7 +986,7 @@
                 a.click();
                 document.body.removeChild(a);
             },
-            _getData(tables, mode) {
+            _getData(tables) {
                 dataBaseInstance.getAll(tables).then((results) => {
                     let i = 0;
                     for (const result of results) {
@@ -1024,26 +1015,13 @@
                         );
                         i += 2000;
                     }
-                    !mode && dataBaseInstance.close();
                 });
             },
             _QAwebPage() {
-                this._getData(["foldedAnswer"], true);
+                this._getData(["foldedAnswer"]);
             },
             _columnPage() {
-                dataBaseInstance.initial(["collection", "preference"]).then(
-                    (result) =>
-                        result === 0
-                            ? Notification(
-                                  "the database has not yet been established",
-                                  "DB Tips"
-                              )
-                            : this._getData(
-                                  ["collection", "preference"],
-                                  false
-                              ),
-                    (e) => console.log(e)
-                );
+                this._getData(["collection", "preference"]);
             },
             main(mode = true) {
                 mode ? this._QAwebPage() : this._columnPage();
@@ -5006,23 +4984,21 @@
                     const targetElements = this.getTagetElements(index);
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
-                    if (index > 1) {
-                        unsafeWindow.addEventListener("urlchange", () =>
-                            this.URL_change
-                                ? (this.URL_change = false)
-                                : setTimeout(() => {
-                                      document.getElementsByClassName(
-                                          "fold_element"
-                                      ).length === 0 &&
-                                          this.firstRun(targetElements, false);
-                                  }, 300)
-                        );
-                        //monitor forward or backward, this operation will not fire dom event
-                        window.onpopstate = () => (
-                            (this.URL_change = true),
-                            this.firstRun(targetElements, false)
-                        );
-                    }
+                    unsafeWindow.addEventListener("urlchange", () =>
+                                                  this.URL_change
+                                                  ? (this.URL_change = false)
+                                                  : setTimeout(() => {
+                        document.getElementsByClassName(
+                            "hidden_fold"
+                        ).length === 0 &&
+                            this.firstRun(targetElements, false);
+                    }, 300)
+                                                 );
+                    //monitor forward or backward, this operation will not fire dom event
+                    window.onpopstate = () => (
+                        (this.URL_change = true),
+                        this.firstRun(targetElements, false)
+                    );
                 });
             },
             firstRun(targetElements, mode = true) {
@@ -5842,7 +5818,7 @@
                 const eventTargetEventListener =
                     EventTarget.prototype.addEventListener;
                 function addEventListener(type, listener, useCapture) {
-                    //take care
+                    //take care w or W
                     const NewEventListener =
                         this instanceof Window
                             ? windowEventListener
@@ -6012,20 +5988,19 @@
                 if (r) {
                     GM_addStyle(article + this.Column.clearPage(0).join(""));
                     this.Column.readerMode = true;
-                } else {
-                    GM_addStyle(article);
-                }
-                if (document.title.startsWith("该内容暂无法显示")) {
+                } else GM_addStyle(article);
+                if (document.title.startsWith("该内容暂无法显示"))
                     window.onload = () => this.ErrorAutoClose();
-                    return;
+                else {
+                    this.anti_setInterval();
+                    this.Column.isZhuanlan = true;
+                    window.onload = () => {
+                        this.colorAssistant.main();
+                        this.autoScroll.keyBoardEvent();
+                        this.Column.main(0);
+                        setTimeout(() => this.show_Total.main(true), 15000);
+                    };
                 }
-                this.anti_setInterval();
-                this.Column.isZhuanlan = true;
-                window.onload = () => {
-                    this.colorAssistant.main();
-                    this.autoScroll.keyBoardEvent();
-                    this.Column.main(0);
-                };
             } else {
                 GM_addStyle(list);
                 this.Column.main(2);
@@ -6316,6 +6291,7 @@
                     3500
                 );
             },
+            //修改
             Tabs: {
                 get GUID() {
                     // blob:https://xxx.com/+ uuid
@@ -6331,6 +6307,7 @@
                         const uuid = this.GUID;
                         tab.id = uuid;
                         tab.columnID = columnID;
+                        tab.title = document.title;
                         sessionStorage.setItem("uuid", uuid);
                         GM_saveTab(tab);
                     });
@@ -6345,10 +6322,12 @@
                                     resolve(false);
                                 } else {
                                     const tablist = Object.values(tabs);
+                                    const title = document.title;
                                     const f = tablist.some(
                                         (e) =>
                                             e.columnID === columnID &&
-                                            uuid === e.id
+                                            uuid === e.id &&
+                                            e.titlle !== title
                                     );
                                     resolve(f);
                                 }
@@ -6555,18 +6534,14 @@
                     if (timestamp.length === 10) {
                         timestamp = parseInt(timestamp);
                         timestamp *= 1000;
-                    } else if (timestamp.length === 13) {
+                    } else if (timestamp.length === 13)
                         timestamp = parseInt(timestamp);
-                    } else {
-                        return "";
-                    }
+                    else return "";
                 }
                 const date = new Date(timestamp);
                 const y = date.getFullYear() + "-";
-                const m =
-                    (date.getMonth() + 1 < 10
-                        ? "0" + (date.getMonth() + 1)
-                        : date.getMonth() + 1) + "-";
+                const gm = date.getMonth();
+                const m = (gm + 1 < 10 ? "0" + (gm + 1) : gm + 1) + "-";
                 let d = date.getDate();
                 d = d < 10 ? "0" + d : d;
                 return y + m + d;
@@ -6880,84 +6855,91 @@
                 //prevent click too fast
                 let isReady = false;
                 //show content in current page;
+                let article_time_id = null;
                 article.onclick = (e) => {
                     //if under autoscroll mode, => not allow to click
-                    if (
-                        Reflect.get(zhihu.autoScroll, "scrollState") ||
-                        Reflect.get(zhihu.noteHighlight, "editable")
-                    )
-                        return;
-                    if (isReady) {
-                        Notification("please operate slowly...", "Tips");
-                        return;
-                    }
-                    const href = e.target.previousElementSibling.href;
-                    if (location.href === href) return;
-                    const className = e.target.className;
-                    if (className === "list_date_follow") {
-                        sessionStorage.clear();
-                        window.open(href, "_self");
-                    } else if (className !== "list_date") return;
-                    const content = document.getElementsByClassName(
-                        "RichText ztext Post-RichText"
-                    );
-                    if (content.length === 0) return;
-                    const p = e.path;
-                    let ic = 0;
-                    for (const e of p) {
-                        if (e.localName === "li") {
-                            let id = e.children[0].innerText;
-                            id *= 1;
-                            if (id === aid) return;
-                            aid = id;
-                            break;
+                    article_time_id && clearTimeout(article_time_id);
+                    article_time_id = setTimeout(() => {
+                        article_time_id = null;
+                        if (
+                            Reflect.get(zhihu.autoScroll, "scrollState") ||
+                            Reflect.get(zhihu.noteHighlight, "editable")
+                        )
+                            return;
+                        if (isReady) {
+                            Notification("please operate slowly...", "Tips");
+                            return;
                         }
-                        if (ic > 2) return;
-                        ic++;
-                    }
-                    isReady = true;
-                    const i = aid - 1;
-                    const title = document.getElementsByClassName("Post-Title");
-                    title.length > 0 &&
-                        (title[0].innerText = this.backupInfo[i].title);
-                    content[0].innerHTML = this.backupInfo[i].content;
-                    zhihu.colorAssistant.main();
-                    window.history.replaceState(null, null, href);
-                    document.title = `${this.backupInfo[i].title} - 知乎`;
-                    //refresh the menu
-                    const toc = document.getElementById("toc-bar");
-                    if (toc) {
-                        const refresh = toc.getElementsByClassName(
-                            "toc-bar__refresh toc-bar__icon-btn"
-                        )[0];
-                        refresh.click();
-                    }
-                    const author = this.backupInfo[i].author;
-                    if (author && this.authorID !== author.url_token)
-                        this.updateAuthor(author);
-                    let pnode = e.target.parentNode;
-                    let j = 0;
-                    while (pnode.localName !== "li") {
-                        pnode = pnode.parentNode;
-                        j++;
-                        if (j > 2) break;
-                    }
-                    j < 3 && (pnode.style.fontWeight = "bold");
-                    if (this.targetIndex > 0) {
-                        pnode.parentNode.children[
-                            this.targetIndex - 1
-                        ].style.fontWeight = "normal";
-                    }
-                    this.targetIndex = aid;
-                    this.reInject();
-                    isReady = false;
-                    const links = content[0].getElementsByTagName("a");
-                    for (const link of links) {
-                        const href = decodeURIComponent(link.href).split(
-                            "link.zhihu.com/?target="
+                        const href = e.target.previousElementSibling.href;
+                        if (location.href === href) return;
+                        const className = e.target.className;
+                        if (className === "list_date_follow") {
+                            sessionStorage.clear();
+                            window.open(href, "_self");
+                        } else if (className !== "list_date") return;
+                        const content = document.getElementsByClassName(
+                            "RichText ztext Post-RichText"
                         );
-                        if (href.length > 1) link.href = href[1];
-                    }
+                        if (content.length === 0) return;
+                        const p = e.path;
+                        let ic = 0;
+                        for (const e of p) {
+                            if (e.localName === "li") {
+                                let id = e.children[0].innerText;
+                                id *= 1;
+                                if (id === aid) return;
+                                aid = id;
+                                break;
+                            }
+                            if (ic > 2) return;
+                            ic++;
+                        }
+                        isReady = true;
+                        const i = aid - 1;
+                        const title = document.getElementsByClassName(
+                            "Post-Title"
+                        );
+                        title.length > 0 &&
+                            (title[0].innerText = this.backupInfo[i].title);
+                        content[0].innerHTML = this.backupInfo[i].content;
+                        zhihu.colorAssistant.main();
+                        window.history.replaceState(null, null, href);
+                        document.title = `${this.backupInfo[i].title} - 知乎`;
+                        //refresh the menu
+                        const toc = document.getElementById("toc-bar");
+                        if (toc) {
+                            const refresh = toc.getElementsByClassName(
+                                "toc-bar__refresh toc-bar__icon-btn"
+                            )[0];
+                            refresh.click();
+                        }
+                        const author = this.backupInfo[i].author;
+                        if (author && this.authorID !== author.url_token)
+                            this.updateAuthor(author);
+                        let pnode = e.target.parentNode;
+                        let j = 0;
+                        while (pnode.localName !== "li") {
+                            pnode = pnode.parentNode;
+                            j++;
+                            if (j > 2) break;
+                        }
+                        j < 3 && (pnode.style.fontWeight = "bold");
+                        if (this.targetIndex > 0) {
+                            pnode.parentNode.children[
+                                this.targetIndex - 1
+                            ].style.fontWeight = "normal";
+                        }
+                        this.targetIndex = aid;
+                        this.reInject();
+                        isReady = false;
+                        const links = content[0].getElementsByTagName("a");
+                        for (const link of links) {
+                            const href = decodeURIComponent(link.href).split(
+                                "link.zhihu.com/?target="
+                            );
+                            if (href.length > 1) link.href = href[1];
+                        }
+                    }, 300);
                 };
                 article = null;
                 //last page
@@ -7454,10 +7436,7 @@
                             node,
                             appendNewNode
                         );
-                        if (fs.length === 0) {
-                            dataBaseInstance.close();
-                            return;
-                        }
+                        if (fs.length === 0) return;
                         this.search(
                             table,
                             fs,
@@ -7472,36 +7451,21 @@
                                         : "article search results",
                                     node
                                 );
-                                dataBaseInstance.close();
                             },
-                            (err) => {
-                                console.log(err);
-                                dataBaseInstance.close();
-                            }
+                            (err) => console.log(err)
                         );
                     },
                 },
                 initialDatabase(type) {
                     if (!type) return;
-                    dataBaseInstance.initial(["collection"], false).then(
-                        (result) => {
-                            if (result === 0) {
-                                this.appendNewNode([], "no search result");
-                                return;
-                            }
-                            this.ExecuteFunc.main(
-                                dataBaseInstance.Table,
-                                type,
-                                this.liTagRaw,
-                                this.timeStampconvertor,
-                                this.node,
-                                this.appendNewNode
-                            );
-                        },
-                        (err) => {
-                            this.appendNewNode([], "open DB fail");
-                            dataBaseInstance.close();
-                        }
+                    dataBaseInstance.TableName = "collection";
+                    this.ExecuteFunc.main(
+                        dataBaseInstance.Table,
+                        type,
+                        this.liTagRaw,
+                        this.timeStampconvertor,
+                        this.node,
+                        this.appendNewNode
                     );
                 },
                 isZhuanlan: false,
@@ -7625,10 +7589,10 @@
                     node.children[0].insertAdjacentHTML("afterend", module);
                     return node;
                 },
+                //open db with r&w mode, if this db is not exist then create db
                 main() {
                     return new Promise((resolve) => {
                         const tables = ["collection", "preference"];
-                        //open db with r&w mode, if this db is not exist then create db
                         dataBaseInstance.initial(tables, true).then(
                             (result) => {
                                 const ainfo = {};
@@ -7648,7 +7612,6 @@
                                             )
                                         )
                                     );
-                                    dataBaseInstance.close(false);
                                 } else {
                                     dataBaseInstance
                                         .batchCheck(tables)
@@ -7679,7 +7642,6 @@
                                                     )
                                                 )
                                             );
-                                            dataBaseInstance.close();
                                         });
                                 }
                             },
@@ -7692,15 +7654,10 @@
                 },
             },
             syncData(mode, newValue) {
-                dataBaseInstance.initial(["preference"], true).then(
-                    () => {
-                        mode
-                            ? dataBaseInstance.update(newValue[0])
-                            : dataBaseInstance.dele(false, newValue[0]);
-                        dataBaseInstance.close();
-                    },
-                    (err) => console.log(err)
-                );
+                dataBaseInstance.TableName = "preference";
+                mode
+                    ? dataBaseInstance.update(newValue[0])
+                    : dataBaseInstance.dele(false, newValue[0]);
             },
             communication() {
                 const monitor = () => {
@@ -7725,27 +7682,18 @@
                 };
                 const r = GM_getValue("removearticleB");
                 const b = GM_getValue("blockarticleB");
-                r || b
-                    ? dataBaseInstance.initial(["preference"], true).then(
-                          () => {
-                              if (r && Array.isArray(r) && r.length > 0) {
-                                  for (const e of r)
-                                      dataBaseInstance.dele(false, e);
-                                  GM_setValue("removearticleB", "");
-                              }
-                              if (b && Array.isArray(b) && b.length > 0) {
-                                  for (const e of b) dataBaseInstance.update(e);
-                                  GM_setValue("blockarticleB", "");
-                              }
-                              monitor();
-                              dataBaseInstance.close();
-                          },
-                          (err) => {
-                              console.log(err);
-                              dataBaseInstance.close();
-                          }
-                      )
-                    : monitor();
+                if (r || b) {
+                    dataBaseInstance.TableName = "preference";
+                    if (r && Array.isArray(r) && r.length > 0) {
+                        for (const e of r) dataBaseInstance.dele(false, e);
+                        GM_setValue("removearticleB", "");
+                    }
+                    if (b && Array.isArray(b) && b.length > 0) {
+                        for (const e of b) dataBaseInstance.update(e);
+                        GM_setValue("blockarticleB", "");
+                    }
+                    monitor();
+                } else monitor();
             },
             creatAssistantEvent(node, mode) {
                 const Button = (button, m) => {
@@ -7806,33 +7754,24 @@
                 const collectionClick = (button) => {
                     if (cReady) return;
                     cReady = true;
-                    dataBaseInstance.initial(["collection"], true).then(
-                        (result) => {
-                            const text = button.innerText;
-                            let s = "",
-                                t = "";
-                            if (text === "Remove") {
-                                s = "Collect";
-                                t = "add this article to collection list";
-                                dataBaseInstance.dele(true);
-                                this.columnsModule.recentModule.remove();
-                            } else {
-                                s = "Remove";
-                                t = "remove this article frome collection list";
-                                dataBaseInstance.additem(this.columnID);
-                                this.columnsModule.recentModule.log("c");
-                            }
-                            button.innerText = s;
-                            button.title = t;
-                            dataBaseInstance.close();
-                            cReady = false;
-                        },
-                        (err) => {
-                            cReady = false;
-                            console.log(err);
-                            dataBaseInstance.close();
-                        }
-                    );
+                    dataBaseInstance.TableName = "collection";
+                    const text = button.innerText;
+                    let s = "",
+                        t = "";
+                    if (text === "Remove") {
+                        s = "Collect";
+                        t = "add this article to collection list";
+                        dataBaseInstance.dele(true);
+                        this.columnsModule.recentModule.remove();
+                    } else {
+                        s = "Remove";
+                        t = "remove this article frome collection list";
+                        dataBaseInstance.additem(this.columnID);
+                        this.columnsModule.recentModule.log("c");
+                    }
+                    button.innerText = s;
+                    button.title = t;
+                    cReady = false;
                 };
                 node.children[--i].onclick = function () {
                     collectionClick(this);
@@ -7883,43 +7822,32 @@
                 const prefclick = (button, other, mode) => {
                     if (pReady) return;
                     pReady = true;
-                    dataBaseInstance.initial(["preference"], true).then(
-                        (result) => {
-                            let title = "";
-                            let f = false;
-                            let cl = false;
-                            if (other.style.display === "none") {
-                                dataBaseInstance.dele(false);
-                                title = `${
-                                    mode ? "like" : "dislike"
-                                } this article`;
-                                other.style.display = "block";
-                                cl = mode;
-                            } else {
-                                const info = {};
-                                info.pid = dataBaseInstance.pid;
-                                info.update = Date.now();
-                                info.userID = this.authorID;
-                                info.from = this.columnID;
-                                info.value = mode ? 1 : 0;
-                                dataBaseInstance.update(info);
-                                title = `cancel ${
-                                    mode ? "like" : "dislike"
-                                } this article`;
-                                other.style.display = "none";
-                                f = !mode;
-                            }
-                            button.title = title;
-                            dataBaseInstance.close();
-                            !cl && cm(f);
-                            pReady = false;
-                        },
-                        (err) => {
-                            pReady = false;
-                            console.log(err);
-                            dataBaseInstance.close();
-                        }
-                    );
+                    dataBaseInstance.TableName = "preference";
+                    let title = "";
+                    let f = false;
+                    let cl = false;
+                    if (other.style.display === "none") {
+                        dataBaseInstance.dele(false);
+                        title = `${mode ? "like" : "dislike"} this article`;
+                        other.style.display = "block";
+                        cl = mode;
+                    } else {
+                        const info = {};
+                        info.pid = dataBaseInstance.pid;
+                        info.update = Date.now();
+                        info.userID = this.authorID;
+                        info.from = this.columnID;
+                        info.value = mode ? 1 : 0;
+                        dataBaseInstance.update(info);
+                        title = `cancel ${
+                            mode ? "like" : "dislike"
+                        } this article`;
+                        other.style.display = "none";
+                        f = !mode;
+                    }
+                    button.title = title;
+                    !cl && cm(f);
+                    pReady = false;
                 };
                 node.children[--i].onclick = (e) => {
                     const target = e.target;
@@ -7936,13 +7864,8 @@
                 this.recordID = setTimeout(() => {
                     this.recordID = null;
                     const pid = dataBaseInstance.pid;
-                    dataBaseInstance.initial(["collection"], true).then(
-                        (result) => {
-                            result === 1 && dataBaseInstance.updateRecord(pid);
-                            dataBaseInstance.close();
-                        },
-                        () => console.log("open database fail")
-                    );
+                    dataBaseInstance.TableName = "collection";
+                    dataBaseInstance.updateRecord(pid);
                     if (this.columnID) {
                         const f = GM_getValue("follow");
                         if (f && Array.isArray(f) && f.length > 0) {
@@ -8450,47 +8373,45 @@
             const e = elementVisible.main(document.documentElement, items);
             e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e));
         },
-        show_Total() {
-            const date = GM_getValue("installeddate");
-            if (!date) return;
-            dataBaseInstance.dataCount.then(
-                (result) => {
-                    const c = "red";
-                    showDetail({
+        show_Total: {
+            _common() {
+                const c = colorful_Console.colors.info;
+                let date = GM_getValue("installeddate");
+                const script = GM_info.script;
+                if (!date) {
+                    date = Date.now();
+                    GM_setValue("installeddate", date);
+                }
+                colorful_Console.main(
+                    {
+                        title: "JS Author:",
+                        content: script.author,
+                    },
+                    c
+                );
+                colorful_Console.main(
+                    {
                         title: "Current Version:",
-                        content: GM_info.script.version,
-                    });
-                    showDetail(
-                        { title: "Black Keywords:", content: blackKey.length },
-                        c
-                    );
-                    showDetail(
-                        { title: "Blocked Users:", content: blackName.length },
-                        c
-                    );
-                    showDetail(
-                        { title: "Blocked Users:", content: blackName.length },
-                        c
-                    );
-                    showDetail(
-                        {
-                            title: "Blocked Answers/Articles:",
-                            content: result.count,
-                        },
-                        c
-                    );
-                    showDetail(
-                        {
-                            title: "Blocked Questions/Topics:",
-                            content: blackTopicAndQuestion.length,
-                        },
-                        c
-                    );
-                    showDetail({
+                        content: script.version,
+                    },
+                    c
+                );
+                colorful_Console.main(
+                    {
                         title: "Installed Date:",
                         content: new Date(date).toString(),
-                    });
-                    showDetail({
+                    },
+                    c
+                );
+                colorful_Console.main(
+                    {
+                        title: "LastModified:",
+                        content: new Date(script.lastModified).toString(),
+                    },
+                    c
+                );
+                colorful_Console.main(
+                    {
                         title: "Service Time:",
                         content:
                             "This JS has provided you with more than " +
@@ -8498,10 +8419,63 @@
                                 0
                             ) +
                             " Days of service",
+                    },
+                    c
+                );
+            },
+            _zhuanlan(result) {
+                const c = colorful_Console.colors.info;
+                const title =
+                    result.name === "collection"
+                        ? "collected articles: "
+                        : "like/dislike articles:";
+                colorful_Console.main(
+                    {
+                        title: title,
+                        content: result.count,
+                    },
+                    c
+                );
+            },
+            _other(result) {
+                const c = colorful_Console.colors.warning;
+                colorful_Console.main(
+                    { title: "Black Keywords:", content: blackKey.length },
+                    c
+                );
+                colorful_Console.main(
+                    { title: "Blocked Users:", content: blackName.length },
+                    c
+                );
+                colorful_Console.main(
+                    {
+                        title: "Blocked Questions/Topics:",
+                        content: blackTopicAndQuestion.length,
+                    },
+                    c
+                );
+                colorful_Console.main(
+                    {
+                        title: "Blocked Answers/Articles:",
+                        content: result.count,
+                    },
+                    c
+                );
+            },
+            main(mode) {
+                dataBaseInstance
+                    .getdataCount(
+                        mode ? ["collection", "preference"] : ["foldedAnswer"]
+                    )
+                    .then((results) => {
+                        results.forEach((e) =>
+                            e.status !== "rejected" && mode
+                                ? this._zhuanlan(e.value)
+                                : this._other(e.value)
+                        );
+                        this._common();
                     });
-                },
-                () => console.log("get database data count fail")
-            );
+            },
         },
         common_KeyEevnt(shift, keyCode) {
             if (shift) {
@@ -8573,6 +8547,10 @@
                         setTimeout(() => {
                             this.Filter.main(index);
                             this.QASkeyBoardEvent();
+                            setTimeout(
+                                () => this.show_Total.main(false),
+                                15000
+                            );
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
                 }
@@ -8590,9 +8568,7 @@
                         const mode =
                             !oldValue || oldValue.length < newValue.length;
                         this.userPage.changeButton(mode);
-                    } else {
-                        this.Filter.userChange(index);
-                    }
+                    } else this.Filter.userChange(index);
                 }
             );
         },
@@ -8628,11 +8604,11 @@
                 : f && this.pageOfQA(index, href);
             w && this.antiRedirect();
             this.antiLogin();
-            setTimeout(() => (this.hasLogin = true), 15000);
             this.shade.start();
             this.clipboardClear.event();
             installTips();
             this.key_ctrl_sync();
+            setTimeout(() => (this.hasLogin = true), 15000);
         },
     };
     zhihu.start();
