@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.2
+// @version      3.3.6.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -423,22 +423,14 @@
             return this.store.name;
         }
         get Indexnames() {
-            return this.table.indexNames;
+            return this.Table.indexNames;
         }
         get DBversion() {
             return this.store.version;
         }
-        get Table() {
-            this.transaction = this.store.transaction(
-                [this.tbname],
-                this.RWmode
-            );
-            return this.transaction.objectStore(this.tbname);
-        }
         get Datacount() {
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
-                const req = this.table.count();
+                const req = this.Table.count();
                 req.onsuccess = (e) =>
                     resolve({
                         count: e.target.result,
@@ -448,46 +440,24 @@
             });
         }
         //take care the transaction, must make sure the transaction is alive when you need deal with something continually
-        openTable() {
-            this.isfinish = false;
-            this.transaction = this.store.transaction(
+        get Table() {
+            const transaction = this.store.transaction(
                 [this.tbname],
                 this.RWmode
             );
-            this.table = this.transaction.objectStore(this.tbname);
-            this.transaction.oncomplete = () => (this.isfinish = true);
-            this.transaction.onerror = () =>
+            const table = transaction.objectStore(this.tbname);
+            transaction.onerror = () =>
                 console.log("warning, error on transaction");
+            return table;
         }
         rollback() {
             this.transaction && this.transaction.abort();
         }
         read(keyPath) {
-            let ic = 0;
             return new Promise((resolve, reject) => {
-                while (!this.table || this.isfinish) {
-                    this.openTable();
-                    ic++;
-                    if (ic > 3) {
-                        reject("the transaction has completed");
-                        return;
-                    }
-                }
-                try {
-                    const request = this.table.get(keyPath);
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = () => reject("error");
-                } catch (err) {
-                    console.log(err);
-                    const transaction = this.store.transaction(
-                        [this.tbname],
-                        this.RWmode
-                    );
-                    const table = transaction.objectStore(this.tbname);
-                    const request = table.get(keyPath);
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = () => reject("error");
-                }
+                const request = this.Table.get(keyPath);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject("error");
             });
         }
         batchCheck(tables, keyPath) {
@@ -517,8 +487,7 @@
         }
         add(info) {
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
-                const op = this.table.add(info);
+                const op = this.Table.add(info);
                 op.onsuccess = () => resolve(true);
                 op.onerror = (e) => {
                     console.log(e);
@@ -570,7 +539,6 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -581,7 +549,7 @@
                                     (err) => reject(info)
                                 );
                             } else {
-                                const op = this.table.put(
+                                const op = this.Table.put(
                                     Object.assign(result, info)
                                 );
                                 op.onsuccess = () => resolve(true);
@@ -594,12 +562,7 @@
                         (err) => console.log(err)
                     );
                 } else {
-                    const transaction = this.store.transaction(
-                        [this.tbname],
-                        this.RWmode
-                    );
-                    const table = transaction.objectStore(this.tbname);
-                    const op = table.put(info);
+                    const op = this.Table.put(info);
                     op.onsuccess = () => resolve(true);
                     op.onerror = (e) => {
                         console.log(e);
@@ -615,8 +578,7 @@
         //must have primary key
         deleteiTems(keyPath) {
             return new Promise((resolve, reject) => {
-                if (!this.table || this.isfinish) this.openTable();
-                const op = this.table.delete(keyPath);
+                const op = this.Table.delete(keyPath);
                 op.onsuccess = () => {
                     console.log("delete item successfully");
                     resolve(true);
@@ -904,7 +866,6 @@
                 this.timeID && clearTimeout(this.timeID, (this.timeID = null));
                 this.node && (this.node.remove(), (this.node = null));
                 mode && dataBaseInstance.db && dataBaseInstance.close();
-
             },
             node: null,
             isRunning: false,
