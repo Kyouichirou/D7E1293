@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.4
+// @version      3.3.6.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -101,6 +101,7 @@
         );
         GM_setValue("installeddate", Date.now());
         GM_openInTab(UserManual, { insert: true });
+        GM_openInTab(Shortcuts_URL, { insert: true });
     };
     const mergeArray = (origin, target) => {
         origin = origin.concat(target);
@@ -194,7 +195,7 @@
         <div
             id="autoscroll-tips"
             style="
-                position: absolute;
+                position: fixed;
                 top:50%;
                 left:50%;
                 transform: translate(-50%,-50%);
@@ -827,7 +828,7 @@
                     style="
                         background: lightgray;
                         width: 360px;
-                        position: absolute;
+                        position: fixed;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
@@ -851,7 +852,13 @@
                 this.event(mode);
             },
             notice(filename) {
-                console.log(`this file(${filename}) does not match current DB`);
+                colorful_Console.main(
+                    {
+                        tilte: "DB import data",
+                        content: `this file(${filename}) does not match current DB`,
+                    },
+                    colorful_Console.colors.warning
+                );
             },
             checkFile_format(json, filename, lists) {
                 if (!json || !lists.includes(json.name)) {
@@ -900,13 +907,19 @@
                                 dataBaseInstance.update(e)
                             );
                             Promise.allSettled(arr).then((results) => {
-                                results.forEach(
-                                    (e) =>
-                                        e.status === "rejected" &&
-                                        console.log(
-                                            `ID of ${e.value.name} has failed to import`
-                                        )
-                                );
+                                results.forEach((e) => {
+                                    if (e.status === "rejected") {
+                                        const r = e.value;
+                                        r &&
+                                            colorful_Console.main(
+                                                {
+                                                    title: "DB put data",
+                                                    content: `ID of ${r.name} has failed to import`,
+                                                },
+                                                colorful_Console.colors.warning
+                                            );
+                                    }
+                                });
                                 Notification(
                                     `the data(${tname}) import operation has completed`,
                                     "Tips",
@@ -3120,6 +3133,7 @@
                             this.nextNode ||
                             this.allAnswser_loaded) &&
                         setTimeout(() => this.curNode.scrollIntoView(), 300);
+                    this.ctrl_click.call(zhihu, false);
                 }
             },
             Change(node, aid) {
@@ -3415,6 +3429,9 @@
             isSimple_page: false,
             isShowTips: false,
             initial_id: null,
+            ctrl_click(mode){
+                this.Filter.isReader = mode;
+            },
             main(pnode, aid) {
                 //---------------------------------------check if the node has pre and next node
                 this.initial_id && clearTimeout(this.initial_id);
@@ -3448,6 +3465,7 @@
                     this.aid = aid;
                     this.readerMode = true;
                     this.isShowTips = true;
+                    this.ctrl_click.call(zhihu, true);
                 }, 300);
             },
         },
@@ -3848,8 +3866,109 @@
                 if (h.length === 0) return;
                 h[0].style.pointerEvents = mode ? "none" : "inherit";
             },
+            show_status: {
+                node: null,
+                show(f, tips, info) {
+                    const html = `
+                        <div
+                            id="load_status"
+                            style="
+                                top: 0%;
+                                z-index: 1000;
+                                position: fixed;
+                                height: 24px;
+                                width: 50%;
+                                font-size: 14px;
+                                font-weight: 500;
+                                margin-left: 25%;
+                                text-align: center;
+                                color: ${info.color};
+                                background: ${info.bgc};
+                                opacity: 0.8;
+                                box-shadow: 0 0 15px #FFBB59;
+                            "
+                        >
+                        ${info.text + tips}...
+                        </div>`;
+                    this.remove();
+                    const anode = document.createElement("div");
+                    f.appendChild(anode);
+                    anode.outerHTML = html;
+                    setTimeout(() => (this.node = f.lastElementChild), 0);
+                },
+                remove() {
+                    if (this.node) {
+                        this.timeID && clearTimeout(this.timeID);
+                        this.node.remove();
+                        this.node = null;
+                        this.timeID = null;
+                        this.istimeout = true;
+                        this.backText = "";
+                        this.backColor = "";
+                    }
+                },
+                backText: "",
+                backColor: "",
+                changeTips(tips, time, info) {
+                    if (this.node) {
+                        if (this.istimeout) this.timeout(time);
+                        else {
+                            this.backText = this.node.innerText;
+                            this.backColor = this.node.style.background;
+                            this.timeID = setTimeout(() => {
+                                this.timeID = null;
+                                this.node.innerText = this.backText;
+                                this.node.style.background = this.backColor;
+                            }, time);
+                        }
+                        this.node.innerText = tips;
+                        this.node.style.background = info.bgc;
+                    }
+                },
+                auto_scroll_change(tips) {
+                    this.node.innerText = tips;
+                },
+                timeout(time) {
+                    this.timeID && clearTimeout(this.timeID);
+                    this.timeID = setTimeout(
+                        () => ((this.timeID = null), this.remove()),
+                        time
+                    );
+                },
+                timeID: null,
+                istimeout: true,
+                main(f, tips, type = 1, time = 2500, istimeout = true) {
+                    const types = {
+                        0: {
+                            text: "",
+                            bgc: "#FFBB59",
+                            color: "#0A0A0D",
+                        },
+                        1: {
+                            text: "Tips: ",
+                            bgc: "#E1B5BA",
+                            color: "#0A0A0D",
+                        },
+                        2: {
+                            text: "Warning: ",
+                            bgc: "#FF3300",
+                            color: "#0A0A0D",
+                        },
+                    };
+                    const info = types[type];
+                    f
+                        ? this.show(f, tips, info)
+                        : this.changeTips(info.text + tips, time, info);
+                    this.istimeout &&
+                        (this.istimeout = istimeout) &&
+                        this.timeout(time);
+                },
+            },
             zhuanlanAuto() {
-                if (zhihu.Column.targetIndex === 0) return;
+                if (zhihu.Column.targetIndex === 0) {
+                    Notification('current article is not in left menu');
+                    return;
+                }
                 const text = `${
                     this.zhuanlanAuto_mode ? "exit" : "enter"
                 } autoscroll mode`;
@@ -3976,6 +4095,8 @@
                         ? this.Column.columnsModule.recentModule.log("p")
                         : keyCode === 83
                         ? this.Column.subscribe()
+                        : keyCode === 68
+                        ? this._top_Picture.main()
                         : this.noteHighlight.Marker(keyCode)
                     : keyCode === 113
                     ? !this.autoScroll.scrollState &&
@@ -3998,7 +4119,9 @@
                     if (e.ctrlKey || e.altKey) return;
                     const className = e.target.className;
                     if (
-                        (className && className.includes("DraftEditor")) ||
+                        (className &&
+                            typeof className === "string" &&
+                            className.includes("DraftEditor")) ||
                         e.target.localName === "input"
                     )
                         return;
@@ -4064,7 +4187,7 @@
                                 width: 700px;
                                 font-size: 16px;
                                 height: 468px;
-                                position: absolute;
+                                position: fixed;
                                 top:50%;
                                 left:50%;
                                 transform: translate(-50%,-50%);
@@ -4305,7 +4428,7 @@
                 color && (color = colors[color]);
                 if (!color) {
                     const h = new Date().getHours();
-                    color = h > 8 && h < 18 ? colors.yellow : colors.grey;
+                    color = h > 8 && h < 17 ? colors.yellow : colors.grey;
                 }
                 const opacity = this.opacity;
                 this.cover(color, opacity);
@@ -4733,13 +4856,21 @@
                     }
                 },
             },
+            isReader: false,
             clickMonitor(node, targetElements) {
+                if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
                 this.colorIndicator.stat = GM_getValue("highlight");
                 node.onclick = (e) => {
+                    if (this.isReader) return;
+                    let limit = true;
+                    if (targetElements.index < 2)
+                        limit = e.path.some(
+                            (a) => a.className === targetElements.header
+                        );
                     const target = e.target;
                     const localName = target.localName;
-                    if (tags.includes(localName)) {
+                    if (limit && tags.includes(localName)) {
                         if (target.style.color || this.foldAnswer.editableMode)
                             return;
                         this.colorIndicator.color(target);
@@ -4939,9 +5070,7 @@
                     if (node.length === 0) {
                         console.log("%cget main id fail", "color: red;");
                         return;
-                    } else {
-                        node = node[0];
-                    }
+                    } else node = node[0];
                 }
                 const mo = new MutationObserver((e) => {
                     if (
@@ -4985,16 +5114,15 @@
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
                     unsafeWindow.addEventListener("urlchange", () =>
-                                                  this.URL_change
-                                                  ? (this.URL_change = false)
-                                                  : setTimeout(() => {
-                        document.getElementsByClassName(
-                            "hidden_fold"
-                        ).length === 0 &&
-                            this.firstRun(targetElements, false);
-                    }, 300)
-                                                 );
-                    //monitor forward or backward, this operation will not fire dom event
+                        this.URL_change
+                            ? (this.URL_change = false)
+                            : setTimeout(() => {
+                                  document.getElementsByClassName("hidden_fold")
+                                      .length === 0 &&
+                                      this.firstRun(targetElements, false);
+                              }, 300)
+                    );
+                    //monitor forward or backward, this operation will not fire dom change event
                     window.onpopstate = () => (
                         (this.URL_change = true),
                         this.firstRun(targetElements, false)
@@ -5007,10 +5135,15 @@
                     return;
                 }
                 let ic = 0;
+                const pn = location.pathname;
+                const cl =
+                    targetElements.index < 2 &&
+                    pn.includes("/answer/") &&
+                    !pn.endsWith("updated")
+                        ? targetElements.header
+                        : targetElements.itemClass;
                 let id = setInterval(() => {
-                    const items = document.getElementsByClassName(
-                        targetElements.itemClass
-                    );
+                    const items = document.getElementsByClassName(cl);
                     if (items.length > 4 || ic > 25) {
                         clearInterval(id);
                         for (const item of items)
@@ -5021,6 +5154,7 @@
                     ic++;
                 }, 20);
             },
+            isMonitor: false,
             answerPage() {
                 const targetElements = this.questionPage(1);
                 const items = document.getElementsByClassName(
@@ -5028,16 +5162,15 @@
                 );
                 for (const item of items)
                     this.check(item.parentNode, targetElements, 0);
-                const node = document.getElementsByClassName(
-                    targetElements.backupClass
-                );
-                this.clickMonitor(node[0], targetElements);
-                const all = document.getElementsByClassName(
+                this.clickMonitor(document, targetElements);
+                this.isMonitor = true;
+                let all = document.getElementsByClassName(
                     "QuestionMainAction ViewAll-QuestionMainAction"
                 );
                 for (const button of all)
                     button.onclick = () =>
                         setTimeout(() => this.firstRun(targetElements), 300);
+                all = null;
                 return targetElements;
             },
             questionPage(index) {
@@ -5978,6 +6111,7 @@
                 .Sticky.RichContent-actions.is-fixed.is-bottom{position: inherit !important}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
+                ${GM_getValue("topnopicture") ? ".TitleImage," : ""}
                 a[href*="u.jd.com"],
                 .RichText-MCNLinkCardContainer,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
@@ -5999,6 +6133,7 @@
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
                         setTimeout(() => this.show_Total.main(true), 15000);
+                        this.key_ctrl_sync(true);
                     };
                 }
             } else {
@@ -8352,19 +8487,42 @@
             this.clipboardClear.replace_ZH = c;
             return true;
         },
-        key_ctrl_sync() {
+        _top_Picture: {
+            display(p) {
+                const i = document.getElementsByClassName("TitleImage");
+                if (i.length === 0) return;
+                i[0].style.display = p ? "none" : "block";
+            },
+            main() {
+                const p = GM_getValue("topnopicture");
+                p = !p;
+                GM_setValue("topnopicture", p);
+                this.display(p);
+                Notification(
+                    `${p ? "disable" : "enable"} top picture of article`,
+                    "Tips"
+                );
+            },
+        },
+        key_ctrl_sync(mode) {
             GM_addValueChangeListener(
                 "clipboard",
                 (name, oldValue, newValue, remote) =>
                     remote && (this.clipboardClear.replace_ZH = newValue)
             );
-            GM_addValueChangeListener(
-                "highlight",
-                (name, oldValue, newValue, remote) =>
-                    remote &&
-                    ((this.Filter.colorIndicator.stat = newValue),
-                    !newValue && this.Filter.colorIndicator.restore())
-            );
+            mode
+                ? GM_addValueChangeListener(
+                      "topnopicture",
+                      (name, oldValue, newValue, remote) =>
+                          remote && this._top_Picture.display(newValue)
+                  )
+                : GM_addValueChangeListener(
+                      "highlight",
+                      (name, oldValue, newValue, remote) =>
+                          remote &&
+                          ((this.Filter.colorIndicator.stat = newValue),
+                          !newValue && this.Filter.colorIndicator.restore())
+                  );
         },
         key_open_Reader() {
             const items = document.getElementsByClassName(
@@ -8551,6 +8709,7 @@
                                 () => this.show_Total.main(false),
                                 15000
                             );
+                            this.key_ctrl_sync(false);
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
                 }
@@ -8607,7 +8766,6 @@
             this.shade.start();
             this.clipboardClear.event();
             installTips();
-            this.key_ctrl_sync();
             setTimeout(() => (this.hasLogin = true), 15000);
         },
     };
