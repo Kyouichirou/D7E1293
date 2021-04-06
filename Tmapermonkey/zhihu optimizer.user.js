@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.6.5
+// @version      3.3.7.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -14,6 +14,7 @@
 // @connect      www.zhihu.com
 // @connect      lens.zhihu.com
 // @connect      api.zhihu.com
+// @connect      img.meituan.net
 // @connect      www.cnblogs.com
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
@@ -192,50 +193,40 @@
     };
     const createPopup = (wtime = 3) => {
         const html = `
-        <div
-            id="autoscroll-tips"
-            style="
-                position: fixed;
-                top:50%;
-                left:50%;
-                transform: translate(-50%,-50%);
-                background: whitesmoke;
-                width: 210px;
-                height: 96px;
-                z-index: 1000;
-            "
-        >
-            <div class="autotips_content" style="margin: 5px 5px 5px 22px">
-                <span class="tips-header">Auto Scroll Mode</span>
-                <br />
-                <span class="tips_show" style="font-size: 12px"
-                    >After ${wtime}s, auto load next page</span
-                >
-                <br />
-                <button
-                    style="
-                        width: 60px;
-                        height: 24px;
-                        box-shadow: 3px 4px 1px #888888;
-                        margin-top: 10px;
-                        margin-right: 10px;
-                        border: rgb(247, 232, 176) solid 1.2px;
-                    "
-                >
-                    OK
-                </button>
-                <button
-                    style="
-                        width: 60px;
-                        height: 24px;
-                        box-shadow: 3px 4px 1px #888888;
-                        border: white solid 1px;
-                    "
-                >
-                    Cancel
-                </button>
-            </div>
-        </div>`;
+            <div
+                id="autoscroll-tips"
+                style="
+                    position: fixed;
+                    top: 45%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: lightgray;
+                    width: 240px;
+                    height: 120px;
+                    z-index: 1000;
+                    border: 1px solid #b9d5ff;
+                "
+            >
+                <div class="autotips_content" style="margin: 5px 5px 5px 5px">
+                    <h2 style="text-align: center">Auto Scroll Mode</h2>
+                    <hr />
+                    <p style="text-align: center">${wtime}s, auto load next page</p>
+                    <div
+                        class="auto_button"
+                        style="text-align: center; letter-spacing: 25px; margin-top: 12px"
+                    >
+                        <style>
+                            button {
+                                width: 60px;
+                                height: 24px;
+                                box-shadow: 1px 2px 1px #888888;
+                            }
+                        </style>
+                        <button title="load next page immediately">OK</button>
+                        <button title="cancel load next page">Cancel</button>
+                    </div>
+                </div>
+            </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
     };
     const xmlHTTPRequest = (
@@ -1807,6 +1798,7 @@
                 }
                 let title = document.title;
                 title = title.slice(0, title.lastIndexOf("-") - 1);
+                const bgpic = GM_getValue("bgpreader");
                 const meta = node.getElementsByClassName(
                     "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related"
                 );
@@ -1820,7 +1812,10 @@
                 <div
                     id="artfullscreen"
                     class="artfullscreen__"
-                    style="display: block; height: -webkit-fill-available"
+                    tabindex="-1"
+                    style="display: block; height: -webkit-fill-available; background-image: ${
+                        bgpic ? `url(${bgpic})` : "none"
+                    };"
                 >
                     <style type="text/css">
                         div#artfullscreen {
@@ -2113,17 +2108,30 @@
                             </div>
                         </div>
                     </div>
-                    <div class="d2" style="display: none;">
+                    <div class="background_image_c">
+                        <style>
+                        i {
+                            height: 20px;
+                            width: 24px;
+                            margin-left: -3px;
+                        }
+                        </style>
                         <i
-                            class="load_more"
-                            title="load more answers"
+                            class="disable_bgp"
+                            title="disable background image"
                             style="
-                                height: 24px;
-                                width: 24px;
-                                margin-left: -2px;
-                                content: url(data:image/webp;base64,UklGRigBAABXRUJQVlA4TBwBAAAvP8APEFDcto3D/cc+pF35HhABt9r2Os0niZKSDrv2Dmxg6nvFENAzCkkW8AwMQR/qXEuOdP7vVeC2jTI4hhw+gn4ClWRF7lEURWplwUlDiXVynZJivw24mpHIwuhopZBcMxpsbAzUoMhWjkaLhTlxVz8APKwLSpl0Jg3QTPoSxdoDgB/XiZEPQAgGHBOlRHpPQAjAU09SckeAhQB8tCUKOUEVzKzCvyVJUUzwYmb2gimTWPqHysxChRMpXcIdGpgZKlzILEAaNHBQaIZgZuQCFQEE7m1k7guCAWYNbiGrkA0EBxQBG1JC3g1aQBHwZf6AzDPOg4w6yrzQ5MBAOp9pIN1ooFP3Vu3vrbG4t9N3I597N7ff7f1/4yNQAg==);
+                                content: url(data:image/webp;base64,UklGRoYDAABXRUJQVlA4WAoAAAAQAAAAHwAAHAAAQUxQSHQAAAABcFpt27I8//+jkUyFSiM6K9gC7lJtA/dsg5AYg/wvgLu+T6RFxASAH5uO5SceANMbMwdgRMn8PdK0Em1tZ93itCFtBHRP219312/GgNPv+zW0+qYJ0fD+k+6WsY4+HKqKDGwt/WVTMUNac9WWs5IDVE3FW1ZQOCDsAgAAEBMAnQEqIAAdAAAAACWwAnTKEcDejcULpl2z/UDKBOSf7v9wG8AdJrzAfrt+wHvj9IB+pvWAegB+lfpX/q78F37aeiVS3Hsf4vZKz6h+M37K/5XUAfzb8lPyAzgL4j/fPyZ1FH8KNdP/afyA94v+c+0D3AfOHsG/x7+T/2H+lftv++fgl9CX9QDs1vSZ+2lIhDZEVPHFNXIeCcu1zz9q8EAA/ph619ye+i1z6yyB0W87w+sCb5ZfdRcyc+R/5xg/b3qq74A2JFBK4oWD9CpSr+Ztv/y2Ot1EI+tWF7OhfJgOslb8PiByA2R7J5IaVWDUZ4Lp+1dTne+D5XLV1PIJD4Cu2pPd7KigzixVtmMYzbJ7w9h/3d6SfxWDZ3U5GF3PsT+z5nRwSy5/+MXnmME6vjxj7h28b/+uWsCcq+Ds5GpqUhmzmIPu76Yfx2+Ph/hLrwA/bXE8M4y/DzQ/HFAwGXT3RfFh+B+NUT56NGSG/+LWeS90TXFnUj0oqDPOkWnmuWd0oxkzC7d+zj8kG4l9Q3wRDqMeuVTCBSXqhhWzh9eNz5v0R1QZcGjOB+UZiZpJu//Bq8nbAiSJ2/84bD/lRPfGmNnK9b5rLA1XPpxbL1Gw5L+YPE+7T2Vezk/h3vgpXB6yRfJp1XLXt1W99QcN7frmmdNaf+1Qbfdu+Z2W///GR///XwuSiM+qdGrebPsv09Ep2R3wqB+ChHXV/Z/Pm6AFfwg/06j/9M0s9Ay8gN2DYM47L3GeOEEizlAjOmD60Ql7z5XxBB6gjW0OHLVnSR5bh3OdqByY55iesx/gZA/GDlEwwVUDiRvI/Q49LjNowizJ8DmvJca1/996hAmt74v/g62d//9zG53dUXQnYzMRblNZdkPS18XiBAXbSFA89qKun+xtcdgV8oSKcuZQOCcPwuQYwh8Q13z/ZB/m45acyK1RPyZvf6s6/nA6AzC8AntaLnfUn1SZ7Pu+do4aPlIVeeZ/uxZf9AAAAA==);
                             "
-                            >More</i
+                            >disable</i
+                        >
+                        <i
+                            class="change_bgp"
+                            title="click to change background image"
+                            style="
+                                margin-top: 10px;
+                                content: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAdCAMAAAD8QJ61AAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAC7lBMVEVUXnMAAABTX3QmuZk5k4lAhYNUXnNSXHFPWm9QWm9TXXJUXnNSXHFPWm9OWG5SWXA8jockuZgmuZkmuZkmuZlQWm8muZlTXXJibH93gJB3f5Bwg5AzrZYmuZlUXnNRW3BMVmxMVWxJX3ApsZYmuZklupkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZkmuZltdoiSmaaRmaaQl6Vlb4Hu8vPu8vLv8vPp7e9/h5fCx86aoa2boq6aoq6Zoa6aoa7M0dbp7u9/h5bv8/OdpLBQWnBRW3FXYHBucW1lam5SXHFRXHGwtr/r7/CeprFeZXK0pmTnzFzcw16PimpUXnOxt8BQWnKGhGvw01r01lr211rZwl5lanBTXXNPWnKSjWnz1VrjyV1rb29RW3JpbXDUvl/111ry1VqvomVXYHNSYHRRYXRVXXNxc26WkGmNiWpeZnEug30oiX9NZXVRXHNTXnNUXXNTX3MygHwSn4UQoYUjjoBKaHZSYXRPaHc2e3sTnoQRoIUfkoFHa3ZSY3U6kYgwpZFMb3pVXXJVXnM7d3oUnYQek4JGbHdPZ3c3l4smuZklupowppFLcHo+c3kXmoMclYJCbneyt8BNbXkyoY8mupkrq5Mbn4cQoIURoYUVpYkXqYwfn4iUwr7o7e6Ah5dKcXslupkhtJUVpIgWpoofsZIkt5cluZg2vaBxzLllho+fpbFSW3FIdX0tqpMhs5QUpIgYqIsluZkhuJctqZJBfX8rr5UjtpZYybFAwqbu8fOLw7wttJgsvJwtu5wotZgispQkuJhLxarV8etfy7QjuJju8fLO6eS649u749u849yz4dhHwqgnuZkuvJ2y5tup49csu5yOlqPl6evm6evn6ezo6ezU5ONDwKU1vqB+1sPU8etDwqYqupuK2cjX8uyW3c7Y8u1v0bxv0Lvc9O+Z3s8oupo+waQwvJ4AAADeSjEoAAAAOnRSTlMAAAAAAABXmJaWlz1rlWlob8cbZJSVlZD79vb3/pYlQD8/Q8F+VPjpNQn5cgERjd9xBwMue6WibyQCvMTnBAAAAAFiS0dEAf8CLd4AAAAJcEhZcwAAAOAAAADgANVYzlwAAAAHdElNRQflAxQFDi8hH0i1AAAB5klEQVQoz2NgwA8YGRjY2DlwAE4ubpACditrG+zA1o4HpIDX2t7BERuwd3LmAyuwsXdxdXP38HRDA17ePlAFvn7+AYFBwSGoIDQsHK4gIjQyKjomNg4VxCMpSEhMSk5JTUvHqSAjMzkrOTsHt4LcvPyCwqJiqExJaRm6gpD08orKKqgBpdU1tWXoCuLS6+rq4xpA8o1NzS2tbWXoCoCgob0DqKKxs6u7u6WntwxDQUNf/4SJkyZPmdoNBC3TppehKSibMXPW7Dlz581v6QarWLBwEYqCssVLls6atXTZ8hVg+ZWrVq9Zu249QkHZhjkbZwHB0k2bQfJbtm6btX3Hzl38TMxgBbv37N0HlgeC/Qe6uw9uA7EOHT4iwAJREHH0GEwepGLzcQjrxElBIbCCU6fPnD2HAOcvgKUvXrp85aowSIH1tes3biLArdt3Lt49d+jQvfsPHs4SASoQffT4yVMk8Oz5i6svH1y5+Or1m4uzxIAKxCUkUYCUtMzGt+/ef/j46eKsWbJABXLyCihAUUl51qG7n798/QZ0iAozlqzAqqoG9OP3H4dmzVLXYGZgRAfMzJpiQL3bgfJa2jpYFABV6Oqpgzyqb2DIjE0BUIWRsYmpmbkFMzMzIzYFQBVANZYgkpERAD5ALwr/BIDTAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDIwLTA3LTE5VDAzOjM5OjE1KzAwOjAwWtAmGAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAxOS0wMS0wOFQxOTo1ODo0NSswMDowMK/WnNEAAAAgdEVYdHNvZnR3YXJlAGh0dHBzOi8vaW1hZ2VtYWdpY2sub3JnvM8dnQAAAGN0RVh0c3ZnOmNvbW1lbnQAIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTguMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAg092D3AAAABh0RVh0VGh1bWI6OkRvY3VtZW50OjpQYWdlcwAxp/+7LwAAABh0RVh0VGh1bWI6OkltYWdlOjpIZWlnaHQAMTgzLkFwggAAABd0RVh0VGh1bWI6OkltYWdlOjpXaWR0aAAyMDTpS4EtAAAAGXRFWHRUaHVtYjo6TWltZXR5cGUAaW1hZ2UvcG5nP7JWTgAAABd0RVh0VGh1bWI6Ok1UaW1lADE1NDY5Nzc1MjWQd5nhAAAAEXRFWHRUaHVtYjo6U2l6ZQA4NzU5QtkK76oAAABadEVYdFRodW1iOjpVUkkAZmlsZTovLy9kYXRhL3d3d3Jvb3Qvd3d3LmVhc3lpY29uLm5ldC9jZG4taW1nLmVhc3lpY29uLmNuL2ZpbGVzLzEyMC8xMjAxNzc1LnBuZzSiONMAAAAASUVORK5CYII=);
+                            "
+                            >change</i
                         >
                     </div>
                 </div>`;
@@ -2229,10 +2237,46 @@
                             GM_setValue("articleBackground", className);
                         }
                     };
-                    //tool.lastElementChild.onclick = () => this.loadMoreAnswer();
+                    tool.lastElementChild.onclick = (e) =>
+                        this[e.target.className]();
                     colorlist = null;
                     closer = null;
+                    const i = GM_getValue("bgpindex");
+                    this.picIndex = i ? i : 0;
                 }, 50);
+            },
+            picIndex: 0,
+            disable_bgp() {
+                this.full.style.backgroundImage = "none";
+                this.picIndex = 0;
+                GM_setValue("bgpindex", this.picIndex);
+                GM_setValue("bgpreader", "");
+            },
+            change_bgp_timeID: null,
+            change_bgp() {
+                this.change_bgp_timeID && clearTimeout(this.change_bgp_timeID);
+                this.change_bgp_timeID = setTimeout(() => {
+                    this.change_bgp_timeID = null;
+                    const pics = [
+                        "d40e6fbabe339af2f9cc1b9a0c49b97c212417",
+                        "50bfb5a296779e17d2901c6d13eb15cf215229",
+                        "02ed4231ffac5cb7553df89a8ef6b3c4122737",
+                        "826d9cecc220b11c5502f247ff046387247423",
+                        "02f8f662ea840da01a9645fc2d18d3ac170812",
+                        "f2a5e663cce16208e9e85c9a4bec502a101513",
+                        "a3dc87ca1d8021f5091acf288c4fe0a4154893",
+                    ];
+                    const pref = "https://img.meituan.net/csc/";
+                    const suffix = ".jpg";
+                    this.backgroundImage_cache.reader(
+                        this.full,
+                        pref + pics[this.picIndex] + suffix
+                    );
+                    this.picIndex + 1 === pics.length
+                        ? (this.picIndex = 0)
+                        : (this.picIndex += 1);
+                    GM_setValue("bgpindex", this.picIndex);
+                }, 300);
             },
             get_video_info(v, video_id) {
                 const api = `https://lens.zhihu.com/api/v4/videos/${video_id}`;
@@ -3036,7 +3080,10 @@
                         this.isSimple_page || this.allAnswser_loaded
                             ? ((this.navPannel = this.curNode = node),
                               this.changeNav(this.nav),
-                              setTimeout(() => (this.isRunning = false), 400))
+                              setTimeout(
+                                  () => ((this.isRunning = false), f.click()),
+                                  400
+                              ))
                             : setTimeout(() => {
                                   this.overFlow = false;
                                   f.style.overflow = "hidden";
@@ -3060,6 +3107,7 @@
                                               this.overFlow = true;
                                               f.style.overflow = "auto";
                                               this.isRunning = false;
+                                              f.click();
                                           }, time);
                                       }, 350);
                                   }, 350);
@@ -3109,9 +3157,7 @@
                 f && (f.style.display = display);
                 if (mode) {
                     this.changeNav(n);
-                    const tool = document.getElementById(
-                        "artfullscreen_toolbar"
-                    );
+                    const tool = this.Toolbar;
                     tool && (tool.style.display = display);
                     this.time_module.clock_paused = false;
                 } else {
@@ -3122,6 +3168,8 @@
                     this.time_module.clock_paused = true;
                     this.overFlow = false;
                     this.readerMode = mode;
+                    const tool = this.Toolbar;
+                    tool && (tool.style.display = display);
                     if (document.title === "出了一点问题") {
                         confirm("the webpage has crashed, is reload?") &&
                             location.reload();
@@ -3401,26 +3449,62 @@
                 let i = ads.length;
                 if (i > 0) for (i; i--; ) ads[i].remove();
             },
-            backgroundImage_cache() {
-                if (GM_getValue("readerbgimg_mark")) return;
-                const url =
-                    "https://www.cnblogs.com/skins/coffee/images/bg_body.gif";
-                xmlHTTPRequest(url, 2500, "blob").then(
-                    (blob) => {
-                        const file = new FileReader();
-                        file.readAsDataURL(blob);
-                        file.onload = (result) => {
-                            if (result.target.readyState !== 2) return;
-                            GM_setValue("readerbgimg", result.target.result);
-                            GM_setValue("readerbgimg_mark", true);
-                            console.log(
-                                "background image has been cached successfully"
+            backgroundImage_cache: {
+                _request(url) {
+                    return new Promise((resolve, reject) => {
+                        xmlHTTPRequest(url, 2500, "blob").then(
+                            (blob) => {
+                                const file = new FileReader();
+                                file.readAsDataURL(blob);
+                                file.onload = (result) =>
+                                    result.target.readyState === 2
+                                        ? resolve(result.target.result)
+                                        : reject(null);
+                                file.onerror = (err) => {
+                                    console.log(err);
+                                    reject(null);
+                                };
+                            },
+                            (err) => {
+                                console.log(err);
+                                reject(null);
+                            }
+                        );
+                    });
+                },
+                reader(f, url) {
+                    this._request(url).then(
+                        (base64) => {
+                            f.style.backgroundImage = `url(${base64})`;
+                            GM_setValue("bgpreader", base64);
+                            colorful_Console.main(
+                                {
+                                    title: "changeBGP",
+                                    content:
+                                        "background image has been cached successfully",
+                                },
+                                colorful_Console.colors.Tips
                             );
-                        };
-                        file.onerror = (err) => console.log(err);
-                    },
-                    (err) => console.log(err)
-                );
+                        },
+                        () =>
+                            Notification(
+                                "failed to get background image",
+                                "Warning"
+                            )
+                    );
+                },
+                article() {
+                    if (GM_getValue("readerbgimg_mark")) return;
+                    const url =
+                        "https://www.cnblogs.com/skins/coffee/images/bg_body.gif";
+                    this._request(url).then((base64) => {
+                        GM_setValue("readerbgimg", base64);
+                        GM_setValue("readerbgimg_mark", true);
+                        console.log(
+                            "background image has been cached successfully"
+                        );
+                    });
+                },
             },
             nextNode: null,
             prevNode: null,
@@ -3429,7 +3513,7 @@
             isSimple_page: false,
             isShowTips: false,
             initial_id: null,
-            ctrl_click(mode){
+            ctrl_click(mode) {
                 this.Filter.isReader = mode;
             },
             main(pnode, aid) {
@@ -3442,7 +3526,8 @@
                     this.removeADs();
                     if (this.isSimple_page) this.navPannel = p;
                     this.firstly
-                        ? (this.Reader(pnode), this.backgroundImage_cache())
+                        ? (this.Reader(pnode),
+                          this.backgroundImage_cache.article())
                         : this.Change(pnode, aid);
                     this.curNode = p;
                     !this.isSimple_page
@@ -3466,6 +3551,7 @@
                     this.readerMode = true;
                     this.isShowTips = true;
                     this.ctrl_click.call(zhihu, true);
+                    setTimeout(()=> this.full.focus(), 1200);
                 }, 300);
             },
         },
@@ -3668,7 +3754,7 @@
                 const column = document.getElementById("column_lists");
                 if (column) column.style.pointerEvents = pevent;
             },
-            EditDoc() {
+            EditDoc(status) {
                 const [edit, tips, pevent] = this.editable
                     ? ["inherit", "exit", "inherit"]
                     : ["true", "enter", "none"];
@@ -3676,6 +3762,9 @@
                 Notification(tips + " page editable mode", "Editable");
                 this.disableSiderbar(pevent);
                 this.editable = !this.editable;
+                this.editable
+                    ? status.create("Editable Mode")
+                    : status.remove();
             },
             get Selection() {
                 return window.getSelection();
@@ -3868,7 +3957,7 @@
             },
             show_status: {
                 node: null,
-                show(f, tips, info) {
+                show(tips) {
                     const html = `
                         <div
                             id="load_status"
@@ -3882,98 +3971,46 @@
                                 font-weight: 500;
                                 margin-left: 25%;
                                 text-align: center;
-                                color: ${info.color};
-                                background: ${info.bgc};
+                                background: #FFBB59;
                                 opacity: 0.8;
                                 box-shadow: 0 0 15px #FFBB59;
                             "
                         >
-                        ${info.text + tips}...
+                        Tips: ${tips}...
                         </div>`;
-                    this.remove();
                     const anode = document.createElement("div");
-                    f.appendChild(anode);
+                    document.documentElement.appendChild(anode);
                     anode.outerHTML = html;
-                    setTimeout(() => (this.node = f.lastElementChild), 0);
+                    setTimeout(
+                        () =>
+                            (this.node =
+                                document.documentElement.lastElementChild),
+                        0
+                    );
                 },
                 remove() {
                     if (this.node) {
-                        this.timeID && clearTimeout(this.timeID);
                         this.node.remove();
                         this.node = null;
-                        this.timeID = null;
-                        this.istimeout = true;
-                        this.backText = "";
-                        this.backColor = "";
                     }
                 },
-                backText: "",
-                backColor: "",
-                changeTips(tips, time, info) {
-                    if (this.node) {
-                        if (this.istimeout) this.timeout(time);
-                        else {
-                            this.backText = this.node.innerText;
-                            this.backColor = this.node.style.background;
-                            this.timeID = setTimeout(() => {
-                                this.timeID = null;
-                                this.node.innerText = this.backText;
-                                this.node.style.background = this.backColor;
-                            }, time);
-                        }
-                        this.node.innerText = tips;
-                        this.node.style.background = info.bgc;
-                    }
-                },
-                auto_scroll_change(tips) {
-                    this.node.innerText = tips;
-                },
-                timeout(time) {
-                    this.timeID && clearTimeout(this.timeID);
-                    this.timeID = setTimeout(
-                        () => ((this.timeID = null), this.remove()),
-                        time
-                    );
-                },
-                timeID: null,
-                istimeout: true,
-                main(f, tips, type = 1, time = 2500, istimeout = true) {
-                    const types = {
-                        0: {
-                            text: "",
-                            bgc: "#FFBB59",
-                            color: "#0A0A0D",
-                        },
-                        1: {
-                            text: "Tips: ",
-                            bgc: "#E1B5BA",
-                            color: "#0A0A0D",
-                        },
-                        2: {
-                            text: "Warning: ",
-                            bgc: "#FF3300",
-                            color: "#0A0A0D",
-                        },
-                    };
-                    const info = types[type];
-                    f
-                        ? this.show(f, tips, info)
-                        : this.changeTips(info.text + tips, time, info);
-                    this.istimeout &&
-                        (this.istimeout = istimeout) &&
-                        this.timeout(time);
+                create(tips) {
+                    this.show(tips);
                 },
             },
             zhuanlanAuto() {
-                if (zhihu.Column.targetIndex === 0) {
-                    Notification('current article is not in left menu');
+                if (!this.zhuanlanAuto_mode && zhihu.Column.targetIndex === 0) {
+                    Notification("current article is not in left menu");
                     return;
                 }
+                this.zhuanlanAuto_mode = !this.zhuanlanAuto_mode;
                 const text = `${
-                    this.zhuanlanAuto_mode ? "exit" : "enter"
+                    this.zhuanlanAuto_mode ? "enter" : "exit"
                 } autoscroll mode`;
                 Notification(text, "Tips");
-                this.zhuanlanAuto_mode = !this.zhuanlanAuto_mode;
+                this.zhuanlanAuto_mode
+                    ? this.show_status.create("Auto Mode")
+                    : this.show_status.remove();
             },
             get article_lists() {
                 const c = document.getElementById("column_lists");
@@ -4023,7 +4060,7 @@
                     tips.remove();
                     zhihu.scroll.toTop();
                     this.nextPage();
-                }, 3000);
+                }, 3500);
                 buttons[0].onclick = () => {
                     clearTimeout(id);
                     tips.remove();
@@ -4033,8 +4070,6 @@
                 buttons[1].onclick = () => {
                     clearTimeout(id);
                     tips.remove();
-                    this.zhuanlanAuto_mode = false;
-                    Notification("exit autoscroll mode successfully", "tips");
                 };
                 buttons = null;
             },
@@ -4047,7 +4082,8 @@
                 }
                 if (mode) {
                     this.disableEvent(false);
-                    this.zhuanlanAuto_mode && this.popup();
+                    this.zhuanlanAuto_mode &&
+                        setTimeout(() => this.popup(), 1500);
                 }
             },
             speedUP() {
@@ -4083,12 +4119,17 @@
                         (sessionStorage.clear(), location.reload());
                 }
             },
-            Others(keyCode, shift) {
+            Others(keyCode, shift, auto) {
                 shift
                     ? keyCode === 67
                         ? this.noteHighlight.removeMark()
                         : keyCode === 219
-                        ? this.Column.pagePrint()
+                        ? auto
+                            ? Notification(
+                                  "please exit auto mode firstly",
+                                  "Tips"
+                              )
+                            : this.Column.pagePrint(this.autoScroll.show_status)
                         : keyCode === 70
                         ? this.Column.follow()
                         : keyCode === 76
@@ -4100,7 +4141,7 @@
                         : this.noteHighlight.Marker(keyCode)
                     : keyCode === 113
                     ? !this.autoScroll.scrollState &&
-                      this.noteHighlight.EditDoc()
+                      this.noteHighlight.EditDoc(this.autoScroll.show_status)
                     : keyCode === 78
                     ? !this.autoScroll.scrollState && this.turnPage.start(true)
                     : keyCode === 84
@@ -4116,6 +4157,7 @@
             },
             keyBoardEvent() {
                 window.onkeydown = (e) => {
+                    const keyCode = e.keyCode;
                     if (e.ctrlKey || e.altKey) return;
                     const className = e.target.className;
                     if (
@@ -4125,7 +4167,6 @@
                         e.target.localName === "input"
                     )
                         return;
-                    const keyCode = e.keyCode;
                     const shift = e.shiftKey;
                     if (this.check_common_key.call(zhihu, shift, keyCode))
                         return;
@@ -4137,14 +4178,24 @@
                     }
                     shift
                         ? keyCode === 65
-                            ? this.zhuanlanAuto()
+                            ? zhihu.Column.modePrint
+                                ? Notification(
+                                      "please exit print mode firstly",
+                                      "Tips"
+                                  )
+                                : this.zhuanlanAuto()
                             : keyCode === 66
                             ? MangeData.exportData.main(false)
                             : keyCode === 84
                             ? this.noColorful()
                             : keyCode === 73
                             ? MangeData.importData.main(true)
-                            : this.Others.call(zhihu, keyCode, shift)
+                            : this.Others.call(
+                                  zhihu,
+                                  keyCode,
+                                  shift,
+                                  this.zhuanlanAuto_mode
+                              )
                         : keyCode === 192
                         ? this.start()
                         : keyCode === 187
@@ -5136,15 +5187,18 @@
                 }
                 let ic = 0;
                 const pn = location.pathname;
+                let n = 0;
                 const cl =
-                    targetElements.index < 2 &&
-                    pn.includes("/answer/") &&
-                    !pn.endsWith("updated")
+                    (mode = targetElements.index < 2 || mode) &&
+                    !(n =
+                        pn.includes("/answer/") && !pn.endsWith("updated")
+                            ? 0
+                            : 4)
                         ? targetElements.header
                         : targetElements.itemClass;
                 let id = setInterval(() => {
                     const items = document.getElementsByClassName(cl);
-                    if (items.length > 4 || ic > 25) {
+                    if (items.length > n || ic > 25) {
                         clearInterval(id);
                         for (const item of items)
                             this.check(item, targetElements, 0);
@@ -6132,7 +6186,7 @@
                         this.colorAssistant.main();
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
-                        setTimeout(() => this.show_Total.main(true), 15000);
+                        setTimeout(() => this.show_Total.main(true), 30000);
                         this.key_ctrl_sync(true);
                     };
                 }
@@ -6426,7 +6480,6 @@
                     3500
                 );
             },
-            //修改
             Tabs: {
                 get GUID() {
                     // blob:https://xxx.com/+ uuid
@@ -6547,7 +6600,7 @@
                 this.titleChange = !this.titleChange;
             },
             modePrint: false,
-            pagePrint() {
+            pagePrint(status) {
                 Notification(
                     `${this.modePrint ? "exit" : "enter"} print mode`,
                     "Print",
@@ -6558,6 +6611,7 @@
                 this.titleAlign();
                 !this.modePrint && window.print();
                 this.modePrint = !this.modePrint;
+                this.modePrint ? status.create("Print Mode") : status.remove();
             },
             Framework() {
                 const html = `
@@ -8494,7 +8548,7 @@
                 i[0].style.display = p ? "none" : "block";
             },
             main() {
-                const p = GM_getValue("topnopicture");
+                let p = GM_getValue("topnopicture");
                 p = !p;
                 GM_setValue("topnopicture", p);
                 this.display(p);
@@ -8707,7 +8761,7 @@
                             this.QASkeyBoardEvent();
                             setTimeout(
                                 () => this.show_Total.main(false),
-                                15000
+                                30000
                             );
                             this.key_ctrl_sync(false);
                         }, 100);
