@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.8.0
+// @version      3.3.8.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -54,12 +54,19 @@
         "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
     let blackName = null;
     let blackTopicAndQuestion = null;
-    const Notification = (content = "", title = "", duration = 2500, func) => {
+    const Notification = (
+        content = "",
+        title = "",
+        duration = 2500,
+        cfunc,
+        ofunc
+    ) => {
         GM_notification({
             text: content,
             title: title,
             timeout: duration,
-            onclick: func,
+            onclick: cfunc,
+            ondone: ofunc,
         });
     };
     const colorful_Console = {
@@ -8770,6 +8777,7 @@
                   );
         },
         key_open_Reader() {
+            if (this.autoScroll.scrollState) return;
             const items = document.getElementsByClassName(
                 "ContentItem AnswerItem"
             );
@@ -8898,7 +8906,39 @@
             }
             return false;
         },
-        QASkeyBoardEvent() {
+        auto_load_Reader: {
+            get setup() {
+                return GM_getValue("autoloadreader");
+            },
+            main() {
+                let a = this.setup;
+                a = !a;
+                GM_setValue("autoloadreader", a);
+                Notification(
+                    a
+                        ? "enabled automatic reading mode successfully"
+                        : "has diabled automatic reading mode",
+                    "Tips"
+                );
+            },
+            timeID: null,
+            cancel() {
+                clearTimeout(this.timeID);
+            },
+            start() {
+                Notification(
+                    "5s, automatically load reader page; click to cancel",
+                    "Tips",
+                    5000,
+                    this.auto_load_Reader.cancel.bind(this.auto_load_Reader)
+                );
+                this.auto_load_Reader.timeID = setTimeout(
+                    () => this.key_open_Reader(),
+                    5300
+                );
+            },
+        },
+        QASkeyBoardEvent(index) {
             document.onkeydown = (e) => {
                 if (e.ctrlKey || e.altKey || e.target.localName === "input")
                     return;
@@ -8919,11 +8959,13 @@
                     ? keyCode === 72
                         ? this.click_Highlight()
                         : keyCode === 82
-                        ? !this.autoScroll.scrollState && this.key_open_Reader()
+                        ? index < 2 && this.key_open_Reader()
                         : keyCode === 66
                         ? MangeData.exportData.main(true)
                         : keyCode === 73
                         ? MangeData.importData.main(false)
+                        : keyCode === 68
+                        ? index < 2 && this.auto_load_Reader.main()
                         : null
                     : keyCode === 192
                     ? this.autoScroll.start()
@@ -9009,14 +9051,23 @@
                                 index,
                                 this.Reader_monitor_change.bind(this)
                             );
-                            this.QASkeyBoardEvent();
+                            this.QASkeyBoardEvent(index);
                             setTimeout(
                                 () => this.show_Total.main(false),
                                 30000
                             );
                             this.key_ctrl_sync(false);
                             index > 1 && this.rightMouse_OpenQ();
-                            index === 3 && this.searchPage.main();
+                            index < 2
+                                ? setTimeout(
+                                      () =>
+                                          this.auto_load_Reader.setup &&
+                                          this.auto_load_Reader.start.call(
+                                              this
+                                          ),
+                                      300
+                                  )
+                                : index === 3 && this.searchPage.main();
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
                 }
