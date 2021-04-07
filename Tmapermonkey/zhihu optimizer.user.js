@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.7.0
+// @version      3.3.8.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -302,7 +302,7 @@
             if (type === "[object HTMLCollection]") {
                 for (const e of args) if (this.check(wh, e, offset)) return e;
                 return null;
-            } else return this.check(twh, args, offset);
+            } else return this.check(wh, args, offset);
         },
     };
     /*
@@ -2193,7 +2193,7 @@
                                     node = null;
                                     break;
                                 }
-                                cn = node.className;
+                                cn = className;
                                 ic++;
                             }
                             node && (node.style.display = "none");
@@ -2732,7 +2732,7 @@
                     unfinished = true;
                     this.video_list.forEach((v, index) => {
                         if (!this.loadedList[index]) {
-                            if (elementVisible(f, v)) {
+                            if (elementVisible.main(f, v)) {
                                 this.loadedList[index] = true;
                                 this.get_video_ID(v);
                             } else this.loadedList[index] = false;
@@ -2746,10 +2746,12 @@
                 };
                 this.scrollListen = true;
             },
+            is_creat_monitor: false,
             createMonitor() {
                 new MutationObserver(
                     (e) => e.length > 2 && (this.scroll_record += 3)
                 ).observe(this.curNode.parentNode, { childList: true });
+                this.is_creat_monitor = true;
             },
             creatEvent(f) {
                 const n = this.nav;
@@ -2758,8 +2760,9 @@
                 this.loadLazy(f);
                 this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
-                this.createMonitor();
+                !this.isSimple_page && this.createMonitor();
                 setTimeout(() => this.time_module.main(), 300);
+                this.backgroundImage_cache.article();
             },
             turnPage: {
                 main(mode, node) {
@@ -2849,10 +2852,10 @@
                                     ? 2000
                                     : gap > 60 && gap < 90
                                     ? 3000
-                                    : gap > 240
+                                    : gap > 180
                                     ? 5000
                                     : 4000;
-                            gap > 240
+                            gap > 180
                                 ? this.autoButton_event()
                                 : setTimeout(
                                       () =>
@@ -3066,43 +3069,30 @@
                     const aName =
                         "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related";
                     const f = this.full;
-                    this.imgClick.remove(f);
                     const content = node.getElementsByClassName(cName);
                     const author = node.getElementsByClassName(aName);
                     f.getElementsByClassName(cName)[0].innerHTML =
                         content.length > 0 ? content[0].innerHTML : "No data";
                     f.getElementsByClassName(aName)[0].innerHTML =
                         author.length > 0 ? author[0].innerHTML : "No data";
-                    this.loadLazy(f);
+                    // trigger the scroll event to load more answers;
                     if (mode) {
                         this.answerID = node;
-                        // trigger the scroll event to load more answers;
                         this.isSimple_page || this.allAnswser_loaded
-                            ? ((this.navPannel = this.curNode = node),
-                              this.changeNav(this.nav),
-                              setTimeout(
-                                  () => ((this.isRunning = false), f.click()),
-                                  400
-                              ))
+                            ? (this.navPannel = this.curNode = node)
                             : setTimeout(() => {
                                   this.overFlow = false;
                                   f.style.overflow = "hidden";
                                   node.scrollIntoView();
                                   setTimeout(() => {
                                       this.scroll_record < 5 &&
-                                          window.scrollTo(
-                                              0,
-                                              0.98 *
-                                                  document.documentElement
-                                                      .scrollHeight
-                                          );
+                                          window.scrollTo(0, 0.98 * this.DDSH);
                                       setTimeout(() => {
                                           this.scroll_record -= 1;
                                           this.navPannel = this.curNode = node;
-                                          this.changeNav(this.nav);
                                           const time = this.allAnswser_loaded
-                                              ? 500
-                                              : 0;
+                                              ? 0
+                                              : 400;
                                           setTimeout(() => {
                                               this.overFlow = true;
                                               f.style.overflow = "auto";
@@ -3113,13 +3103,14 @@
                                   }, 350);
                               }, 50);
                     } else this.ShowOrExit(true);
+                    this.loadLazy(f);
                     this.getVideo_element(f);
                     setTimeout(() => {
                         f.scrollTo(0, 0);
                         (this.allAnswser_loaded ||
                             !mode ||
                             this.isSimple_page) &&
-                            (this.isRunning = false);
+                            ((this.isRunning = false), f.click());
                     }, 300);
                 }, 300);
             },
@@ -3147,42 +3138,41 @@
             get full() {
                 return document.getElementById("artfullscreen");
             },
-            ShowOrExit(mode) {
-                if (!mode && (this.isRunning || this.autoScroll.scrollState))
-                    return;
-                const n = this.nav;
+            /**
+             * @param {boolean} mode
+             */
+            set Element_display(mode) {
                 const display = mode ? "block" : "none";
+                const n = this.nav;
                 n && (n.style.display = display);
                 const f = this.full;
                 f && (f.style.display = display);
-                if (mode) {
-                    this.changeNav(n);
-                    const tool = this.Toolbar;
-                    tool && (tool.style.display = display);
-                    this.time_module.clock_paused = false;
-                } else {
-                    /*
-                    exit reader mode, then move to the position of current node
-                    wait the reader is hidden, scroll to current answer
-                    */
-                    this.time_module.clock_paused = true;
-                    this.overFlow = false;
-                    this.readerMode = mode;
-                    const tool = this.Toolbar;
-                    tool && (tool.style.display = display);
-                    if (document.title === "出了一点问题") {
-                        confirm("the webpage has crashed, is reload?") &&
-                            location.reload();
-                        return;
-                    }
-                    const offsetTop = this.curNode.offsetTop;
-                    offsetTop !== window.pageYOffset &&
-                        (this.isSimple_page ||
-                            this.nextNode ||
-                            this.allAnswser_loaded) &&
-                        setTimeout(() => this.curNode.scrollIntoView(), 300);
-                    this.ctrl_click.call(zhihu, false);
+                const tool = this.Toolbar;
+                tool && (tool.style.display = display);
+                this.time_module.clock_paused = !mode;
+            },
+            ShowOrExit(mode) {
+                if (!mode && (this.isRunning || this.autoScroll.scrollState))
+                    return;
+                this.Element_display = mode;
+                if (mode) return;
+                /*
+                exit reader mode, then move to the position of current node
+                wait the reader is hidden, scroll to current answer
+                */
+                this.overFlow = false;
+                this.readerMode = mode;
+                if (document.title === "出了一点问题") {
+                    confirm("the webpage has crashed, is reload?") &&
+                        location.reload();
+                    return;
                 }
+                this.curNode.offsetTop !== window.pageYOffset &&
+                    (this.isSimple_page ||
+                        this.nextNode ||
+                        this.allAnswser_loaded) &&
+                    setTimeout(() => this.curNode.scrollIntoView(), 300);
+                this.ctrl_click.call(zhihu, false);
             },
             Change(node, aid) {
                 aid === this.aid
@@ -3335,16 +3325,12 @@
                 return document.getElementById("artfullscreen_toolbar");
             },
             allAnswser_loaded: false,
-            more_Answer_button_display(toolbar, mode) {
-                if (!toolbar) return;
-                toolbar.lastElementChild.style.display = mode
-                    ? "block"
-                    : "none";
-            },
+            try_status: false,
             /**
              * @param {{ parentNode: any; }} pnode
              */
             set navPannel(pnode) {
+                //---------------------------------------check if the node has pre and next node
                 const className = pnode.className;
                 if (className === "QuestionAnswer-content") {
                     this.prevNode = null;
@@ -3409,40 +3395,33 @@
                         }
                     }
                 }
-                if (this.nextNode) this.allAnswser_loaded = false;
-                else {
-                    if (this.allAnswser_loaded || this.isSimple_page) {
-                        this.allAnswser_loaded = true;
-                        this.isShowTips &&
-                            this.show_status.main(
-                                this.show_status.node ? null : this.full,
-                                "all answers have been loaded"
-                            );
-                        this.isShowTips = false;
-                        return;
-                    }
-                    const button = document.getElementsByClassName(
-                        "Button QuestionAnswers-answerButton Button--blue Button--spread"
-                    );
-                    this.allAnswser_loaded = true;
-                    button.length > 0
-                        ? button[0].scrollIntoView()
-                        : (this.isShowTips &&
-                              window.scrollTo(
-                                  0,
-                                  0.75 * document.documentElement.scrollHeight
-                              ),
-                          setTimeout(
-                              () =>
-                                  window.scrollTo(
-                                      0,
-                                      0.98 *
-                                          document.documentElement.scrollHeight
-                                  ),
-                              100
-                          ));
-                    setTimeout(() => (this.navPannel = pnode), 350);
+                if (
+                    this.allAnswser_loaded ||
+                    (!this.nextNode &&
+                        (this.isSimple_page ||
+                            (this.allAnswser_loaded = this.is_scrollBottom)))
+                ) {
+                    this.isShowTips &&
+                        this.show_status.main(
+                            this.show_status.node ? null : this.full,
+                            "all answers have been loaded"
+                        );
+                    this.isShowTips = false;
+                } else if (!(this.nextNode || this.try_status)) {
+                    window.scrollTo(0, 0.75 * this.DDSH);
+                    setTimeout(() => {
+                        window.scrollTo(0, 0.98 * this.DDSH);
+                        setTimeout(
+                            () => (
+                                (this.try_status = true),
+                                (this.navPannel = pnode)
+                            ),
+                            50
+                        );
+                    }, 300);
+                    return;
                 }
+                this.changeNav(this.nav);
             },
             removeADs() {
                 const ads = document.getElementsByClassName("Pc-word");
@@ -3516,42 +3495,68 @@
             ctrl_click(mode) {
                 this.Filter.isReader = mode;
             },
+            currentPathname: null,
+            monitor_need_change: false,
+            checkURL(pathname) {
+                !this.isSimple_page &&
+                    (pathname !== this.currentPathname ||
+                        this.monitor_need_change) &&
+                    this.createMonitor();
+                this.currentPathname = pathname;
+                this.monitor_need_change = false;
+            },
+            get is_scrollBottom() {
+                return (
+                    document.getElementsByClassName(
+                        "Button QuestionAnswers-answerButton Button--blue Button--spread"
+                    ).length > 0
+                );
+            },
+            get DDSH() {
+                return document.documentElement.scrollHeight;
+            },
+            initial_set(p, pathname) {
+                setTimeout(() => {
+                    this.overFlow = true;
+                    if (this.firstly) {
+                        this.firstly = false;
+                        this.currentPathname = pathname;
+                    }
+                    this.navPannel = p;
+                }, 100);
+            },
             main(pnode, aid) {
-                //---------------------------------------check if the node has pre and next node
                 this.initial_id && clearTimeout(this.initial_id);
                 this.initial_id = setTimeout(() => {
                     this.initial_id = null;
-                    const p = pnode.parentNode;
-                    this.isSimple_page = location.pathname.includes("/answer/");
                     this.removeADs();
-                    if (this.isSimple_page) this.navPannel = p;
-                    this.firstly
-                        ? (this.Reader(pnode),
-                          this.backgroundImage_cache.article())
-                        : this.Change(pnode, aid);
-                    this.curNode = p;
-                    !this.isSimple_page
-                        ? setTimeout(() => {
-                              window.scrollTo(
-                                  0,
-                                  0.75 * document.documentElement.scrollHeight
-                              );
-                              setTimeout(
-                                  () => (
-                                      (this.overFlow = true),
-                                      ((this.navPannel = p),
-                                      this.changeNav(this.nav))
-                                  ),
-                                  300
-                              );
-                          }, 100)
-                        : (this.overFlow = true);
-                    this.firstly = false;
+                    this.curNode = pnode.parentNode;
+                    const pathname = location.pathname;
+                    this.isSimple_page =
+                        pathname.includes("/answer/") &&
+                        !pathname.endsWith("updated");
+                    this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
+                    if (this.isSimple_page)
+                        this.initial_set(this.curNode, pathname);
+                    else {
+                        if ((this.allAnswser_loaded = this.is_scrollBottom))
+                            this.initial_set(this.curNode, pathname);
+                        else {
+                            setTimeout(() => {
+                                window.scrollTo(0, 0.75 * this.DDSH);
+                                setTimeout(() => {
+                                    this.initial_set(this.curNode, pathname);
+                                    !this.firstly && this.checkURL(pathname);
+                                }, 300);
+                            }, 100);
+                        }
+                    }
                     this.aid = aid;
                     this.readerMode = true;
                     this.isShowTips = true;
                     this.ctrl_click.call(zhihu, true);
-                    setTimeout(()=> this.full.focus(), 1200);
+                    setTimeout(() => this.full.focus(), 1200);
+                    //shift focus to reader, whick can make navigator control key can scroll the page
                 }, 300);
             },
         },
@@ -4024,7 +4029,7 @@
                 const i = zhihu.Column.targetIndex;
                 if (ch.length === 0 || i === ch.length) {
                     Notification(
-                        "no more content, have reach the last page",
+                        "no more content, have reach the last page of current menu",
                         "tips"
                     );
                     return;
@@ -4033,7 +4038,7 @@
                 setTimeout(() => {
                     this.keyCount = 2;
                     this.start();
-                }, 1800);
+                }, 2500);
             },
             //0-9 => click target article;
             key_Click(keyCode) {
@@ -4584,6 +4589,12 @@
                     return target.apply(thisArg, args);
                 },
             });
+        },
+        Reader_monitor_change() {
+            !this.qaReader.monitor_need_change &&
+                (this.qaReader.monitor_need_change =
+                    this.qaReader.currentPathname !== location.pathname &&
+                    this.qaReader.is_creat_monitor);
         },
         Filter: {
             /*
@@ -5156,7 +5167,7 @@
             dbInitial: false,
             URL_change: false,
             currentHREF: null,
-            main(index) {
+            main(index, rmc) {
                 this.currentHREF = location.href;
                 this.foldAnswer.initial().then((r) => {
                     this.checked = [];
@@ -5164,15 +5175,16 @@
                     const targetElements = this.getTagetElements(index);
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
-                    unsafeWindow.addEventListener("urlchange", () =>
+                    unsafeWindow.addEventListener("urlchange", () => {
                         this.URL_change
                             ? (this.URL_change = false)
                             : setTimeout(() => {
                                   document.getElementsByClassName("hidden_fold")
                                       .length === 0 &&
                                       this.firstRun(targetElements, false);
-                              }, 300)
-                    );
+                              }, 300);
+                        rmc();
+                    });
                     //monitor forward or backward, this operation will not fire dom change event
                     window.onpopstate = () => (
                         (this.URL_change = true),
@@ -5869,6 +5881,178 @@
                 },
             },
         },
+        searchPage: {
+            is_simple_search: false,
+            get search_simple() {
+                let simple = "";
+                const common = `
+                    .KfeCollection-PcCollegeCard-wrapper,
+                    .ContentItem.ZvideoItem,
+                    .SearchClubCard,
+                    .RelevantQuery,
+                    .ContentItem-main {display: none !important;}`;
+                for (let i = 2; i < 10; i++)
+                    simple += `.SearchTabs-actions li.Tabs-item.Tabs-item--noMeta:nth-of-type(${i}),`;
+                return simple + common;
+            },
+            get raw() {
+                const [c, t] = this.is_simple_search
+                    ? [" on", escapeBlank("restore normal mode")]
+                    : [
+                          "",
+                          escapeHTML(
+                              "remove other items, just keep question, topic, article"
+                          ),
+                      ];
+                const html = `
+                <div class="simple_header" title=${t}>
+                    <style>
+                        .next-button {
+                            font-size: 12px;
+                            color: #999;
+                            line-height: 22px;
+                            cursor: pointer;
+                        }
+                        .next-button .txt {
+                            margin-right: 8px;
+                            vertical-align: middle;
+                        }
+                        .next-button .switch-button.on {
+                            border: 1px solid #00a1d6;
+                            background: #00a1d6;
+                        }
+                        .next-button .switch-button {
+                            margin: 0;
+                            display: inline-block;
+                            position: relative;
+                            width: 30px;
+                            height: 20px;
+                            border: 1px solid #ccc;
+                            outline: none;
+                            border-radius: 10px;
+                            box-sizing: border-box;
+                            background: #ccc;
+                            cursor: pointer;
+                            transition: border-color 0.2s, background-color 0.2s;
+                            vertical-align: middle;
+                        }
+                        .next-button .switch-button.on:after {
+                            left: 11px;
+                        }
+                        .next-button .switch-button:after {
+                            content: "";
+                            position: absolute;
+                            top: 1px;
+                            left: 1px;
+                            border-radius: 100%;
+                            width: 16px;
+                            height: 16px;
+                            background-color: #fff;
+                            transition: all 0.2s;
+                        }
+                    </style>
+                    <span class="next-button"
+                        ><span class="txt">Simple Mode</span><span class="switch-button${c}"></span
+                    ></span>
+                </div>`;
+                return html;
+            },
+            getPos(node) {
+                const search = node.getElementsByClassName(
+                    "SearchTabs-actions"
+                );
+                if (search.length === 0) {
+                    colorful_Console.main(
+                        {
+                            title: "Warning:",
+                            content:
+                                "search page does not get the target element",
+                        },
+                        colorful_Console.colors.warning
+                    );
+                    return null;
+                }
+                return search;
+            },
+            buttons: null,
+            main() {
+                const search = this.getPos(document);
+                if (!search) return;
+                const i = search.length;
+                const html = this.raw;
+                this.buttons = [];
+                if (i > 1) for (const c of search) this.click_event(c, html);
+                else {
+                    this.click_event(search[0], html);
+                    this.monitor();
+                }
+            },
+            monitor() {
+                let mo = new MutationObserver((e) => {
+                    if (e.length === 1 && e[0].addedNodes.length === 1) {
+                        const newNode = e[0].addedNodes[0];
+                        if (newNode.className.startsWith("PageHeader")) {
+                            const search = this.getPos(newNode);
+                            if (!search) return;
+                            mo.disconnect();
+                            mo = null;
+                            this.click_event(search[0], this.raw);
+                        }
+                    }
+                });
+                mo.observe(
+                    document.getElementsByClassName("Sticky AppHeader")[0]
+                        .lastElementChild,
+                    { childList: true }
+                );
+            },
+            click_event(c, html) {
+                c.insertAdjacentHTML("beforeend", html);
+                setTimeout(() => {
+                    let timeid = null;
+                    const node =
+                        c.lastElementChild.lastElementChild.lastElementChild;
+                    this.buttons.push(node);
+                    node.onclick = (e) => {
+                        timeid && clearTimeout(timeid);
+                        timeid = setTimeout(() => {
+                            timeid = null;
+                            let f = false;
+                            const className = e.target.className;
+                            let newName = "";
+                            if (className.endsWith(" on")) {
+                                if (this.id) {
+                                    const style = document.getElementById(
+                                        this.id
+                                    );
+                                    style && style.remove();
+                                    this.id = null;
+                                }
+                                newName = className.slice(
+                                    0,
+                                    className.length - 3
+                                );
+                            } else {
+                                this.id = GM_addStyle(this.search_simple).id;
+                                f = true;
+                                newName = className + " on";
+                            }
+                            this.buttons.forEach(
+                                (e) => (e.className = newName)
+                            );
+                            this.is_simple_search = f;
+                            GM_setValue("simplesearch", f);
+                        }, 300);
+                    };
+                }, 0);
+            },
+            id: null,
+            add(common, inpustyle, search, topicAndquestion) {
+                GM_addStyle(common + inpustyle + search + topicAndquestion);
+                (this.is_simple_search = GM_getValue("simplesearch")) &&
+                    (this.id = GM_addStyle(this.search_simple).id);
+            },
+        },
         addStyle(index) {
             const common = `
                 .ModalExp-content{display: none !important;}
@@ -5971,16 +6155,21 @@
                     border: 1px solid #B9D5FF;
                     box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.10);
                 }`;
-            GM_addStyle(
-                common +
-                    (index < 2
-                        ? contentstyle + inpustyle
-                        : index === 3
-                        ? inpustyle + search + topicAndquestion
-                        : index === 2
-                        ? inpustyle + topicAndquestion + topic
-                        : inpustyle)
-            );
+            index === 3
+                ? this.searchPage.add(
+                      common,
+                      inpustyle,
+                      search,
+                      topicAndquestion
+                  )
+                : GM_addStyle(
+                      common +
+                          (index < 2
+                              ? contentstyle + inpustyle
+                              : index === 2
+                              ? inpustyle + topicAndquestion + topic
+                              : inpustyle)
+                  );
         },
         clearStorage() {
             const rubbish = {};
@@ -6025,23 +6214,25 @@
                 }
                 window.addEventListener = EventTarget.prototype.addEventListener = addEventListener;
             },
-            monitor() {
+            monitor(index, visibleChange) {
                 this.box = document.getElementsByTagName("input")[0];
                 this.box.placeholder = "";
-                unsafeWindow.addEventListener(
-                    "popstate",
-                    (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    },
-                    true
-                );
+                index > 3 &&
+                    unsafeWindow.addEventListener(
+                        "popstate",
+                        (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        },
+                        true
+                    );
                 unsafeWindow.addEventListener(
                     "visibilitychange",
                     (e) => {
                         e.preventDefault();
                         this.box.placeholder = "";
                         e.stopPropagation();
+                        index < 4 && visibleChange(document.hidden);
                     },
                     true
                 );
@@ -8743,6 +8934,63 @@
                     : this.multiSearch(keyCode);
             };
         },
+        rightMouse_OpenQ() {
+            document.oncontextmenu = (e) => {
+                if (e.shiftKey) {
+                    const pt = e.path;
+                    let i = 0;
+                    for (const p of pt) {
+                        if (p.localName === "a") {
+                            if (p.pathname.includes("/answer/")) {
+                                e.preventDefault();
+                                const href = p.href;
+                                GM_openInTab(
+                                    href.slice(0, href.lastIndexOf("/answer/")),
+                                    {
+                                        insert: true,
+                                        active: true,
+                                    }
+                                );
+                            }
+                            break;
+                        } else if (i > 2) break;
+                        i++;
+                    }
+                }
+            };
+        },
+        original_status: false,
+        visible_time_id: null,
+        visibleChange(mode) {
+            /*
+            switch the webpage, control the scroll state
+            */
+            this.visible_time_id && clearTimeout(this.visible_time_id);
+            if (this.qaReader.readerMode) {
+                if (mode) {
+                    this.original_status = this.qaReader.autoScroll.scrollState;
+                    this.original_status &&
+                        this.qaReader.autoScroll.stopScroll(false);
+                } else if (this.original_status) {
+                    this.visible_time_id = setTimeout(() => {
+                        this.visible_time_id = null;
+                        this.qaReader.autoScroll.keyCount = 2;
+                        this.qaReader.autoScroll.start();
+                    }, 300);
+                }
+            } else {
+                if (mode) {
+                    this.original_status = this.autoScroll.scrollState;
+                    this.original_status && this.autoScroll.stopScroll(false);
+                } else if (this.original_status) {
+                    this.visible_time_id = setTimeout(() => {
+                        this.visible_time_id = null;
+                        this.autoScroll.keyCount = 2;
+                        this.autoScroll.start();
+                    }, 600);
+                }
+            }
+        },
         pageOfQA(index, href) {
             //inject as soon as possible; may be need to concern about some eventlisteners and MO
             this.inputBox.controlEventListener();
@@ -8757,17 +9005,25 @@
                         ? !(index === 1 && href.endsWith("/waiting"))
                         : false) &&
                         setTimeout(() => {
-                            this.Filter.main(index);
+                            this.Filter.main(
+                                index,
+                                this.Reader_monitor_change.bind(this)
+                            );
                             this.QASkeyBoardEvent();
                             setTimeout(
                                 () => this.show_Total.main(false),
                                 30000
                             );
                             this.key_ctrl_sync(false);
+                            index > 1 && this.rightMouse_OpenQ();
+                            index === 3 && this.searchPage.main();
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
                 }
-                this.inputBox.monitor();
+                this.inputBox.monitor(
+                    index,
+                    index < 4 ? this.visibleChange.bind(this) : null
+                );
             };
         },
         blackUserMonitor(index) {
