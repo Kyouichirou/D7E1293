@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.0
+// @version      3.3.9.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -544,6 +544,7 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
+                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -2754,13 +2755,6 @@
                 };
                 this.scrollListen = true;
             },
-            is_creat_monitor: false,
-            createMonitor() {
-                new MutationObserver(
-                    (e) => e.length > 2 && (this.scroll_record += 3)
-                ).observe(this.curNode.parentNode, { childList: true });
-                this.is_creat_monitor = true;
-            },
             creatEvent(f) {
                 const n = this.nav;
                 n.children[1].onclick = () => this.Previous(f);
@@ -2768,7 +2762,6 @@
                 this.loadLazy(f);
                 this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
-                !this.isSimple_page && this.createMonitor();
                 setTimeout(() => this.time_module.main(), 300);
                 this.backgroundImage_cache.article();
             },
@@ -2842,6 +2835,7 @@
                 },
                 timeID: null,
                 auto_pause: false,
+                remain_time: 0,
                 stopScroll(mode) {
                     if (this.scrollState) {
                         this.scrollPos = null;
@@ -2861,25 +2855,26 @@
                                     : gap > 60 && gap < 90
                                     ? 3000
                                     : gap > 180
-                                    ? 5000
+                                    ? 5500
                                     : 4000;
                             gap > 180
                                 ? this.autoButton_event()
                                 : setTimeout(
                                       () =>
                                           !this.auto_pause && this.autoReader(),
-                                      wtime
+                                      wtime + this.remain_time
                                   );
                             this.timeID = setTimeout(() => {
                                 this.timeID = null;
                                 if (this.auto_pause) return;
                                 this.keyCount = 2;
                                 this.start();
-                            }, wtime + 3500);
+                            }, wtime + this.remain_time + 3500);
                         } else {
                             this.timeID && clearTimeout(this.timeID);
                             this.timeID = null;
                             !this.autoReader && (this.node = null);
+                            this.remain_time = 0;
                         }
                         this.stopwatch = 0;
                     }
@@ -2901,16 +2896,17 @@
                     if (this.keyCount % 2 === 0) return;
                     if (this.scrollState) this.stopScroll(false);
                     else {
-                        this.timeID &&
-                            (clearTimeout(this.timeID), (this.timeID = null));
+                        if (this.timeID) {
+                            if (this.autoReader) return;
+                            else clearTimeout(this.timeID);
+                        }
                         this.stopwatch = Date.now();
                         this.scrollState = true;
                         !this.node &&
                             (this.node = document.getElementById(
                                 "artfullscreen"
                             ));
-                        this.startID &&
-                            (clearTimeout(this.startID), (this.startID = null));
+                        this.startID && clearTimeout(this.startID);
                         this.startID = setTimeout(() => {
                             this.startID = null;
                             window.requestAnimationFrame(
@@ -2981,6 +2977,7 @@
                 this.show_status.auto_scroll_change(
                     this.auto_pause_mode ? "Auto Mode_Paused" : "Auto Mode"
                 );
+                this.auto_pause_mode && (this.autoScroll.remain_time = 0);
             },
             keyEvent(keyCode, shift) {
                 this.imgClick.isExist
@@ -3063,7 +3060,7 @@
             scroll_record: 0,
             chang_time_id: null,
             //settimeout => prevent too many times of operation
-            changeContent(node, mode = true, direction) {
+            changeContent(node, mode = true) {
                 this.chang_time_id && clearTimeout(this.chang_time_id);
                 this.chang_time_id = setTimeout(() => {
                     this.chang_time_id = null;
@@ -3079,8 +3076,12 @@
                     const f = this.full;
                     const content = node.getElementsByClassName(cName);
                     const author = node.getElementsByClassName(aName);
-                    f.getElementsByClassName(cName)[0].innerHTML =
-                        content.length > 0 ? content[0].innerHTML : "No data";
+                    const cn = f.getElementsByClassName(cName)[0];
+                    if (content.length > 0) {
+                        cn.innerHTML = content[0].innerHTML;
+                        this.autoReader_mode &&
+                            this.setRemainTime(content[0].innerText.length);
+                    } else cn.innerHTML = "No data";
                     f.getElementsByClassName(aName)[0].innerHTML =
                         author.length > 0 ? author[0].innerHTML : "No data";
                     // trigger the scroll event to load more answers;
@@ -3121,6 +3122,22 @@
                             ((this.isRunning = false), f.click());
                     }, 300);
                 }, 300);
+            },
+            setRemainTime(len) {
+                if (
+                    this.auto_pause_mode ||
+                    this.full.scrollHeight > window.innerHeight
+                )
+                    return;
+                const w =
+                    len < 30
+                        ? 500
+                        : len < 50
+                        ? 1000
+                        : len < 100
+                        ? 1500
+                        : (len / 100) * 500 + 1500;
+                this.autoScroll.remain_time = w > 6000 ? 6000 : w;
             },
             Next(f) {
                 this.imgClick.isExist
@@ -3449,12 +3466,12 @@
                                         : reject(null);
                                 file.onerror = (err) => {
                                     console.log(err);
-                                    reject(null);
+                                    reject("file err");
                                 };
                             },
                             (err) => {
                                 console.log(err);
-                                reject(null);
+                                reject("xml err");
                             }
                         );
                     });
@@ -3480,17 +3497,39 @@
                             )
                     );
                 },
-                article() {
+                try_status: false,
+                article(back) {
                     if (GM_getValue("readerbgimg_mark")) return;
                     const url =
+                        back ||
                         "https://www.cnblogs.com/skins/coffee/images/bg_body.gif";
-                    this._request(url).then((base64) => {
-                        GM_setValue("readerbgimg", base64);
-                        GM_setValue("readerbgimg_mark", true);
-                        console.log(
-                            "background image has been cached successfully"
-                        );
-                    });
+                    this._request(url).then(
+                        (base64) => {
+                            GM_setValue("readerbgimg", base64);
+                            GM_setValue("readerbgimg_mark", true);
+                            console.log(
+                                "background image has been cached successfully"
+                            );
+                        },
+                        (err) => {
+                            if (err.startsWith("file")) return;
+                            if (this.try_status) {
+                                colorful_Console(
+                                    {
+                                        title: "warning:",
+                                        content:
+                                            "failed to cach article background image",
+                                    },
+                                    colorful_Console.colors.warning
+                                );
+                                return;
+                            }
+                            this.try_status = true;
+                            const b =
+                                "https://img.meituan.net/csc/decb7d168d512de5341614a7e22b26e848725.gif";
+                            this.article(b);
+                        }
+                    );
                 },
             },
             nextNode: null,
@@ -3502,16 +3541,8 @@
             initial_id: null,
             ctrl_click(mode) {
                 this.Filter.isReader = mode;
-            },
-            currentPathname: null,
-            monitor_need_change: false,
-            checkURL(pathname) {
-                !this.isSimple_page &&
-                    (pathname !== this.currentPathname ||
-                        this.monitor_need_change) &&
-                    this.createMonitor();
-                this.currentPathname = pathname;
-                this.monitor_need_change = false;
+                !(mode || location.href.endsWith("#")) &&
+                    (this.Filter.is_jump = true);
             },
             get is_scrollBottom() {
                 return (
@@ -3523,13 +3554,9 @@
             get DDSH() {
                 return document.documentElement.scrollHeight;
             },
-            initial_set(p, pathname) {
+            initial_set(p) {
                 setTimeout(() => {
                     this.overFlow = true;
-                    if (this.firstly) {
-                        this.firstly = false;
-                        this.currentPathname = pathname;
-                    }
                     this.navPannel = p;
                 }, 100);
             },
@@ -3540,25 +3567,23 @@
                     this.removeADs();
                     this.curNode = pnode.parentNode;
                     const pathname = location.pathname;
-                    this.isSimple_page =
-                        pathname.includes("/answer/") &&
-                        !pathname.endsWith("updated");
+                    this.isSimple_page = pathname.includes("/answer/");
                     this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
-                    if (this.isSimple_page)
-                        this.initial_set(this.curNode, pathname);
+                    if (this.isSimple_page) this.initial_set(this.curNode);
                     else {
                         if ((this.allAnswser_loaded = this.is_scrollBottom))
-                            this.initial_set(this.curNode, pathname);
+                            this.initial_set(this.curNode);
                         else {
                             setTimeout(() => {
                                 window.scrollTo(0, 0.75 * this.DDSH);
-                                setTimeout(() => {
-                                    this.initial_set(this.curNode, pathname);
-                                    !this.firstly && this.checkURL(pathname);
-                                }, 300);
+                                setTimeout(
+                                    () => this.initial_set(this.curNode),
+                                    300
+                                );
                             }, 100);
                         }
                     }
+                    this.firstly = false;
                     this.aid = aid;
                     this.readerMode = true;
                     this.isShowTips = true;
@@ -3725,9 +3750,19 @@
                         return Math.floor(lg / 2);
                     },
                     Search(url, parameter = "") {
-                        const select = keyword || getSelection();
                         //baidu restrict the length of search keyword is 38;
-                        if (!select || this.string_length(select) > 38) return;
+                        const select = keyword || getSelection();
+                        if (!select) return;
+                        else if (this.string_length(select) > 38) {
+                            const reg = /[\u4e00-\u9fa5]/;
+                            if (reg.test(select) || select.length > 60) {
+                                Notification(
+                                    "the length of keyword is too long",
+                                    "Tips"
+                                );
+                                return;
+                            }
+                        }
                         url += encodeURIComponent(select);
                         GM_openInTab(this.Protocols + url + parameter, {
                             insert: true,
@@ -4623,12 +4658,6 @@
                 },
             });
         },
-        Reader_monitor_change() {
-            !this.qaReader.monitor_need_change &&
-                (this.qaReader.monitor_need_change =
-                    this.qaReader.currentPathname !== location.pathname &&
-                    this.qaReader.is_creat_monitor);
-        },
         Filter: {
             /*
             1. userName
@@ -4743,20 +4772,6 @@
                 }
                 let i = user.length - 1;
                 i = i > 1 ? 1 : i;
-                /*
-                const pathname = user[i].pathname;
-                if (!pathname) return false;
-                const id = pathname.slice(pathname.lastIndexOf("/") + 1);
-                let result = blackID.includes(id);
-                if (result) {
-                    console.log(
-                        `%cuser of ${id} has been blocked`,
-                        "color: red;"
-                    );
-                    item.style.display = "none";
-                    return result;
-                }
-                */
                 const name = user[i].innerText;
                 const result = blackName.includes(name);
                 if (result) {
@@ -4892,19 +4907,15 @@
                                   )[0]
                                 : item
                         );
-                    } else {
-                        this.foldAnswer.Three.main(item);
-                    }
+                    } else this.foldAnswer.Three.main(item);
                 }
             },
-            URL_hasChange: false,
-            checkURL(targetElements, mode = false) {
+            /*
+            1. URL change, for example, forward or backward, ...disable MutationObserver
+            2. URL match specific zone;
+            */
+            checkURL(targetElements) {
                 const href = location.href;
-                if (mode && this.currentHREF !== href) {
-                    this.URL_hasChange = true;
-                    this.currentHREF = href;
-                    return false;
-                }
                 return targetElements.index < 2
                     ? true
                     : targetElements.zone.some((e) => href.includes(e));
@@ -4952,6 +4963,7 @@
                 },
             },
             isReader: false,
+            auto_load_reader: false,
             clickMonitor(node, targetElements) {
                 if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
@@ -4988,7 +5000,8 @@
                                 "edit",
                                 "reader",
                             ];
-                            if (ends.some((e) => className.endsWith(e)))
+                            ends.some((e) => className.endsWith(e)) &&
+                                !this.auto_load_reader &&
                                 this.foldAnswer.buttonclick(target);
                         } else {
                             const ends = [
@@ -4999,7 +5012,8 @@
                                 "answer",
                                 "article",
                             ];
-                            if (ends.some((e) => className.endsWith(e)))
+                            ends.some((e) => className.endsWith(e)) &&
+                                !this.auto_load_reader &&
                                 this.foldAnswer.Three.btnClick(target);
                         }
                         return;
@@ -5078,11 +5092,9 @@
                 }
             },
             setDisplay(t, info) {
-                if (info.mode === "block") {
-                    t.style.display !== "none" && (t.style.display = "none");
-                } else {
-                    t.style.display === "none" && (t.style.display = "block");
-                }
+                info.mode === "block"
+                    ? t.style.display !== "none" && (t.style.display = "none")
+                    : t.style.display === "none" && (t.style.display = "block");
             },
             userChange(index) {
                 const info = GM_getValue("blacknamechange");
@@ -5155,36 +5167,23 @@
                         }
                     }
                 );
+                this.is_connect = true;
             },
-            monitor(targetElements) {
-                let node = document.getElementById(targetElements.mainID);
-                if (!node) {
-                    node = document.getElementsByClassName(
-                        targetElements.backupClass
-                    );
-                    if (node.length === 0) {
-                        console.log("%cget main id fail", "color: red;");
-                        return;
-                    } else node = node[0];
-                }
+            monitor(targetElements, node) {
+                //only in answer || question webpage, the muta will note be destroyed, without need to rebuilded;
                 const mo = new MutationObserver((e) => {
-                    if (
-                        this.URL_hasChange ||
-                        !this.checkURL(targetElements, targetElements.index > 1)
-                    ) {
-                        return;
-                    }
-                    e.forEach((item) => {
-                        if (item.addedNodes.length > 0) {
-                            const additem = item.addedNodes[0];
-                            if (additem.className === targetElements.itemClass)
-                                this.check(additem, targetElements, 0);
-                        }
-                    });
+                    e.forEach(
+                        (item) =>
+                            item.addedNodes.length > 0 &&
+                            item.addedNodes[0].className ===
+                                targetElements.itemClass &&
+                            this.check(item.addedNodes[0], targetElements, 0)
+                    );
+                    targetElements.index === 1 &&
+                        e.length > 2 &&
+                        this.reader_sync();
                 });
-                mo.observe(node, { childList: true, subtree: true });
-                this.clickMonitor(node, targetElements);
-                this.connectColumn();
+                mo.observe(node.parentNode, { childList: true });
             },
             getTagetElements(index) {
                 const pos = {
@@ -5198,57 +5197,67 @@
                 return targetElements;
             },
             dbInitial: false,
-            URL_change: false,
-            currentHREF: null,
-            main(index, rmc) {
-                this.currentHREF = location.href;
+            reader_sync: null,
+            main(index, reader_sync) {
                 this.foldAnswer.initial().then((r) => {
                     this.checked = [];
                     this.dbInitial = r;
+                    this.reader_sync = reader_sync;
                     const targetElements = this.getTagetElements(index);
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
-                    unsafeWindow.addEventListener("urlchange", () => {
-                        this.URL_change
-                            ? (this.URL_change = false)
-                            : setTimeout(() => {
-                                  document.getElementsByClassName("hidden_fold")
-                                      .length === 0 &&
-                                      this.firstRun(targetElements, false);
-                              }, 300);
-                        rmc();
-                    });
-                    //monitor forward or backward, this operation will not fire dom change event
-                    window.onpopstate = () => (
-                        (this.URL_change = true),
-                        this.firstRun(targetElements, false)
+                    unsafeWindow.addEventListener("urlchange", () =>
+                        this.backwardORforward(targetElements)
                     );
+                    this.connectColumn();
+                    !this.isMonitor &&
+                        this.clickMonitor(
+                            document.getElementById(targetElements.mainID),
+                            targetElements
+                        );
                 });
             },
-            firstRun(targetElements, mode = true) {
-                if (!this.checkURL(targetElements)) {
-                    mode && this.monitor(targetElements);
+            is_jump: false,
+            bf_time_id: null,
+            backwardORforward(targetElements) {
+                //monitor forward or backward, this operation maybe not fire dom change event
+                if (this.is_jump) {
+                    this.is_jump = false;
                     return;
                 }
+                this.bf_time_id && clearTimeout(this.bf_time_id);
+                this.bf_time_id = setTimeout(() => {
+                    this.bf_time_id = null;
+                    this.firstRun(targetElements);
+                }, 300);
+            },
+            is_update: false,
+            firstRun(targetElements) {
+                if (!this.checkURL(targetElements)) return;
                 let ic = 0;
-                const pn = location.pathname;
-                let n = 0;
-                const cl =
-                    (mode = targetElements.index < 2 || mode) &&
-                    !(n =
-                        pn.includes("/answer/") && !pn.endsWith("updated")
-                            ? 0
-                            : 4)
+                let n = 4;
+                let cl = "";
+                let mode = true;
+                if (targetElements.index > 1) cl = targetElements.itemClass;
+                else {
+                    const p = location.pathname;
+                    const a = p.includes("/answers/");
+                    cl = !(n = p.includes("/answer/") ? 0 : 4)
                         ? targetElements.header
                         : targetElements.itemClass;
+                    mode = this.is_update ? !a : true;
+                    this.is_update = a;
+                    targetElements.index = n === 0 ? 0 : 1;
+                    if (this.is_update && !mode) return;
+                }
                 let id = setInterval(() => {
                     const items = document.getElementsByClassName(cl);
                     if (items.length > n || ic > 25) {
                         clearInterval(id);
+                        if (items.length === 0) return;
                         for (const item of items)
                             this.check(item, targetElements, 0);
-                        mode && this.monitor(targetElements);
-                        this.URL_hasChange = false;
+                        mode && this.monitor(targetElements, items[0]);
                     }
                     ic++;
                 }, 20);
@@ -5263,13 +5272,6 @@
                     this.check(item.parentNode, targetElements, 0);
                 this.clickMonitor(document, targetElements);
                 this.isMonitor = true;
-                let all = document.getElementsByClassName(
-                    "QuestionMainAction ViewAll-QuestionMainAction"
-                );
-                for (const button of all)
-                    button.onclick = () =>
-                        setTimeout(() => this.firstRun(targetElements), 300);
-                all = null;
                 return targetElements;
             },
             questionPage(index) {
@@ -5929,6 +5931,7 @@
                 return simple + common;
             },
             get raw() {
+                //html & css, adaped from bilibili
                 const [c, t] = this.is_simple_search
                     ? [" on", escapeBlank("restore normal mode")]
                     : [
@@ -8803,7 +8806,7 @@
                   );
         },
         key_open_Reader() {
-            if (this.autoScroll.scrollState) return;
+            if (this.autoScroll.scrollState || !this.qaReader.firstly) return;
             const items = document.getElementsByClassName(
                 "ContentItem AnswerItem"
             );
@@ -8951,19 +8954,23 @@
             },
             timeID: null,
             cancel() {
-                clearTimeout(this.timeID);
+                clearTimeout(this.auto_load_Reader.timeID);
+                this.Filter.auto_load_reader = false;
+                this.auto_load_Reader.timeID = null;
             },
             start() {
                 Notification(
                     "5s, automatically load reader page; click to cancel",
                     "Tips",
                     5000,
-                    this.auto_load_Reader.cancel.bind(this.auto_load_Reader)
+                    this.auto_load_Reader.cancel.bind(this)
                 );
-                this.auto_load_Reader.timeID = setTimeout(
-                    () => this.key_open_Reader(),
-                    5300
-                );
+                this.auto_load_Reader.timeID = setTimeout(() => {
+                    this.Filter.auto_load_reader = false;
+                    this.auto_load_Reader.timeID = null;
+                    this.key_open_Reader();
+                }, 5300);
+                this.Filter.auto_load_reader = true;
             },
         },
         QASkeyBoardEvent(index) {
@@ -9061,6 +9068,9 @@
                 }
             }
         },
+        Filter_Reader_sync() {
+            this.qaReader.readerMode && (this.qaReader.scroll_record += 3);
+        },
         pageOfQA(index, href) {
             //inject as soon as possible; may be need to concern about some eventlisteners and MO
             this.inputBox.controlEventListener();
@@ -9077,7 +9087,7 @@
                         setTimeout(() => {
                             this.Filter.main(
                                 index,
-                                this.Reader_monitor_change.bind(this)
+                                this.Filter_Reader_sync.bind(this)
                             );
                             this.QASkeyBoardEvent(index);
                             setTimeout(
