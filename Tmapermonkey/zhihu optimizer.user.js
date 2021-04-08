@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.8.1
+// @version      3.3.9.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -29,6 +29,7 @@
 // @grant        window.onurlchange
 // @grant        window.close
 // @match        https://*.zhihu.com/*
+// @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @compatible   chrome 80+; test on chrome 64(x86), some features don't work
 // @license      MIT
 // @noframes
@@ -2200,7 +2201,7 @@
                                     node = null;
                                     break;
                                 }
-                                cn = className;
+                                cn = node.className;
                                 ic++;
                             }
                             node && (node.style.display = "none");
@@ -3018,7 +3019,7 @@
                     ? this.Next()
                     : keyCode === 27
                     ? this.ShowOrExit(false)
-                    : zhihu.multiSearch(keyCode);
+                    : zhihu.multiSearch.main(keyCode);
             },
             changeNav(node) {
                 const pre = node.children[1];
@@ -3698,67 +3699,92 @@
                 scrollToBottom();
             },
         },
-        multiSearch(keyCode) {
-            const Names = {
-                65: "AboutMe",
-                68: "Douban",
-                71: "Google",
-                72: "Github",
-                77: "MDN",
-                66: "BiliBili",
-                90: "Zhihu",
-                80: "Python",
-            };
-            const methods = {
-                Protocols: "https://",
-                string_length(str) {
-                    const lg = [...str].reduce(
-                        (length, e) =>
-                            (length +=
-                                e.charCodeAt(0).toString(16).length === 4
-                                    ? 2
-                                    : 1),
-                        0
-                    );
-                    return Math.floor(lg / 2);
-                },
-                Search(url, parameter = "") {
-                    const select = getSelection();
-                    //baidu restrict the length of search keyword is 38;
-                    if (!select || this.string_length(select) > 38) return;
-                    url += encodeURIComponent(select);
-                    window.open(this.Protocols + url + parameter, "_blank");
-                },
-                Google() {
-                    this.Search("cn.bing.com/results?q=");
-                },
-                Douban() {
-                    this.Search("www.douban.com/search?q=");
-                },
-                Zhihu() {
-                    this.Search("www.zhihu.com/search?q=", "&type=content");
-                },
-                MDN() {
-                    this.Search("developer.mozilla.org/zh-CN/search?q=");
-                },
-                Github() {
-                    this.Search("github.com/search?q=");
-                },
-                BiliBili() {
-                    this.Search("search.bilibili.com/all?keyword=");
-                },
-                Python() {
-                    this.Search(
-                        "docs.python.org/zh-cn/3/search.html?q=",
-                        "&check_keywords=yes&area=default"
-                    );
-                },
-                AboutMe() {
-                    zhihu.shade.Support.main();
-                },
-            };
-            const name = Names[keyCode];
-            name && methods[name]();
+        multiSearch: {
+            main(keyCode, keyword) {
+                const Names = {
+                    65: "AboutMe",
+                    68: "Douban",
+                    71: "Google",
+                    72: "Github",
+                    77: "MDN",
+                    66: "BiliBili",
+                    90: "Zhihu",
+                    80: "Python",
+                };
+                const methods = {
+                    Protocols: "https://",
+                    string_length(str) {
+                        const lg = [...str].reduce(
+                            (length, e) =>
+                                (length +=
+                                    e.charCodeAt(0).toString(16).length === 4
+                                        ? 2
+                                        : 1),
+                            0
+                        );
+                        return Math.floor(lg / 2);
+                    },
+                    Search(url, parameter = "") {
+                        const select = keyword || getSelection();
+                        //baidu restrict the length of search keyword is 38;
+                        if (!select || this.string_length(select) > 38) return;
+                        url += encodeURIComponent(select);
+                        GM_openInTab(this.Protocols + url + parameter, {
+                            insert: true,
+                            active: true,
+                        });
+                    },
+                    Google() {
+                        this.Search("cn.bing.com/results?q=");
+                    },
+                    Douban() {
+                        this.Search("www.douban.com/search?q=");
+                    },
+                    Zhihu() {
+                        this.Search("www.zhihu.com/search?q=", "&type=content");
+                    },
+                    MDN() {
+                        this.Search("developer.mozilla.org/zh-CN/search?q=");
+                    },
+                    Github() {
+                        this.Search("github.com/search?q=");
+                    },
+                    BiliBili() {
+                        this.Search("search.bilibili.com/all?keyword=");
+                    },
+                    Python() {
+                        this.Search(
+                            "docs.python.org/zh-cn/3/search.html?q=",
+                            "&check_keywords=yes&area=default"
+                        );
+                    },
+                    AboutMe() {
+                        zhihu.shade.Support.main();
+                    },
+                };
+                const name = Names[keyCode];
+                name && methods[name]();
+            },
+            checkCode(c) {
+                const code = c.charCodeAt(0);
+                return code > 97 && code < 123
+                    ? code - 32
+                    : code > 65 && code < 91
+                    ? code
+                    : 0;
+            },
+            site() {
+                let keyword = prompt(
+                    "enter keyword or choose a search engine: like: z python; (zhihu); default: google"
+                );
+                if (!keyword || !(keyword = keyword.trim())) return true;
+                const reg = /[a-z]\s/i;
+                const code = this.checkCode(keyword[0]);
+                code && keyword.match(reg)
+                    ? this.main(code, keyword.slice(2).trim())
+                    : this.main(71, keyword);
+                return true;
+            },
         },
         noteHighlight: {
             editable: false,
@@ -4162,7 +4188,7 @@
                     ? !this.autoScroll.scrollState && this.scroll.toBottom()
                     : keyCode === 85
                     ? !this.autoScroll.scrollState && this.turnPage.start(false)
-                    : this.multiSearch(keyCode);
+                    : this.multiSearch.main(keyCode);
             },
             check_common_key(shift, keyCode) {
                 return this.common_KeyEevnt(shift, keyCode);
@@ -8897,6 +8923,8 @@
                         ? Shortcuts_URL
                         : keyCode === 69
                         ? this.key_ctrl_clip()
+                        : keyCode === 77
+                        ? this.multiSearch.site()
                         : null;
                 if (url) {
                     typeof url === "string" &&
@@ -8973,7 +9001,7 @@
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
                     ? this.autoScroll.slowDown()
-                    : this.multiSearch(keyCode);
+                    : this.multiSearch.main(keyCode);
             };
         },
         rightMouse_OpenQ() {
@@ -9125,9 +9153,9 @@
             w && this.antiRedirect();
             this.antiLogin();
             this.shade.start();
+            setTimeout(() => (this.hasLogin = true), 15000);
             this.clipboardClear.event();
             installTips();
-            setTimeout(() => (this.hasLogin = true), 15000);
         },
     };
     zhihu.start();
