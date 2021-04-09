@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.2
+// @version      3.3.9.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -28,8 +28,8 @@
 // @grant        GM_info
 // @grant        window.onurlchange
 // @grant        window.close
-// @match        https://*.zhihu.com/*
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
+// @match        https://*.zhihu.com/*
 // @compatible   chrome 80+; test on chrome 64(x86), some features don't work
 // @license      MIT
 // @noframes
@@ -201,9 +201,20 @@
     };
     const createPopup = (wtime = 3) => {
         const html = `
-            <div
-                id="autoscroll-tips"
-                style="
+        <div id="autoscroll-tips">
+            <style>
+                div#autoscroll-tips {
+                    position: fixed;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    left: 0;
+                    z-index: 10000;
+                    overflow: hidden;
+                    -webkit-transition: background-color 0.2s ease-in-out;
+                    transition: background-color 0.2s ease-in-out;
+                }
+                .autoscroll-tips_content {
                     position: fixed;
                     top: 45%;
                     left: 50%;
@@ -211,17 +222,21 @@
                     background: lightgray;
                     width: 240px;
                     height: 120px;
-                    z-index: 1000;
                     border: 1px solid #b9d5ff;
-                "
-            >
+                }
+            </style>
+            <div class="autoscroll-tips_content">
                 <div class="autotips_content" style="margin: 5px 5px 5px 5px">
                     <h2 style="text-align: center">Auto Scroll Mode</h2>
                     <hr />
                     <p style="text-align: center">${wtime}s, auto load next page</p>
                     <div
                         class="auto_button"
-                        style="text-align: center; letter-spacing: 25px; margin-top: 12px"
+                        style="
+                            text-align: center;
+                            letter-spacing: 25px;
+                            margin-top: 12px;
+                        "
                     >
                         <style>
                             button {
@@ -234,7 +249,8 @@
                         <button title="cancel load next page">Cancel</button>
                     </div>
                 </div>
-            </div>`;
+            </div>
+        </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
     };
     const xmlHTTPRequest = (
@@ -544,6 +560,7 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
+                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -2301,6 +2318,7 @@
                 this.try_status = false;
                 this.isRunning = true;
                 this.simulation_scroll(this.full, this.curNode, true);
+                this.scroll_record = 0;
             },
             /**
              * @param {boolean} mode
@@ -2739,12 +2757,12 @@
                     this.video_list = null;
                     this.loadedList = null;
                 }
-                this.video_list = [];
                 const videoas = f.getElementsByClassName("RichText-video");
                 const videobs = f.getElementsByClassName("ZVideoLinkCard");
                 const a = videoas.length;
                 const b = videobs.length;
                 if (a + b === 0) return;
+                this.video_list = [];
                 for (let k = 0; k < a; k++)
                     elementVisible.main(f, videoas[k])
                         ? this.get_video_ID(videoas[k])
@@ -2761,8 +2779,17 @@
             },
             scrollEvent(f) {
                 let unfinished = false;
+                let cache = 0;
                 f.onscroll = () => {
-                    if (unfinished || !this.video_list) return;
+                    cache += 1;
+                    if (
+                        cache < 5 ||
+                        unfinished ||
+                        !this.video_list ||
+                        !this.loadedList
+                    )
+                        return;
+                    cache = 0;
                     unfinished = true;
                     this.video_list.forEach((v, index) => {
                         if (!this.loadedList[index]) {
@@ -2815,6 +2842,7 @@
                 scrollPos: null,
                 node: null,
                 pageScroll(TimeStamp) {
+                    if (!this.scrollState) return;
                     const position = this.node.scrollTop;
                     if (this.scrollTime) {
                         this.scrollPos =
@@ -2825,14 +2853,12 @@
                         this.node.scrollTo(0, this.scrollPos);
                     }
                     this.scrollTime = TimeStamp;
-                    if (this.scrollState) {
-                        const h = this.node.scrollHeight - window.innerHeight;
-                        position < h
-                            ? window.requestAnimationFrame(
-                                  this.pageScroll.bind(this)
-                              )
-                            : this.stopScroll(true);
-                    }
+                    const h = this.node.scrollHeight - window.innerHeight;
+                    position < h
+                        ? window.requestAnimationFrame(
+                              this.pageScroll.bind(this)
+                          )
+                        : this.stopScroll(true);
                 },
                 autoReader: null,
                 scrollEnd: false,
@@ -2867,7 +2893,6 @@
                         this.scrollTime = null;
                         this.scrollState = false;
                         this.keyCount = 1;
-                        //修改 scrollend
                         if (mode && this.autoReader && !this.scrollEnd) {
                             if (this.auto_pause) return;
                             const stop = Date.now();
@@ -3093,7 +3118,10 @@
                         setTimeout(() => {
                             this.scroll_record -= 1;
                             this.navPannel = this.curNode = node;
-                            const time = this.allAnswser_loaded ? 0 : 650;
+                            const time =
+                                this.allAnswser_loaded || this.nextNode
+                                    ? 50
+                                    : 650;
                             setTimeout(() => {
                                 this.overFlow = true;
                                 f.style.overflow = "auto";
@@ -3493,7 +3521,7 @@
                                 file.onload = (result) =>
                                     result.target.readyState === 2
                                         ? resolve(result.target.result)
-                                        : reject(null);
+                                        : reject("file state");
                                 file.onerror = (err) => {
                                     console.log(err);
                                     reject("file err");
@@ -3601,8 +3629,7 @@
                     this.initial_id = null;
                     this.removeADs();
                     this.curNode = pnode.parentNode;
-                    const pathname = location.pathname;
-                    this.isSimple_page = pathname.includes("/answer/");
+                    this.isSimple_page = location.pathname.includes("/answer/");
                     this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
                     if (this.isSimple_page) this.initial_set(this.curNode);
                     else {
@@ -3681,9 +3708,10 @@
                     e.preventDefault();
                     e.stopImmediatePropagation();
                     const copytext = getSelection();
-                    copytext && this.replace_ZH
-                        ? this.clear(copytext)
-                        : this.write(copytext);
+                    copytext &&
+                        (this.replace_ZH
+                            ? this.clear(copytext)
+                            : this.write(copytext));
                 };
             },
         },
@@ -9158,7 +9186,7 @@
                     if (!remote) return;
                     //mode => add user to blockname
                     blackName = newValue;
-                    if (index === 6) {
+                    if (index === 6 || index === 7) {
                         const mode =
                             !oldValue || oldValue.length < newValue.length;
                         this.userPage.changeButton(mode);
