@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.1
+// @version      3.3.9.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -544,7 +544,6 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -2142,6 +2141,16 @@
                             "
                             >change</i
                         >
+                        <i
+                            class="load_more"
+                            title="load more answers"
+                            style="
+                                display: none;
+                                margin-top: 10px;
+                                content: url(data:image/webp;base64,UklGRigBAABXRUJQVlA4TBwBAAAvP8APEFDcto3D/cc+pF35HhABt9r2Os0niZKSDrv2Dmxg6nvFENAzCkkW8AwMQR/qXEuOdP7vVeC2jTI4hhw+gn4ClWRF7lEURWplwUlDiXVynZJivw24mpHIwuhopZBcMxpsbAzUoMhWjkaLhTlxVz8APKwLSpl0Jg3QTPoSxdoDgB/XiZEPQAgGHBOlRHpPQAjAU09SckeAhQB8tCUKOUEVzKzCvyVJUUzwYmb2gimTWPqHysxChRMpXcIdGpgZKlzILEAaNHBQaIZgZuQCFQEE7m1k7guCAWYNbiGrkA0EBxQBG1JC3g1aQBHwZf6AzDPOg4w6yrzQ5MBAOp9pIN1ooFP3Vu3vrbG4t9N3I597N7ff7f1/4yNQAg==);
+                            "
+                            >load</i
+                        >
                     </div>
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
@@ -2286,6 +2295,22 @@
                         : (this.picIndex += 1);
                     GM_setValue("bgpindex", this.picIndex);
                 }, 300);
+            },
+            load_more() {
+                if (this.isRunning) return;
+                this.try_status = false;
+                this.isRunning = true;
+                this.simulation_scroll(this.full, this.curNode, true);
+            },
+            /**
+             * @param {boolean} mode
+             */
+            set display_load_more(mode) {
+                if (this.load_more_status === mode) return;
+                this.Toolbar.lastElementChild.lastElementChild.style.display = mode
+                    ? "block"
+                    : "none";
+                this.load_more_status = mode;
             },
             get_video_info(v, video_id) {
                 const api = `https://lens.zhihu.com/api/v4/videos/${video_id}`;
@@ -3056,6 +3081,35 @@
             set answerID(node) {
                 this.aid = this.getAnswerID(node);
             },
+            // trigger the scroll event to load more answers;
+            simulation_scroll(f, node, mode = false) {
+                setTimeout(() => {
+                    this.overFlow = false;
+                    f.style.overflow = "hidden";
+                    node.scrollIntoView();
+                    setTimeout(() => {
+                        (this.scroll_record < 5 || mode) &&
+                            window.scrollTo(0, 0.98 * this.DDSH);
+                        setTimeout(() => {
+                            this.scroll_record -= 1;
+                            this.navPannel = this.curNode = node;
+                            const time = this.allAnswser_loaded ? 0 : 650;
+                            setTimeout(() => {
+                                this.overFlow = true;
+                                f.style.overflow = "auto";
+                                this.isRunning = false;
+                                mode
+                                    ? this.nextNode &&
+                                      Notification(
+                                          "load more answers successfully",
+                                          "Tips"
+                                      )
+                                    : f.click();
+                            }, time);
+                        }, 350);
+                    }, 350);
+                }, 60);
+            },
             isRunning: false,
             scroll_record: 0,
             chang_time_id: null,
@@ -3084,33 +3138,11 @@
                     } else cn.innerHTML = "No data";
                     f.getElementsByClassName(aName)[0].innerHTML =
                         author.length > 0 ? author[0].innerHTML : "No data";
-                    // trigger the scroll event to load more answers;
                     if (mode) {
                         this.answerID = node;
                         this.isSimple_page || this.allAnswser_loaded
                             ? (this.navPannel = this.curNode = node)
-                            : setTimeout(() => {
-                                  this.overFlow = false;
-                                  f.style.overflow = "hidden";
-                                  node.scrollIntoView();
-                                  setTimeout(() => {
-                                      this.scroll_record < 5 &&
-                                          window.scrollTo(0, 0.98 * this.DDSH);
-                                      setTimeout(() => {
-                                          this.scroll_record -= 1;
-                                          this.navPannel = this.curNode = node;
-                                          const time = this.allAnswser_loaded
-                                              ? 0
-                                              : 400;
-                                          setTimeout(() => {
-                                              this.overFlow = true;
-                                              f.style.overflow = "auto";
-                                              this.isRunning = false;
-                                              f.click();
-                                          }, time);
-                                      }, 350);
-                                  }, 350);
-                              }, 50);
+                            : this.simulation_scroll(f, node);
                     } else this.ShowOrExit(true);
                     this.loadLazy(f);
                     this.getVideo_element(f);
@@ -3120,7 +3152,7 @@
                             !mode ||
                             this.isSimple_page) &&
                             ((this.isRunning = false), f.click());
-                    }, 300);
+                    }, 50);
                 }, 300);
             },
             setRemainTime(len) {
@@ -3198,11 +3230,6 @@
                         this.allAnswser_loaded) &&
                     setTimeout(() => this.curNode.scrollIntoView(), 300);
                 this.ctrl_click.call(zhihu, false);
-            },
-            Change(node, aid) {
-                aid === this.aid
-                    ? this.ShowOrExit(true)
-                    : this.changeContent(node, false);
             },
             //load lazy pic
             loadLazy(node) {
@@ -3351,6 +3378,7 @@
             },
             allAnswser_loaded: false,
             try_status: false,
+            load_more_status: false,
             /**
              * @param {{ parentNode: any; }} pnode
              */
@@ -3441,12 +3469,14 @@
                                 (this.try_status = true),
                                 (this.navPannel = pnode)
                             ),
-                            50
+                            300
                         );
                     }, 300);
                     return;
                 }
                 this.changeNav(this.nav);
+                !this.isSimple_page &&
+                    (this.display_load_more = !this.nextNode);
             },
             removeADs() {
                 const ads = document.getElementsByClassName("Pc-word");
@@ -3559,6 +3589,11 @@
                     this.overFlow = true;
                     this.navPannel = p;
                 }, 100);
+            },
+            Change(node, aid) {
+                aid === this.aid
+                    ? this.ShowOrExit(true)
+                    : this.changeContent(node, false);
             },
             main(pnode, aid) {
                 this.initial_id && clearTimeout(this.initial_id);
@@ -6380,6 +6415,7 @@
                 @media print {
                     mark.AssistantMark { box-shadow: unset !important; -webkit-print-color-adjust: exact !important; }
                     .CornerButtons,
+                    div#load_status,
                     .toc-bar.toc-bar--collapsed,
                     div#assist-button-container {display : none;}
                     #column_lists {display : none !important;}
@@ -8806,7 +8842,7 @@
                   );
         },
         key_open_Reader() {
-            if (this.autoScroll.scrollState || !this.qaReader.firstly) return;
+            if (this.autoScroll.scrollState) return;
             const items = document.getElementsByClassName(
                 "ContentItem AnswerItem"
             );
