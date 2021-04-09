@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.3
+// @version      3.3.9.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  make zhihu clean and tidy, for better experience
 // @author       HLA
@@ -560,7 +560,6 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -2218,22 +2217,25 @@
                         "artfullscreen_closer"
                     )[0];
                     closer.onclick = (e) => {
-                        if (!this.autoScroll.node || this.autoReader_mode) {
-                            let node = e.target.parentNode;
-                            let ic = 0;
-                            let cn = node.className;
-                            while (cn !== "artfullscreen_toolbar") {
-                                node = node.parentNode;
-                                if (!node || ic > 4) {
-                                    node = null;
-                                    break;
-                                }
-                                cn = node.className;
-                                ic++;
+                        if (
+                            this.autoScroll.scrollState ||
+                            !this.load_content_finished
+                        )
+                            return;
+                        let node = e.target.parentNode;
+                        let ic = 0;
+                        let cn = node.className;
+                        while (cn !== "artfullscreen_toolbar") {
+                            node = node.parentNode;
+                            if (!node || ic > 4) {
+                                node = null;
+                                break;
                             }
-                            node && (node.style.display = "none");
-                            this.ShowOrExit(false);
+                            cn = node.className;
+                            ic++;
                         }
+                        node && (node.style.display = "none");
+                        this.ShowOrExit(false);
                     };
                     let colorlist = tool.getElementsByClassName(
                         "a_colorlist"
@@ -2941,7 +2943,9 @@
                 },
                 stopwatch: 0,
                 startID: null,
+                is_nurse: false,
                 start() {
+                    if (this.is_nurse) return;
                     this.keyCount += 1;
                     if (this.keyCount % 2 === 0) return;
                     if (this.scrollState) this.stopScroll(false);
@@ -3132,7 +3136,7 @@
                                           "load more answers successfully",
                                           "Tips"
                                       )
-                                    : f.click();
+                                    : f.focus();
                             }, time);
                         }, 350);
                     }, 350);
@@ -3200,6 +3204,7 @@
                 this.autoScroll.remain_time = w > 6000 ? 6000 : w;
             },
             Next(f) {
+                if (!this.load_content_finished) return;
                 this.imgClick.isExist
                     ? this.imgClick.changPic(true, this.show_status, f)
                     : this.nextNode
@@ -3210,6 +3215,7 @@
                       (this.autoScroll.scrollEnd = true);
             },
             Previous(f) {
+                if (!this.load_content_finished) return;
                 this.imgClick.isExist
                     ? this.imgClick.changPic(false, this.show_status, f)
                     : this.prevNode &&
@@ -3623,10 +3629,12 @@
                     ? this.ShowOrExit(true)
                     : this.changeContent(node, false);
             },
-            main(pnode, aid) {
+            load_content_finished: true,
+            main(pnode, aid, mode = false) {
                 this.initial_id && clearTimeout(this.initial_id);
                 this.initial_id = setTimeout(() => {
                     this.initial_id = null;
+                    this.load_content_finished = false;
                     this.removeADs();
                     this.curNode = pnode.parentNode;
                     this.isSimple_page = location.pathname.includes("/answer/");
@@ -3650,7 +3658,17 @@
                     this.readerMode = true;
                     this.isShowTips = true;
                     this.ctrl_click.call(zhihu, true);
-                    setTimeout(() => this.full.focus(), 1200);
+                    mode && (this.autoScroll.is_nurse = true);
+                    setTimeout(() => {
+                        this.full.focus();
+                        if (mode) {
+                            this.autoScroll.is_nurse = false;
+                            this.autoReader();
+                            this.autoScroll.keyCount = 2;
+                            this.autoScroll.start();
+                            this.load_content_finished = true;
+                        } else this.load_content_finished = true;
+                    }, 1500);
                     //shift focus to reader, whick can make navigator control key can scroll the page
                 }, 300);
             },
@@ -4267,7 +4285,7 @@
                               )
                             : this.Column.pagePrint(this.autoScroll.show_status)
                         : keyCode === 70
-                        ? this.Column.follow()
+                        ? !this.autoScroll.scrollState && this.Column.follow()
                         : keyCode === 76
                         ? this.Column.columnsModule.recentModule.log("p")
                         : keyCode === 83
@@ -4321,11 +4339,13 @@
                                   )
                                 : this.zhuanlanAuto()
                             : keyCode === 66
-                            ? MangeData.exportData.main(false)
+                            ? !this.scrollState &&
+                              MangeData.exportData.main(false)
                             : keyCode === 84
                             ? this.noColorful()
                             : keyCode === 73
-                            ? MangeData.importData.main(true)
+                            ? !this.scrollState &&
+                              MangeData.importData.main(true)
                             : this.Others.call(
                                   zhihu,
                                   keyCode,
@@ -4339,7 +4359,7 @@
                         : keyCode === 189
                         ? this.slowDown()
                         : keyCode > 47 && keyCode < 58
-                        ? this.key_Click(keyCode)
+                        ? !this.scrollState && this.key_Click(keyCode)
                         : keyCode === 188 || keyCode === 190
                         ? this.key_next_Pre(keyCode)
                         : this.Others.call(zhihu, keyCode);
@@ -5027,6 +5047,7 @@
             },
             isReader: false,
             auto_load_reader: false,
+            is_scroll_state: false,
             clickMonitor(node, targetElements) {
                 if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
@@ -5063,7 +5084,8 @@
                                 "edit",
                                 "reader",
                             ];
-                            ends.some((e) => className.endsWith(e)) &&
+                            !this.is_scroll_state &&
+                                ends.some((e) => className.endsWith(e)) &&
                                 !this.auto_load_reader &&
                                 this.foldAnswer.buttonclick(target);
                         } else {
@@ -5075,7 +5097,8 @@
                                 "answer",
                                 "article",
                             ];
-                            ends.some((e) => className.endsWith(e)) &&
+                            !this.is_scroll_state &&
+                                ends.some((e) => className.endsWith(e)) &&
                                 !this.auto_load_reader &&
                                 this.foldAnswer.Three.btnClick(target);
                         }
@@ -5988,6 +6011,7 @@
                     .ContentItem.ZvideoItem,
                     .SearchClubCard,
                     .RelevantQuery,
+                    .SpecialItem-wrap,
                     .ContentItem-main {display: none !important;}`;
                 for (let i = 2; i < 10; i++)
                     simple += `.SearchTabs-actions li.Tabs-item.Tabs-item--noMeta:nth-of-type(${i}),`;
@@ -8869,13 +8893,13 @@
                           !newValue && this.Filter.colorIndicator.restore())
                   );
         },
-        key_open_Reader() {
+        key_open_Reader(mode = false) {
             if (this.autoScroll.scrollState) return;
             const items = document.getElementsByClassName(
                 "ContentItem AnswerItem"
             );
             const e = elementVisible.main(document.documentElement, items);
-            e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e));
+            e && this.qaReader.main(e, this.Filter.foldAnswer.getid(e), mode);
         },
         show_Total: {
             _common() {
@@ -9005,6 +9029,9 @@
             get setup() {
                 return GM_getValue("autoloadreader");
             },
+            get nsetup() {
+                return GM_getValue("nursereader");
+            },
             main() {
                 let a = this.setup;
                 a = !a;
@@ -9016,13 +9043,24 @@
                     "Tips"
                 );
             },
+            nurse() {
+                let n = this.nsetup;
+                n = !n;
+                GM_setValue("nursereader", n);
+                Notification(
+                    n
+                        ? "enabled nurse reading mode successfully"
+                        : "has diabled automatic nurse reading mode",
+                    "Tips"
+                );
+            },
             timeID: null,
             cancel() {
                 clearTimeout(this.auto_load_Reader.timeID);
                 this.Filter.auto_load_reader = false;
                 this.auto_load_Reader.timeID = null;
             },
-            start() {
+            start(mode) {
                 Notification(
                     "5s, automatically load reader page; click to cancel",
                     "Tips",
@@ -9032,14 +9070,19 @@
                 this.auto_load_Reader.timeID = setTimeout(() => {
                     this.Filter.auto_load_reader = false;
                     this.auto_load_Reader.timeID = null;
-                    this.key_open_Reader();
+                    this.key_open_Reader(mode);
                 }, 5300);
                 this.Filter.auto_load_reader = true;
             },
         },
         QASkeyBoardEvent(index) {
             document.onkeydown = (e) => {
-                if (e.ctrlKey || e.altKey || e.target.localName === "input")
+                if (
+                    e.ctrlKey ||
+                    e.altKey ||
+                    e.target.localName === "input" ||
+                    this.auto_load_Reader.timeID
+                )
                     return;
                 const className = e.target.className;
                 if (
@@ -9058,16 +9101,21 @@
                     ? keyCode === 72
                         ? this.click_Highlight()
                         : keyCode === 82
-                        ? index < 2 && this.key_open_Reader()
+                        ? index < 2 && this.key_open_Reader(false)
                         : keyCode === 66
-                        ? MangeData.exportData.main(true)
+                        ? !this.autoScroll.scrollState &&
+                          MangeData.exportData.main(true)
                         : keyCode === 73
-                        ? MangeData.importData.main(false)
+                        ? !this.autoScroll.scrollState &&
+                          MangeData.importData.main(false)
                         : keyCode === 68
                         ? index < 2 && this.auto_load_Reader.main()
+                        : keyCode === 78
+                        ? index < 2 && this.auto_load_Reader.nurse()
                         : null
                     : keyCode === 192
-                    ? this.autoScroll.start()
+                    ? (this.autoScroll.start(),
+                      (this.Filter.is_scroll_state = this.autoScroll.scrollState))
                     : keyCode === 187
                     ? this.autoScroll.speedUP()
                     : keyCode === 189
@@ -9161,14 +9209,15 @@
                             this.key_ctrl_sync(false);
                             index > 1 && this.rightMouse_OpenQ();
                             index < 2
-                                ? setTimeout(
-                                      () =>
-                                          this.auto_load_Reader.setup &&
+                                ? setTimeout(() => {
+                                      let n = false;
+                                      ((n = this.auto_load_Reader.nsetup) ||
+                                          this.auto_load_Reader.setup) &&
                                           this.auto_load_Reader.start.call(
-                                              this
-                                          ),
-                                      300
-                                  )
+                                              this,
+                                              n
+                                          );
+                                  }, 300)
                                 : index === 3 && this.searchPage.main();
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
