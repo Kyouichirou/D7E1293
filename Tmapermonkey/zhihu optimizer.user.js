@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.4
+// @version      3.3.9.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
-// @description  make zhihu clean and tidy, for better experience
+// @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -2196,9 +2196,7 @@
             timeID: null,
             toolBar_event() {
                 setTimeout(() => {
-                    const tool = document.getElementById(
-                        "artfullscreen_toolbar"
-                    );
+                    const tool = this.Toolbar;
                     let bg = tool.getElementsByClassName("a_bgcolor")[0];
                     bg.onmouseenter = (e) => {
                         if (this.timeID) {
@@ -2609,6 +2607,10 @@
                 no_mp4_giflist: null,
                 gif_time_id: null,
                 GifPlay(target, className) {
+                    /*
+                    some gifs are actually mp4 videos;
+                    must check the gif whether has mp4 video
+                    */
                     this.gif_time_id && clearTimeout(this.gif_time_id);
                     this.gif_time_id = setTimeout(() => {
                         this.gif_time_id = null;
@@ -3183,7 +3185,7 @@
                         (this.allAnswser_loaded ||
                             !mode ||
                             this.isSimple_page) &&
-                            ((this.isRunning = false), f.click());
+                            ((this.isRunning = false), f.focus());
                     }, 50);
                 }, 300);
             },
@@ -5315,7 +5317,7 @@
                 this.bf_time_id = setTimeout(() => {
                     this.bf_time_id = null;
                     this.firstRun(targetElements);
-                }, 300);
+                }, 350);
             },
             is_update: false,
             firstRun(targetElements) {
@@ -5338,9 +5340,10 @@
                 }
                 let id = setInterval(() => {
                     const items = document.getElementsByClassName(cl);
-                    if (items.length > n || ic > 25) {
+                    const i = items.length;
+                    if (i > n || ic > 25) {
                         clearInterval(id);
-                        if (items.length === 0) return;
+                        if (i === 0) return;
                         for (const item of items)
                             this.check(item, targetElements, 0);
                         mode && this.monitor(targetElements, items[0]);
@@ -6225,6 +6228,7 @@
                 }
                 a[href*="u.jd.com"],
                 .Pc-word,
+                .MCNLinkCard,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important;}
                 .Comments{padding: 12px !important; margin: 60px !important;}`;
@@ -9244,6 +9248,7 @@
             );
         },
         start() {
+            if (location.pathname.includes("/api/")) return;
             const pos = [
                 "/answer/",
                 "/question/",
