@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.0.0
+// @version      3.4.0.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
-// @description  now, I can say this is the best GM script for zhihu!
+// @description  make zhihu clean and tidy, for better experience
 // @author       HLA
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -314,8 +314,19 @@
                 (err) => console.log(err)
             );
         },
+        time_Format(date) {
+            return (
+                `0${date.getHours()}`.slice(-2) +
+                ":" +
+                `0${date.getMinutes()}`.slice(-2)
+            );
+        },
         item_Raw(json, index, info) {
             const author = json.author;
+            const ct = (json.created_time || json.created) * 1000;
+            const mt = (json.updated_time || json.created) * 1000;
+            const c = new Date(ct);
+            const m = new Date(mt);
             const html = `
             <div class="List-item" tabindex="0">
                 <div
@@ -430,14 +441,10 @@
                     </div>
                     <meta
                         itemprop="dateCreated"
-                        content=${new Date(
-                            (json.created_time || json.created) * 1000
-                        ).toISOString()}
+                        content=${c.toISOString()}
                     /><meta
                         itemprop="dateModified"
-                        content=${new Date(
-                            (json.updated_time || json.created) * 1000
-                        ).toISOString()}
+                        content=${m.toISOString()}
                     />
                     <div class="RichContent is-collapsed RichContent--unescapable">
                         <div class="RichContent-inner" style="max-height: 400px">
@@ -465,6 +472,13 @@
                                     ></path></svg
                             ></span>
                         </button>
+                        <div class="time_module">
+                            <span data-tooltip="发布于 ${zhihu.Column.timeStampconvertor(
+                                ct
+                            )} ${this.time_Format(
+                c
+            )}">编辑于 ${zhihu.Column.timeStampconvertor(mt)}</span>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -3459,7 +3473,7 @@
                         this.nextNode ||
                         this.allAnswser_loaded) &&
                     setTimeout(() => this.curNode.scrollIntoView(), 300);
-                this.ctrl_click.call(zhihu, false);
+                !this.no_scroll && this.ctrl_click.call(zhihu, false);
             },
             //load lazy pic
             loadLazy(node) {
@@ -4896,7 +4910,7 @@
                     url = url.slice(url.lastIndexOf("/") + 1);
                     column_Home.single_Content_request(2, url, chs[i], e);
                 });
-            }
+            } else return;
             const targetElements = this.Filter.getTagetElements(1);
             chs[i].onclick = (e) => {
                 const target = e.target;
@@ -6732,7 +6746,6 @@
             }, 1000);
         },
         zhuanlanStyle(mode) {
-            console.log(mode);
             //font, the pic of header, main content, sidebar, main content letter spacing, comment zone, ..
             //@media print, print preview, make the background-color can view when save webpage as pdf file
             const article = `
@@ -6806,6 +6819,7 @@
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
                     } else {
+                        document.title = 'IGNORANCE IS STRENGTH';
                         this.Column.main(1);
                         this.column_homePage();
                     }
@@ -9746,10 +9760,11 @@
             const index = includes.findIndex((e) => href.includes(e));
             let z = false;
             let f = false;
-            ((z =
-                index === 5)
+            (
+                (z = index === 5)
                     ? (f = href.endsWith("zhihu.com/")) || z
-                    : index === 4)
+                    : index === 4
+            )
                 ? this.zhuanlanStyle(
                       z && pathname.includes("/p/") ? 0 : f ? 1 : 2
                   )
