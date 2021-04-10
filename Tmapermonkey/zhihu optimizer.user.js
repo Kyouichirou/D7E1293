@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.3.9.5
+// @version      3.4.0.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -288,6 +288,188 @@
                 },
             });
         });
+    };
+    const column_Home = {
+        item_index: 0,
+        single_Content_request(type, id, node, info) {
+            const types = {
+                0: "anwsers",
+                1: "questions",
+                2: "articles",
+            };
+            const name = types[type];
+            if (!name) return;
+            const args = `include=data[*].is_normal,admin_closed_comment,reward_info,is_collapsed,annotation_action,annotation_detail,collapse_reason,is_sticky,collapsed_by,suggest_edit,comment_count,can_comment,content,editable_content,attachment,voteup_count,reshipment_settings,comment_permission,created_time,updated_time,review_info,relevant_info,question,excerpt,is_labeled,paid_info,paid_info_content,relationship.is_authorized,is_author,voting,is_thanked,is_nothelp,is_recognized;data[*].mark_infos[*].url;data[*].author.follower_count,badge[*].topics;data[*].settings.table_of_content.enabled`;
+            const api = `https://www.zhihu.com/api/v4/${name}/${id}?${args}`;
+            xmlHTTPRequest(api).then(
+                (json) => {
+                    typeof json === "string" && (json = JSON(json));
+                    node.insertAdjacentHTML(
+                        "afterbegin",
+                        this.item_Raw(json, this.item_index, info)
+                    );
+                    this.item_index += 1;
+                    zhihu.Column.home_Module.loaed_list.push(id);
+                },
+                (err) => console.log(err)
+            );
+        },
+        item_Raw(json, index, info) {
+            const author = json.author;
+            const html = `
+            <div class="List-item" tabindex="0">
+                <div
+                    class="ContentItem AnswerItem"
+                    data-za-index=${index}
+                    name=${json.id}
+                    itemprop="suggestedAnswer"
+                    itemtype="http://schema.org/Answer"
+                    itemscope=""
+                    data-za-detail-view-path-module=${json.type}
+                    data-za-detail-view-path-index=${index}
+                >
+                    <div class="ContentItem-meta">
+                        <h2 class="ContentItem-title">
+                            <div
+                                itemprop="zhihu:question"
+                                itemtype="http://schema.org/Question"
+                                itemscope=""
+                            >
+                                <meta
+                                    itemprop="url"
+                                    content=${info.url}
+                                /><meta itemprop="name" content=${
+                                    info.title
+                                }/><a
+                                    target="_blank"
+                                    data-za-detail-view-element_name="Title"
+                                    href=${info.url}
+                                    >${info.title}</a
+                                >
+                            </div>
+                        </h2>
+                        <hr>
+                        <br>
+                        <div
+                            class="AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related"
+                            itemprop="author"
+                            itemscope=""
+                            itemtype="http://schema.org/Person"
+                        >
+                            <meta itemprop="name" content=${author.name} /><meta
+                                itemprop="image"
+                                content=${author.avatar_url}
+                            /><meta
+                                itemprop="url"
+                                content=https://www.zhihu.com/${
+                                    author.is_org ? "org" : "people"
+                                }/${author.url_token}
+                            /><span
+                                class="UserLink AuthorInfo-avatarWrapper"
+                                ><div class="Popover">
+                                    <div
+                                        id="Popover77-toggle"
+                                        aria-haspopup="true"
+                                        aria-expanded="false"
+                                        aria-owns="Popover77-content"
+                                    >
+                                        <a
+                                            class="UserLink-link"
+                                            data-za-detail-view-element_name="User"
+                                            target="_blank"
+                                            href=https://www.zhihu.com/${
+                                                author.is_org ? "org" : "people"
+                                            }/${author.url_token}
+                                            ><img
+                                                class="Avatar AuthorInfo-avatar"
+                                                width="38"
+                                                height="38"
+                                                src=${json.author.avatar_url}
+                                                srcset="
+                                                    ${json.author.avatar_url} 2x
+                                                "
+                                                alt=${json.author.name}
+                                        /></a>
+                                    </div></div
+                            ></span>
+                            <div class="AuthorInfo-content">
+                                <div class="AuthorInfo-head">
+                                    <span class="UserLink AuthorInfo-name"
+                                        ><div class="Popover">
+                                            <div
+                                                id="Popover78-toggle"
+                                                aria-haspopup="true"
+                                                aria-expanded="false"
+                                                aria-owns="Popover78-content"
+                                            >
+                                                <a
+                                                    class="UserLink-link"
+                                                    data-za-detail-view-element_name="User"
+                                                    target="_blank"
+                                                    href=https://www.zhihu.com/${
+                                                        author.is_org
+                                                            ? "org"
+                                                            : "people"
+                                                    }/${author.url_token}
+                                                    >${json.author.name}</a
+                                                >
+                                            </div>
+                                        </div></span
+                                    >
+                                </div>
+                                <div class="AuthorInfo-detail">
+                                    <div class="AuthorInfo-badge">
+                                        <div class="ztext AuthorInfo-badgeText">
+                                            ${json.author.headline}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="LabelContainer-wrapper"></div>
+                    </div>
+                    <meta
+                        itemprop="dateCreated"
+                        content=${new Date(
+                            (json.created_time || json.created) * 1000
+                        ).toISOString()}
+                    /><meta
+                        itemprop="dateModified"
+                        content=${new Date(
+                            (json.updated_time || json.created) * 1000
+                        ).toISOString()}
+                    />
+                    <div class="RichContent is-collapsed RichContent--unescapable">
+                        <div class="RichContent-inner" style="max-height: 400px">
+                            <span
+                                class="RichText ztext CopyrightRichText-richText"
+                                itemprop="text"
+                            >${json.content}</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="Button ContentItem-rightButton ContentItem-expandButton Button--plain"
+                        >
+                            展开阅读全文<span
+                                style="display: inline-flex; align-items: center"
+                                >&#8203;<svg
+                                    class="Zi Zi--ArrowDown ContentItem-arrowIcon"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    width="24"
+                                    height="24"
+                                >
+                                    <path
+                                        d="M12 13L8.285 9.218a.758.758 0 0 0-1.064 0 .738.738 0 0 0 0 1.052l4.249 4.512a.758.758 0 0 0 1.064 0l4.246-4.512a.738.738 0 0 0 0-1.052.757.757 0 0 0-1.063 0L12.002 13z"
+                                        fill-rule="evenodd"
+                                    ></path></svg
+                            ></span>
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+            return html;
+        },
     };
     const rndRangeNum = (start, end, count) => {
         if (end < 0 || start < 0) return null;
@@ -1794,6 +1976,10 @@
             },
             firstly: true,
             readerMode: false,
+            get_article_title(node) {
+                return node.getElementsByClassName("ContentItem-title")[0]
+                    .innerText;
+            },
             Reader(node) {
                 /*
                 1. adapted from http://www.360doc.com/
@@ -1820,8 +2006,12 @@
                     arr.fill("", 0);
                     arr[5] = " cur";
                 }
-                let title = document.title;
-                title = title.slice(0, title.lastIndexOf("-") - 1);
+                let title = "";
+                if (this.no_scroll) title = this.get_article_title(node);
+                else {
+                    title = document.title;
+                    title = title.slice(0, title.lastIndexOf("-") - 1);
+                }
                 const bgpic = GM_getValue("bgpreader");
                 const meta = node.getElementsByClassName(
                     "AuthorInfo AnswerItem-authorInfo AnswerItem-authorInfo--related"
@@ -3172,6 +3362,10 @@
                     } else cn.innerHTML = "No data";
                     f.getElementsByClassName(aName)[0].innerHTML =
                         author.length > 0 ? author[0].innerHTML : "No data";
+                    if (this.no_scroll)
+                        f.getElementsByTagName(
+                            "h2"
+                        )[0].innerText = this.get_article_title(node);
                     if (mode) {
                         this.answerID = node;
                         this.isSimple_page || this.allAnswser_loaded
@@ -3632,14 +3826,20 @@
                     : this.changeContent(node, false);
             },
             load_content_finished: true,
+            no_scroll: false,
             main(pnode, aid, mode = false) {
                 this.initial_id && clearTimeout(this.initial_id);
                 this.initial_id = setTimeout(() => {
                     this.initial_id = null;
                     this.load_content_finished = false;
                     this.removeADs();
-                    this.curNode = pnode.parentNode;
-                    this.isSimple_page = location.pathname.includes("/answer/");
+                    this.curNode =
+                        pnode.className === "ContentItem AnswerItem"
+                            ? pnode.parentNode
+                            : pnode;
+                    this.isSimple_page =
+                        this.no_scroll ||
+                        location.pathname.includes("/answer/");
                     this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
                     if (this.isSimple_page) this.initial_set(this.curNode);
                     else {
@@ -3853,7 +4053,7 @@
                         });
                     },
                     Google() {
-                        this.Search("cn.bing.com/results?q=");
+                        this.Search("www.dogedoge.com/results?q=");
                     },
                     Douban() {
                         this.Search("www.douban.com/search?q=");
@@ -4668,6 +4868,51 @@
                 this.disableShade.cmenu();
             },
         },
+        column_homePage() {
+            const ch = document.getElementsByClassName("ColumnHome")[0];
+            let chs = ch.children;
+            let i = chs.length;
+            if (i === 0) {
+                colorful_Console.main(
+                    {
+                        title: "warning",
+                        content: "failed to get target element",
+                    },
+                    colorful_Console.colors.warning
+                );
+                return;
+            }
+            for (i; i--; ) {
+                if (chs[i].className === "ColumnHomeTop") break;
+                else chs[i].remove();
+            }
+            let k = chs[i].children.length;
+            for (k; k--; ) chs[i].children[k].remove();
+            ch.style.display = "block";
+            const r = GM_getValue("recent");
+            if (r && Array.isArray(r) && r.length > 0) {
+                r.forEach((e) => {
+                    let url = e.url;
+                    url = url.slice(url.lastIndexOf("/") + 1);
+                    column_Home.single_Content_request(2, url, chs[i], e);
+                });
+            }
+            const targetElements = this.Filter.getTagetElements(1);
+            chs[i].onclick = (e) => {
+                const target = e.target;
+                const item = this.Filter.check_click_all(
+                    target.className,
+                    target.localName,
+                    target,
+                    targetElements
+                );
+                if (!item) return;
+                this.qaReader.no_scroll = true;
+                this.qaReader.main(item, this.Filter.foldAnswer.getid(item));
+            };
+            chs = null;
+            this.QASkeyBoardEvent(9);
+        },
         antiRedirect() {
             //only those links can be capture, which has the attribute of classname with ' external'
             const links = Object.getOwnPropertyDescriptors(
@@ -5050,6 +5295,17 @@
             isReader: false,
             auto_load_reader: false,
             is_scroll_state: false,
+            check_click_all(className, localName, target, targetElements) {
+                if (className === targetElements.buttonClass) {
+                    return this.getiTem(target, targetElements);
+                    //click the ico of expand button
+                } else if (localName === "svg") {
+                    const button = this.svgCheck(target, targetElements);
+                    if (button) return this.getiTem(button, targetElements);
+                    //click the answer, the content will be automatically expanded
+                }
+                return null;
+            },
             clickMonitor(node, targetElements) {
                 if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
@@ -5109,14 +5365,13 @@
                     let item = null;
                     //click the expand button, the rich node has contained all content in q & a webpage;
                     if (targetElements.index < 2) return;
-                    if (className === targetElements.buttonClass) {
-                        item = this.getiTem(target, targetElements);
-                        //click the ico of expand button
-                    } else if (localName === "svg") {
-                        const button = this.svgCheck(target, targetElements);
-                        button && (item = this.getiTem(button, targetElements));
-                        //click the answer, the content will be automatically expanded
-                    } else {
+                    item = this.check_click_all(
+                        className,
+                        localName,
+                        target,
+                        targetElements
+                    );
+                    if (!item) {
                         if (className !== targetElements.expand) return;
                         for (const node of e.path) {
                             const className = node.className;
@@ -5343,7 +5598,16 @@
                     const i = items.length;
                     if (i > n || ic > 25) {
                         clearInterval(id);
-                        if (i === 0) return;
+                        if (i === 0) {
+                            colorful_Console.main(
+                                {
+                                    title: "info:",
+                                    content: "failed to get items",
+                                },
+                                colorful_Console.colors.info
+                            );
+                            return;
+                        }
                         for (const item of items)
                             this.check(item, targetElements, 0);
                         mode && this.monitor(targetElements, items[0]);
@@ -5365,7 +5629,7 @@
             },
             questionPage(index) {
                 const targetElements = {
-                    button:
+                    buttonClass:
                         "Button ContentItem-rightButton ContentItem-expandButton Button--plain",
                     itemClass: "List-item",
                     mainID: "QuestionAnswers-answers",
@@ -5859,7 +6123,14 @@
                     selection.addRange(range);
                 },
                 getid(item) {
-                    const attrs = item.attributes;
+                    const tmp =
+                        item.className === "ContentItem AnswerItem"
+                            ? item
+                            : item.getElementsByClassName(
+                                  "ContentItem AnswerItem"
+                              )[0];
+                    if (!tmp) return null;
+                    const attrs = tmp.attributes;
                     if (!attrs) return null;
                     for (const a of attrs)
                         if (a.name === "name") return a.value;
@@ -6461,6 +6732,7 @@
             }, 1000);
         },
         zhuanlanStyle(mode) {
+            console.log(mode);
             //font, the pic of header, main content, sidebar, main content letter spacing, comment zone, ..
             //@media print, print preview, make the background-color can view when save webpage as pdf file
             const article = `
@@ -6484,31 +6756,62 @@
                 .Sticky.RichContent-actions.is-fixed.is-bottom{position: inherit !important}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
-                ${GM_getValue("topnopicture") ? ".TitleImage," : ""}
+                ${
+                    mode === 0 && GM_getValue("topnopicture")
+                        ? ".TitleImage,"
+                        : ""
+                }
                 a[href*="u.jd.com"],
                 .RichText-MCNLinkCardContainer,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
-            if (mode) {
-                const r = GM_getValue("reader");
-                if (r) {
-                    GM_addStyle(article + this.Column.clearPage(0).join(""));
-                    this.Column.readerMode = true;
-                } else GM_addStyle(article);
-                if (document.title.startsWith("该内容暂无法显示"))
-                    window.onload = () => this.ErrorAutoClose();
-                else {
+            const home = `
+                .List-item {
+                    margin-top: 8px;
+                    position: relative;
+                    padding: 16px 20px;
+                    width: 1000px;
+                    margin-left: 23%;
+                    box-shadow: 0 1px 3px rgba(18,18,18,.1);
+                    border: 1px solid #B9D5FF;
+                }
+                .ColumnHomeTop{
+                    position: relative !important;
+                    height: -webkit-fill-available !important;
+                }
+                .ColumnHome{display: none;}`;
+            if (mode < 2) {
+                if (mode === 0) {
+                    if (document.title.startsWith("该内容暂无法显示")) {
+                        window.onload = () => this.ErrorAutoClose();
+                        return;
+                    }
+                    const r = GM_getValue("reader");
+                    if (r) {
+                        GM_addStyle(
+                            article + this.Column.clearPage(0).join("")
+                        );
+                        this.Column.readerMode = true;
+                    } else GM_addStyle(article);
                     this.anti_setInterval();
                     this.Column.isZhuanlan = true;
-                    window.onload = () => {
+                } else {
+                    this.Column.is_column_home = true;
+                    GM_addStyle(home);
+                }
+                window.onload = () => {
+                    if (mode === 0) {
                         this.colorAssistant.main();
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
-                        setTimeout(() => this.show_Total.main(true), 30000);
-                        this.key_ctrl_sync(true);
-                    };
-                }
+                    } else {
+                        this.Column.main(1);
+                        this.column_homePage();
+                    }
+                    setTimeout(() => this.show_Total.main(true), 30000);
+                    this.key_ctrl_sync(true);
+                };
             } else {
                 GM_addStyle(list);
                 this.Column.main(2);
@@ -6516,6 +6819,7 @@
         },
         Column: {
             isZhuanlan: false,
+            is_column_home: false,
             authorID: "",
             authorName: "",
             get ColumnDetail() {
@@ -6951,7 +7255,7 @@
                         -webkit-user-select: none;
                         user-select: none;
                         display: flex;
-                        z-index: 1000;
+                        z-index: 1;
                         position: absolute;
                         left: 2%;
                     "
@@ -7354,6 +7658,129 @@
                     }, 0);
                 },
             },
+            home_Module: {
+                loaed_list: null,
+                current_Column_id: null,
+                home_request: {
+                    pre: null,
+                    next: null,
+                    is_loaded: true,
+                    index: 0,
+                    firstly: true,
+                    request(url, node) {
+                        this.is_loaded = false;
+                        xmlHTTPRequest(url).then(
+                            (json) => {
+                                const data = json.data;
+                                const arr = [];
+                                for (const d of data) {
+                                    const info = {};
+                                    info.url = d.url;
+                                    info.title = d.title;
+                                    arr.push(
+                                        column_Home.item_Raw(
+                                            d,
+                                            this.index,
+                                            info
+                                        )
+                                    );
+                                    this.index += 1;
+                                    column_Home.item_index += 1;
+                                }
+                                this.firstly
+                                    ? (node.innerHTML = arr.join(""))
+                                    : node.insertAdjacentHTML(
+                                          "afterbegin",
+                                          arr.join("")
+                                      );
+                                this.firstly = false;
+                                const p = json.paging;
+                                this.pre = p.is_start ? null : p.previous;
+                                this.next = p.is_end ? null : p.next;
+                                this.is_loaded = true;
+                            },
+                            (err) => {
+                                console.log(err);
+                                this.is_loaded = true;
+                            }
+                        );
+                    },
+                },
+                home_nextButton() {
+                    if (!this.home_request.is_loaded) return;
+                    if (!this.home_request.next) {
+                        Notification("no more data", "Tips");
+                        return;
+                    }
+                    this.home_request.request(
+                        this.home_request.next,
+                        this.Node
+                    );
+                },
+                home_DB_initial() {
+                    this.loaed_list = [];
+                    dataBaseInstance.initial(["collection"], false).then(
+                        () => {},
+                        () =>
+                            Notification(
+                                "database initialization failed",
+                                "Warning"
+                            )
+                    );
+                },
+                /**
+                 * @param {boolean} mode
+                 */
+                set homeButton_display(mode) {
+                    this.home_button
+                        ? (this.home_button = mode ? "block" : "none")
+                        : this.create_home_button();
+                },
+                home_button: null,
+                create_home_button() {
+                    createButton("Next", "", "", "right");
+                    setTimeout(() => {
+                        this.home_button = document.getElementById(
+                            "assist-button-container"
+                        );
+                        this.home_button.onclick = () => this.home_nextButton();
+                    }, 0);
+                },
+                get Node() {
+                    return document.getElementsByClassName("ColumnHomeTop")[0];
+                },
+                home_click(href, target) {
+                    if (!this.home_request.is_loaded) return;
+                    const id = href.slice(href.lastIndexOf("/") + 1);
+                    if (href.includes("column")) {
+                        if (this.current_Column_id === id) return;
+                        this.home_request.pre = null;
+                        this.home_request.next = null;
+                        this.home_request.firstly = true;
+                        this.current_Column_id = id;
+                        const url = `https://www.zhihu.com/api/v4/columns/${id}/items?limit=5&offset=0`;
+                        this.home_request.request(url, this.Node);
+                        this.homeButton_display = true;
+                        column_Home.item_index = 0;
+                        this.home_request.index = 0;
+                        this.loaed_list.length = 0;
+                    } else {
+                        if (this.loaed_list.includes(id)) return;
+                        this.current_article_id = id;
+                        this.current_Column_id = null;
+                        const info = {};
+                        info.title = target.innerText;
+                        info.url = href;
+                        column_Home.single_Content_request(
+                            2,
+                            id,
+                            this.Node,
+                            info
+                        );
+                        this.home_button && (this.homeButton_display = false);
+                    }
+                },
+            },
             targetIndex: 0,
             clickEvent(node, mode = false) {
                 let buttons = node.getElementsByClassName("nav button")[0]
@@ -7382,6 +7809,13 @@
                         if (location.href === href) return;
                         const className = e.target.className;
                         if (className === "list_date_follow") {
+                            if (this.is_column_home) {
+                                this.home_Module.home_click(
+                                    href,
+                                    e.target.previousElementSibling
+                                );
+                                return;
+                            }
                             sessionStorage.clear();
                             window.open(href, "_self");
                         } else if (className !== "list_date") return;
@@ -7512,7 +7946,10 @@
                     if (addnew) {
                         this.columnsModule.liTagRaw = this.liTagRaw;
                         this.columnsModule.isZhuanlan = this.isZhuanlan;
+                        this.columnsModule.is_column_home = this.is_column_home;
                         this.columnsModule.timeStampconvertor = this.timeStampconvertor;
+                        if (this.is_column_home)
+                            this.columnsModule.home = this.home_Module;
                     }
                     let html = null;
                     let text = "";
@@ -7538,7 +7975,7 @@
                               html,
                               text,
                               escapeBlank(
-                                  this.isZhuanlan
+                                  this.isZhuanlan || this.is_column_home
                                       ? "column/collection search"
                                       : "column search"
                               )
@@ -7599,7 +8036,7 @@
                         }
                     },
                     addnew: true,
-                    read(node, liTagRaw, timeStampconvertor) {
+                    read(node, liTagRaw, timeStampconvertor, home) {
                         const r = GM_getValue("recent");
                         if (!r || !Array.isArray(r) || r.length === 0) return;
                         const html = r.map((e) => {
@@ -7627,8 +8064,22 @@
                         if (this.addnew) {
                             ul.onclick = (e) => {
                                 if (e.target.className === "list_date") {
+                                    if (
+                                        Reflect.get(
+                                            zhihu.autoScroll,
+                                            "scrollState"
+                                        )
+                                    )
+                                        return;
                                     const a =
                                         e.target.previousElementSibling.href;
+                                    if (home) {
+                                        home.home_click(
+                                            a,
+                                            e.target.previousElementSibling
+                                        );
+                                        return;
+                                    }
                                     location.href !== a &&
                                         (sessionStorage.clear(),
                                         window.open(a, "_self"));
@@ -7637,20 +8088,21 @@
                         }
                         ul = null;
                     },
-                    main(node, liTagRaw, timeStampconvertor) {
+                    main(node, liTagRaw, timeStampconvertor, home) {
                         const n = node.nextElementSibling;
-                        this.read(n, liTagRaw, timeStampconvertor);
+                        this.read(n, liTagRaw, timeStampconvertor, home);
                         let button = n.getElementsByClassName(
                             "button refresh"
                         )[0];
                         button.onclick = () =>
-                            this.read(n, liTagRaw, timeStampconvertor);
+                            this.read(n, liTagRaw, timeStampconvertor, home);
                         button = null;
                     },
                 },
                 database: null,
                 node: null,
                 liTagRaw: null,
+                home: null,
                 addNewModule(text, placeholder) {
                     const html = `
                         <div class="more columns">
@@ -7977,11 +8429,11 @@
                     );
                 },
                 isZhuanlan: false,
+                is_column_home: false,
                 searchDatabase(key) {
                     if (
-                        key.charAt(0) === "$" &&
-                        this.isZhuanlan &&
-                        key.length > 1
+                        (key.charAt(0) === "$" && this.isZhuanlan) ||
+                        (this.is_column_home && key.length > 1)
                     ) {
                         const cm = ["a", "p", "d", "m", "y", "h", "w"];
                         if (cm.includes(key.charAt(1).toLowerCase())) {
@@ -8036,6 +8488,13 @@
                     ul.onclick = (e) => {
                         if (e.target.className === "list_date") {
                             const a = e.target.previousElementSibling.href;
+                            if (this.home) {
+                                this.home.home_click(
+                                    a,
+                                    e.target.previousElementSibling
+                                );
+                                return;
+                            }
                             location.href !== a && window.open(a, "_self");
                         }
                     };
@@ -8043,7 +8502,8 @@
                     this.recentModule.main(
                         p,
                         this.liTagRaw,
-                        this.timeStampconvertor
+                        this.timeStampconvertor,
+                        this.home
                     );
                 },
                 main(node, html, text, placeholder) {
@@ -8427,23 +8887,31 @@
             },
             columnID: null,
             columnName: null,
+            no_Article(mode) {
+                const f = this.homePage.initial;
+                if (f) {
+                    this.columnID = this.homePage.ColumnID;
+                    this.columnName = "Follow";
+                    this.Framework();
+                    Reflect.apply(this.homePage.add, this, [f, "f", false]);
+                    mode === 1 && this.home_Module.home_DB_initial();
+                } else
+                    colorful_Console.main(
+                        {
+                            title: "warning",
+                            content: "sidebar initiation failed",
+                        },
+                        colorful_Console.colors.warning
+                    );
+            },
             main(mode = 0) {
                 if (mode > 0) {
-                    window.onload = () => {
-                        const f = this.homePage.initial;
-                        if (f) {
-                            this.columnID = this.homePage.ColumnID;
-                            this.columnName = "Follow";
-                            this.Framework();
-                            Reflect.apply(this.homePage.add, this, [
-                                f,
-                                "f",
-                                false,
-                            ]);
-                        }
-                        mode === 2 && this.subscribeOrfollow();
-                    };
-                    return false;
+                    mode === 2
+                        ? (window.onload = () => (
+                              this.no_Article(mode), this.subscribeOrfollow()
+                          ))
+                        : this.no_Article(mode);
+                    return;
                 }
                 if (this.ColumnDetail) {
                     if (this.readerMode)
@@ -9107,10 +9575,12 @@
                         : keyCode === 82
                         ? index < 2 && this.key_open_Reader(false)
                         : keyCode === 66
-                        ? !this.autoScroll.scrollState &&
+                        ? index < 9 &&
+                          !this.autoScroll.scrollState &&
                           MangeData.exportData.main(true)
                         : keyCode === 73
-                        ? !this.autoScroll.scrollState &&
+                        ? index < 9 &&
+                          !this.autoScroll.scrollState &&
                           MangeData.importData.main(false)
                         : keyCode === 68
                         ? index < 2 && this.auto_load_Reader.main()
@@ -9128,17 +9598,27 @@
             };
         },
         rightMouse_OpenQ() {
+            //open the specific url in search webpage or topic webpage directly
             document.oncontextmenu = (e) => {
                 if (e.shiftKey) {
                     const pt = e.path;
                     let i = 0;
                     for (const p of pt) {
                         if (p.localName === "a") {
-                            if (p.pathname.includes("/answer/")) {
+                            const pos = ["/answer/", "/topic/"];
+                            const index = pos.findIndex((o) =>
+                                p.pathname.includes(o)
+                            );
+                            if (index > -1) {
                                 e.preventDefault();
                                 const href = p.href;
                                 GM_openInTab(
-                                    href.slice(0, href.lastIndexOf("/answer/")),
+                                    index === 0
+                                        ? href.slice(
+                                              0,
+                                              href.lastIndexOf(pos[index])
+                                          )
+                                        : `${href}/top-answers`,
                                     {
                                         insert: true,
                                         active: true,
@@ -9146,7 +9626,7 @@
                                 );
                             }
                             break;
-                        } else if (i > 2) break;
+                        } else if (i > 3) break;
                         i++;
                     }
                 }
@@ -9156,7 +9636,7 @@
         visible_time_id: null,
         visibleChange(mode) {
             /*
-            switch the webpage, control the scroll state
+            switch the webpage(tab), control(start or pause the scroll) the scroll state
             */
             this.visible_time_id && clearTimeout(this.visible_time_id);
             if (this.qaReader.readerMode) {
@@ -9248,8 +9728,10 @@
             );
         },
         start() {
-            if (location.pathname.includes("/api/")) return;
-            const pos = [
+            const pathname = location.pathname;
+            const excludes = ["/write", "/api/"];
+            if (excludes.some((e) => pathname.includes(e))) return;
+            const includes = [
                 "/answer/",
                 "/question/",
                 "/topic/",
@@ -9261,24 +9743,18 @@
                 "/www",
             ];
             const href = location.href;
-            const index = pos.findIndex((e) => href.includes(e));
-            let w = true;
+            const index = includes.findIndex((e) => href.includes(e));
             let z = false;
-            let f = true;
-            (
-                (z = index === 5)
-                    ? href.endsWith("zhihu.com/")
-                        ? (f = this.Column.main(1))
-                        : (w = !href.includes("/write"))
-                    : index === 4
-                    ? true
-                    : false
-            )
-                ? this.zhuanlanStyle(z && href.includes("/p/"))
-                : index < 0
-                ? null
-                : f && this.pageOfQA(index, href);
-            w && this.antiRedirect();
+            let f = false;
+            ((z =
+                index === 5)
+                    ? (f = href.endsWith("zhihu.com/")) || z
+                    : index === 4)
+                ? this.zhuanlanStyle(
+                      z && pathname.includes("/p/") ? 0 : f ? 1 : 2
+                  )
+                : this.pageOfQA(index, href);
+            this.antiRedirect();
             this.antiLogin();
             this.shade.start();
             setTimeout(() => (this.hasLogin = true), 15000);
