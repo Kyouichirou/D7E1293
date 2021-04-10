@@ -4053,7 +4053,7 @@
                         });
                     },
                     Google() {
-                        this.Search("cn.bing.com/results?q=");
+                        this.Search("cn.bing.com/search?q=");
                     },
                     Douban() {
                         this.Search("www.douban.com/search?q=");
