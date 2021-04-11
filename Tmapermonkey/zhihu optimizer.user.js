@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.0.1
+// @version      3.4.1.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
-// @description  make zhihu clean and tidy, for better experience
+// @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -55,6 +55,7 @@
         "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
     let blackName = null;
     let blackTopicAndQuestion = null;
+    let collect_Answers = null;
     const Notification = (
         content = "",
         title = "",
@@ -293,7 +294,7 @@
         item_index: 0,
         single_Content_request(type, id, node, info) {
             const types = {
-                0: "anwsers",
+                0: "answers",
                 1: "questions",
                 2: "articles",
             };
@@ -848,15 +849,17 @@
     }
     const dataBaseInstance = {
         db: null,
-        additem(columnID) {
+        additem(columnID, node, pid) {
             const info = {};
-            info.pid = this.pid;
+            info.pid = pid || this.pid;
             info.update = Date.now();
             info.excerpt = "";
             info.visitTimes = 1;
             info.visitTime = info.update;
-            const contentholder = document.getElementsByClassName(
-                "RichText ztext Post-RichText"
+            const content_id = node ? "RichText ztext CopyrightRichText-richText" : 'RichText ztext Post-RichText';
+            node = node || document.body;
+            const contentholder = node.getElementsByClassName(
+                content_id
             );
             if (contentholder.length > 0) {
                 const chs = contentholder[0].childNodes;
@@ -878,7 +881,7 @@
             }
             info.userName = "";
             info.userID = "";
-            const user = document.getElementsByClassName(
+            const user = node.getElementsByClassName(
                 "UserLink AuthorInfo-name"
             );
             if (user.length > 0) {
@@ -2212,7 +2215,59 @@
                         </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
             },
+            check_answer_collected(qid, aid) {
+                return collect_Answers.length === 0
+                    ? false
+                    : collect_Answers.some((e) =>
+                          e.qid === qid
+                              ? e.data.some((n) => n.aid === aid)
+                              : false
+                      );
+            },
+            change_Collected(tool, result) {
+                const b =
+                    tool.lastElementChild.lastElementChild
+                        .previousElementSibling;
+                const cl = b.className;
+                const tmp = cl.endsWith(" on")
+                    ? result
+                        ? null
+                        : cl.slice(0, cl.length - 3)
+                    : result
+                    ? cl + " on"
+                    : null;
+                if (tmp) {
+                    b.className = tmp;
+                    b.title = tmp.endsWith(" on")
+                        ? `cancel the collection of ${this.content_type}`
+                        : `add the ${this.content_type} to collection`;
+                }
+                tool = null;
+            },
+            check_article_collected(tool, aid) {
+                dataBaseInstance.TableName = "collection";
+                dataBaseInstance.check(aid).then(
+                    (result) => this.change_Collected(tool, result),
+                    () =>
+                        colorful_Console(
+                            {
+                                title: "Warning:",
+                                content: "failed to check article collection",
+                            },
+                            colorful_Console.colors.warning
+                        )
+                );
+            },
             toolBar(arr) {
+                let collected = false;
+                collect_Answers = GM_getValue("collect_a");
+                collect_Answers && Array.isArray(collect_Answers)
+                    ? this.content_type === "answer" &&
+                      (collected = this.check_answer_collected(
+                          this.qid,
+                          this.aid
+                      ))
+                    : (collect_Answers = []);
                 const gifBase64 = `
                 data:image/gif;base64,R0lGODlhDQANAKIGABYcHwIEBP3///P7//T7/xccH////wAAACH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS41LWMwMTQgNzkuMTUxNDgxLCAyMDEzLzAzLzEzLTEyOjA5OjE1ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjQ3QzgxQkMzRUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjQ3QzgxQkM0RUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NDdDODFCQzFFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NDdDODFCQzJFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4B//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eDf3t3c29rZ2NfW1dTT0tHQz87NzMvKycjHxsXEw8LBwL++vby7urm4t7a1tLOysbCvrq2sq6qpqKempaSjoqGgn56dnJuamZiXlpWUk5KRkI+OjYyLiomIh4aFhIOCgYB/fn18e3p5eHd2dXRzcnFwb25tbGtqaWhnZmVkY2JhYF9eXVxbWllYV1ZVVFNSUVBPTk1MS0pJSEdGRURDQkFAPz49PDs6OTg3NjU0MzIxMC8uLSwrKikoJyYlJCMiISAfHh0cGxoZGBcWFRQTEhEQDw4NDAsKCQgHBgUEAwIBAAAh+QQBAAAGACwAAAAADQANAAADHWi63P7QlKgKoRbfFVpmA7B8TWgAQ0QUKSVQcGwkADs=`;
                 const jpgBase64 = `
@@ -2306,6 +2361,9 @@
                         .a_color7 {
                             background: #EC9857 !important;
                         }
+                        button.Button.ContentItem-action.Button--plain.Button--withIcon.Button--withLabel.on {
+                            color: #00a1d6;
+                        }
                     </style>
                     <a href="#" class="artfullscreen_closer" id="artfullscreen_closer">×</a>
                     <div class="d1">
@@ -2330,7 +2388,9 @@
                                 <span class="a_color6${arr[5]}">
                                     <img src=${gifBase64}
                                 /></span>
-                                <span class="a_color7${arr[6]}" title="background image">
+                                <span class="a_color7${
+                                    arr[6]
+                                }" title="background image">
                                     <img src=${gifBase64}
                                 /></span>
                             </div>
@@ -2361,6 +2421,32 @@
                             "
                             >change</i
                         >
+                        <button
+                            style="margin-left: -4px;margin-top: 10px;"
+                            class="Button ContentItem-action Button--plain Button--withIcon Button--withLabel${
+                                collected ? " on" : ""
+                            }"
+                            type="button"
+                            title=${
+                                collected
+                                    ? `cancel the collection of ${this.content_type}`
+                                    : `add the ${this.content_type} to collection`
+                            }
+                        >
+                            <span style="display: inline-flex; align-items: center"
+                                >&#8203;<svg
+                                    class="Zi Zi--Star Button-zi"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    width="2.0em"
+                                    height="2.0em"
+                                >
+                                    <path
+                                        d="M5.515 19.64l.918-5.355-3.89-3.792c-.926-.902-.639-1.784.64-1.97L8.56 7.74l2.404-4.871c.572-1.16 1.5-1.16 2.072 0L15.44 7.74l5.377.782c1.28.186 1.566 1.068.64 1.97l-3.89 3.793.918 5.354c.219 1.274-.532 1.82-1.676 1.218L12 18.33l-4.808 2.528c-1.145.602-1.896.056-1.677-1.218z"
+                                        fill-rule="evenodd"
+                                    ></path></svg
+                            ></span>
+                        </button>
                         <i
                             class="load_more"
                             title="load more answers"
@@ -2400,7 +2486,7 @@
             timeID: null,
             toolBar_event() {
                 setTimeout(() => {
-                    const tool = this.Toolbar;
+                    let tool = this.Toolbar;
                     let bg = tool.getElementsByClassName("a_bgcolor")[0];
                     bg.onmouseenter = (e) => {
                         if (this.timeID) {
@@ -2476,13 +2562,139 @@
                             GM_setValue("articleBackground", className);
                         }
                     };
-                    tool.lastElementChild.onclick = (e) =>
-                        this[e.target.className]();
+                    tool.lastElementChild.onclick = (e) => {
+                        let name = e.target.className;
+                        let t = null;
+                        if (!name || typeof name !== "string") {
+                            const path = e.path;
+                            for (const p of path) {
+                                const n = p.className;
+                                if (
+                                    n &&
+                                    typeof n === "string" &&
+                                    n.startsWith("Button")
+                                ) {
+                                    t = p;
+                                    name = n.endsWith(" on")
+                                        ? "remove_collect"
+                                        : "collect";
+                                    break;
+                                }
+                            }
+                        } else if (name && name.startsWith("Button")) {
+                            t = e.target;
+                            name = name.endsWith(" on")
+                                ? "remove_collect"
+                                : "collect";
+                        }
+                        name && this[name](t);
+                    };
+                    if (this.content_type === "article")
+                        this.check_article_collected(tool, this.aid);
+                    else tool = null;
                     colorlist = null;
                     closer = null;
                     const i = GM_getValue("bgpindex");
                     this.picIndex = i ? i : 0;
                 }, 50);
+            },
+            content_type: null,
+            check_Answers(qid) {
+                return collect_Answers.findIndex((e) => e.qid === qid);
+            },
+            Redirect: {
+                remove(href) {
+                    this.columnsModule.recentModule.remove("c", href);
+                },
+                collect(node, pid) {
+                    dataBaseInstance.additem(
+                        this.home_Module.current_Column_id,
+                        node,
+                        pid
+                    );
+                },
+                log(config) {
+                    this.columnsModule.recentModule.log("c", config);
+                },
+            },
+            collect(target) {
+                const config = {};
+                config.type = "c";
+                const upt = Date.now();
+                if (this.content_type === "answer") {
+                    const index = this.check_Answers(this.qid);
+                    const pref = "https://www.zhihu.com/question/";
+                    if (index > -1) {
+                        const c = collect_Answers[index];
+                        const data = c.data;
+                        if (!data.some((e) => e.aid === this.aid))
+                            data.push({ aid: this.aid, update: upt });
+                        config.title = c.title;
+                        config.url = `${pref}${c.qid}/answer/${this.aid}`;
+                    } else {
+                        const info = {};
+                        const t = document.title;
+                        config.title = info.title = this.no_scroll
+                            ? t
+                            : t.endsWith("- 知乎")
+                            ? t.slice(0, t.length - 5)
+                            : t;
+                        info.qid = this.qid;
+                        info.data = [];
+                        info.data.push({ aid: this.aid, update: upt });
+                        config.url = `${pref}${this.qid}/answer/${this.aid}`;
+                        collect_Answers.push(info);
+                    }
+                    GM_setValue("collect_a", collect_Answers);
+                } else if (this.content_type === "article"){
+                    this.Redirect.collect.call(zhihu.Column, this.curNode, this.aid);
+                    config.url = `https://zhuanlan.zhihu.com/p/${this.aid}`;
+                    const t = document.title;
+                    config.title = this.no_scroll
+                    ? t
+                    : t.endsWith("- 知乎")
+                    ? t.slice(0, t.length - 5)
+                    : t;
+                }
+                config.update = upt;
+                this.Redirect.log.call(zhihu.Column, config);
+                this.change_collect_status(target, true);
+            },
+            change_collect_status(target, mode) {
+                const className = target.className;
+                target.title = mode
+                    ? `cancel the collection of ${this.content_type}`
+                    : `add the ${this.content_type} to collection`;
+                target.className = mode
+                    ? className + " on"
+                    : className.slice(0, className.length - 3);
+            },
+            remove_collect(target) {
+                if (
+                    !confirm(
+                        `are you sure want to remove this ${this.content_type}`
+                    )
+                )
+                    return;
+                let href = "";
+                if (this.content_type === "answer") {
+                    const index = this.check_Answers(this.qid);
+                    if (index > -1) {
+                        const data = collect_Answers[index].data;
+                        if (data.length > 1) {
+                            const i = data.findIndex((e) => e.aid === this.aid);
+                            i > -1 && data.splice(i, 1);
+                        } else collect_Answers.splice(index, 1);
+                        GM_setValue("collect_a", collect_Answers);
+                    }
+                    href = `https://www.zhihu.com/question/${this.qid}/answer/${this.aid}`;
+                } else if (this.content_type === "article") {
+                    dataBaseInstance.TableName = "collection";
+                    dataBaseInstance.dele(false, this.aid);
+                    href = `https://zhuanlan.zhihu.com/p/${this.aid}`;
+                }
+                this.change_collect_status(target, false);
+                this.Redirect.remove.call(zhihu.Column, href);
             },
             picIndex: 0,
             disable_bgp() {
@@ -2569,7 +2781,7 @@
                 }
                 this.get_video_info(v, content.video_id);
             },
-            rawVideo_html(picURL, videoURL, mode) {
+            rawVideo_html(picURL, videoURL) {
                 const html = `
                 <img class="_video_cover" src=${picURL} style="object-fit: cover; position: absolute; left: 0px; top: 0px; width: 100%; height: 100%; z-index: 1;" />
                 <video preload="metadata" width="100%" height="-webkit-fill-available" controls="">
@@ -3015,6 +3227,13 @@
                 };
                 this.scrollListen = true;
             },
+            collected_answer_sync() {
+                GM_addValueChangeListener(
+                    "collect_a",
+                    (name, oldValue, newValue, remote) =>
+                        remote && (collect_Answers = newValue)
+                );
+            },
             creatEvent(f) {
                 const n = this.nav;
                 n.children[1].onclick = () => this.Previous(f);
@@ -3024,6 +3243,7 @@
                 this.getVideo_element(f);
                 setTimeout(() => this.time_module.main(), 300);
                 this.backgroundImage_cache.article();
+                this.collected_answer_sync();
             },
             turnPage: {
                 main(mode, node) {
@@ -3376,16 +3596,24 @@
                     } else cn.innerHTML = "No data";
                     f.getElementsByClassName(aName)[0].innerHTML =
                         author.length > 0 ? author[0].innerHTML : "No data";
-                    if (this.no_scroll)
-                        f.getElementsByTagName(
-                            "h2"
-                        )[0].innerText = this.get_article_title(node);
                     if (mode) {
                         this.answerID = node;
                         this.isSimple_page || this.allAnswser_loaded
                             ? (this.navPannel = this.curNode = node)
                             : this.simulation_scroll(f, node);
                     } else this.ShowOrExit(true);
+                    if (this.no_scroll) {
+                        f.getElementsByTagName(
+                            "h2"
+                        )[0].innerText = this.get_article_title(node);
+                        this.set_current_Type(node);
+                    }
+                    this.content_type === "answer"
+                        ? this.change_Collected(
+                              this.Toolbar,
+                              this.check_answer_collected(this.qid, this.aid)
+                          )
+                        : this.check_article_collected(this.Toolbar, this.aid);
                     this.loadLazy(f);
                     this.getVideo_element(f);
                     setTimeout(() => {
@@ -3473,7 +3701,9 @@
                         this.nextNode ||
                         this.allAnswser_loaded) &&
                     setTimeout(() => this.curNode.scrollIntoView(), 300);
-                !this.no_scroll && this.ctrl_click.call(zhihu, false);
+                this.no_scroll
+                    ? (document.title = "IGNORANCE IS STRENGTH")
+                    : this.ctrl_click.call(zhihu, false);
             },
             //load lazy pic
             loadLazy(node) {
@@ -3810,6 +4040,7 @@
             prevNode: null,
             curNode: null,
             aid: null,
+            qid: null,
             isSimple_page: false,
             isShowTips: false,
             initial_id: null,
@@ -3841,20 +4072,48 @@
             },
             load_content_finished: true,
             no_scroll: false,
+            set_current_Type(node, aid) {
+                const a = node
+                    .getElementsByClassName("ContentItem-title")[0]
+                    .getElementsByTagName("a")[0];
+                if (!aid || (aid && this.aid !== aid)) {
+                    const href = a.href;
+                    this.content_type = href.includes("zhuanlan")
+                        ? "article"
+                        : href.includes("daily")
+                        ? "daily"
+                        : "answer";
+                    this.qid =
+                        this.content_type === "answer"
+                            ? href.match(/(?<=question\/)\d+/)[0]
+                            : null;
+                }
+                document.title = a.innerText;
+            },
             main(pnode, aid, mode = false) {
                 this.initial_id && clearTimeout(this.initial_id);
                 this.initial_id = setTimeout(() => {
                     this.initial_id = null;
                     this.load_content_finished = false;
-                    this.removeADs();
+                    if (this.no_scroll) {
+                        this.set_current_Type(pnode, aid);
+                        this.isSimple_page = true;
+                    } else {
+                        const pathname = location.pathname;
+                        if (this.firstly) {
+                            this.content_type = "answer";
+                            this.qid = pathname.match(/(?<=question\/)\d+/)[0];
+                        }
+                        this.isSimple_page = pathname.includes("/answer/");
+                        this.removeADs();
+                        this.ctrl_click.call(zhihu, true);
+                    }
                     this.curNode =
                         pnode.className === "ContentItem AnswerItem"
                             ? pnode.parentNode
                             : pnode;
-                    this.isSimple_page =
-                        this.no_scroll ||
-                        location.pathname.includes("/answer/");
                     this.firstly ? this.Reader(pnode) : this.Change(pnode, aid);
+                    this.aid = aid;
                     if (this.isSimple_page) this.initial_set(this.curNode);
                     else {
                         if ((this.allAnswser_loaded = this.is_scrollBottom))
@@ -3870,10 +4129,8 @@
                         }
                     }
                     this.firstly = false;
-                    this.aid = aid;
                     this.readerMode = true;
                     this.isShowTips = true;
-                    this.ctrl_click.call(zhihu, true);
                     mode && (this.autoScroll.is_nurse = true);
                     setTimeout(() => {
                         this.full.focus();
@@ -4906,12 +5163,18 @@
             const r = GM_getValue("recent");
             if (r && Array.isArray(r) && r.length > 0) {
                 r.forEach((e) => {
-                    let url = e.url;
-                    url = url.slice(url.lastIndexOf("/") + 1);
-                    column_Home.single_Content_request(2, url, chs[i], e);
+                    const url = e.url;
+                    const id = url.slice(url.lastIndexOf("/") + 1);
+                    column_Home.single_Content_request(
+                        url.includes("answer") ? 0 : 2,
+                        id,
+                        chs[i],
+                        e
+                    );
                 });
             } else return;
             const targetElements = this.Filter.getTagetElements(1);
+            this.qaReader.no_scroll = true;
             chs[i].onclick = (e) => {
                 const target = e.target;
                 const item = this.Filter.check_click_all(
@@ -4921,11 +5184,13 @@
                     targetElements
                 );
                 if (!item) return;
-                this.qaReader.no_scroll = true;
                 this.qaReader.main(item, this.Filter.foldAnswer.getid(item));
             };
             chs = null;
             this.QASkeyBoardEvent(9);
+            unsafeWindow.addEventListener("visibilitychange", () =>
+                this.visibleChange()
+            );
         },
         antiRedirect() {
             //only those links can be capture, which has the attribute of classname with ' external'
@@ -6819,7 +7084,7 @@
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
                     } else {
-                        document.title = 'IGNORANCE IS STRENGTH';
+                        document.title = "IGNORANCE IS STRENGTH";
                         this.Column.main(1);
                         this.column_homePage();
                     }
@@ -7733,7 +7998,7 @@
                 },
                 home_DB_initial() {
                     this.loaed_list = [];
-                    dataBaseInstance.initial(["collection"], false).then(
+                    dataBaseInstance.initial(["collection"], true).then(
                         () => {},
                         () =>
                             Notification(
@@ -7766,7 +8031,9 @@
                 home_click(href, target) {
                     if (!this.home_request.is_loaded) return;
                     const id = href.slice(href.lastIndexOf("/") + 1);
-                    if (href.includes("column")) {
+                    const pos = ["answer", "zhuanlan", "column", "question"];
+                    const index = pos.findIndex((e) => href.includes(e));
+                    if (index === 2) {
                         if (this.current_Column_id === id) return;
                         this.home_request.pre = null;
                         this.home_request.next = null;
@@ -7778,7 +8045,7 @@
                         column_Home.item_index = 0;
                         this.home_request.index = 0;
                         this.loaed_list.length = 0;
-                    } else {
+                    } else if (index < 2) {
                         if (this.loaed_list.includes(id)) return;
                         this.current_article_id = id;
                         this.current_Column_id = null;
@@ -7786,12 +8053,36 @@
                         info.title = target.innerText;
                         info.url = href;
                         column_Home.single_Content_request(
-                            2,
+                            index === 0 ? 0 : 2,
                             id,
                             this.Node,
                             info
                         );
                         this.home_button && (this.homeButton_display = false);
+                    } else {
+                        const index = collect_Answers.findIndex(
+                            (e) => e.qid === id
+                        );
+                        if (index > -1) {
+                            const c = collect_Answers[index];
+                            const title = c.title;
+                            const data = c.data;
+                            for (const d of data) {
+                                const info = {};
+                                info.title = title;
+                                info.url =
+                                    "https://www.zhihu.co/" +
+                                    id +
+                                    "/answer/" +
+                                    d.aid;
+                                column_Home.single_Content_request(
+                                    0,
+                                    id,
+                                    this.Node,
+                                    info
+                                );
+                            }
+                        }
                     }
                 },
             },
@@ -7989,9 +8280,11 @@
                               html,
                               text,
                               escapeBlank(
-                                  this.isZhuanlan || this.is_column_home
-                                      ? "column/collection search"
-                                      : "column search"
+                                  this.isZhuanlan
+                                      ? "column/article search"
+                                      : this.is_column_home
+                                      ? "column/article/answer search"
+                                      : "column/article search"
                               )
                           )
                         : this.columnsModule.appendNewNode(html, text);
@@ -8006,9 +8299,9 @@
             },
             columnsModule: {
                 recentModule: {
-                    log(type) {
+                    log(type, config) {
                         //history, pocket, recent collect: h, c, p
-                        const href = location.href;
+                        const href = (config && config.url) || location.href;
                         let r = GM_getValue("recent");
                         if (r && Array.isArray(r)) {
                             const index = r.findIndex((e) => e.url === href);
@@ -8017,13 +8310,16 @@
                                 r.splice(index, 1);
                             }
                         } else r = [];
-                        const info = {};
-                        let title = document.title;
-                        title = title.slice(0, title.length - 5);
-                        info.title = title;
-                        info.update = Date.now();
-                        info.type = type;
-                        info.url = href;
+                        let info = {};
+                        if (config) info = config;
+                        else {
+                            let title = document.title;
+                            title = title.slice(0, title.length - 5);
+                            info.title = title;
+                            info.update = Date.now();
+                            info.type = type;
+                            info.url = href;
+                        }
                         const i = r.length;
                         if (i === 0) {
                             r.push(info);
@@ -8038,12 +8334,12 @@
                                 "Tips"
                             );
                     },
-                    remove(type) {
-                        const href = location.href;
+                    remove(type, url) {
+                        const href = url || location.href;
                         const r = GM_getValue("recent");
                         if (r && Array.isArray(r)) {
                             const index = r.findIndex((e) => e.url === href);
-                            if (r[index].type === type) {
+                            if (index > -1 && r[index].type === type) {
                                 r.splice(index, 1);
                                 GM_setValue("recent", r);
                             }
@@ -8442,6 +8738,31 @@
                         this.appendNewNode
                     );
                 },
+                search_Anwsers(key) {
+                    const html = [];
+                    if (collect_Answers.length === 0) return html;
+                    key = key.slice(2).trim();
+                    if (!key) return html;
+                    let i = 0;
+                    const title = escapeBlank("last active time");
+                    const pref = "https://www.zhihu.com/question/";
+                    for (const e of collect_Answers) {
+                        if (e.title.includes(key)) {
+                            i++;
+                            const info = {};
+                            info.id = i;
+                            info.title = e.title;
+                            info.excerpt = e.data.length;
+                            info.updated = this.timeStampconvertor(
+                                e.data[0].update
+                            );
+                            info.url = pref + e.qid;
+                            html.push(this.liTagRaw(info, title));
+                            if (i === 10) break;
+                        }
+                    }
+                    return html;
+                },
                 isZhuanlan: false,
                 is_column_home: false,
                 searchDatabase(key) {
@@ -8449,8 +8770,28 @@
                         (key.charAt(0) === "$" && this.isZhuanlan) ||
                         (this.is_column_home && key.length > 1)
                     ) {
-                        const cm = ["a", "p", "d", "m", "y", "h", "w"];
-                        if (cm.includes(key.charAt(1).toLowerCase())) {
+                        const cm = ["a", "p", "d", "m", "y", "h", "w", "q"];
+                        const f = key.charAt(1).toLowerCase();
+                        const index = cm.indexOf(f);
+                        if (index === cm.length - 1) {
+                            if (!collect_Answers)
+                                collect_Answers = GM_getValue("collect_a");
+                            if (
+                                !(
+                                    collect_Answers &&
+                                    Array.isArray(collect_Answers)
+                                )
+                            )
+                                collect_Answers = [];
+                            const html = this.search_Anwsers(key);
+                            this.appendNewNode(
+                                html,
+                                html.length === 0
+                                    ? "no search result"
+                                    : "answers search results"
+                            );
+                            return true;
+                        } else if (index > -1) {
                             this.initialDatabase(this.commandFormat(key));
                             return true;
                         }
@@ -8744,7 +9085,7 @@
                         s = "Collect";
                         t = "add this article to collection list";
                         dataBaseInstance.dele(true);
-                        this.columnsModule.recentModule.remove();
+                        this.columnsModule.recentModule.remove("c");
                     } else {
                         s = "Remove";
                         t = "remove this article frome collection list";
@@ -8935,9 +9276,7 @@
                                 : (this.createFrame(), this.injectButton())
                         );
                     else this.injectButton();
-                } else {
-                    this.injectButton();
-                }
+                } else this.injectButton();
                 setTimeout(() => this.communication(), 5000);
             },
         },
@@ -9562,6 +9901,9 @@
             },
         },
         QASkeyBoardEvent(index) {
+            /*
+            when in autoloaded reader mode, block keyevent if the autoloaded is progressing;
+            */
             document.onkeydown = (e) => {
                 if (
                     e.ctrlKey ||
@@ -9682,7 +10024,7 @@
             this.qaReader.readerMode && (this.qaReader.scroll_record += 3);
         },
         pageOfQA(index, href) {
-            //inject as soon as possible; may be need to concern about some eventlisteners and MO
+            //inject as soon as possible; may be need to concern about some eventlisteners and mutaobser
             this.inputBox.controlEventListener();
             index < 2 && this.anti_setInterval();
             this.addStyle(index);
