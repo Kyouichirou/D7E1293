@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.1.1
+// @version      3.4.2.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -48,7 +48,46 @@
 
 (() => {
     "use strict";
-    const blackKey = ["留学中介", "肖战"];
+    const mergeArray = (origin, target) => {
+        origin = origin.concat(target);
+        const newArr = [];
+        const tmpObj = {};
+        for (const e of origin) {
+            if (!tmpObj[e]) {
+                newArr.push(e);
+                tmpObj[e] = 1;
+            }
+        }
+        return newArr;
+    };
+    const blackKey = [
+        "\u5171\u9752\u56e2",
+        "\u4e60\u4e3b\u5e2d",
+        "\u6bdb\u4e3b\u5e2d",
+        "\u8096\u6218",
+        "\u7559\u5b66\u4e2d\u4ecb",
+        "\u65b0\u534e\u793e",
+        "\u4eba\u6c11\u65e5\u62a5",
+        "\u5149\u660e\u7f51",
+        "\u5fb7\u4e91\u793e",
+        "\u6597\u7f57\u5927\u9646",
+        "\u592e\u89c6\u65b0\u95fb",
+        "\u4eba\u6c11\u7684\u540d\u4e49",
+        "\u5171\u4ea7\u515a",
+        "\u5f20\u827a\u5174",
+        "\u6c88\u9038",
+        "\u6731\u4e00\u9f99",
+        "\u8fea\u4e3d\u70ed\u5df4",
+        "\u738b\u4e00\u535a",
+        "\u6613\u70ca\u5343\u73ba",
+        "\u91d1\u707f\u8363",
+        "\u66fe\u4ed5\u5f3a",
+        "\u738b\u4fca\u51ef",
+        "\u9a81\u8bdd\u4e00\u4e0b",
+        "\u90fd\u5e02\u5c0f\u8bf4",
+        "\u8a00\u60c5\u5c0f\u8bf4",
+        "\u803d\u7f8e\u5c0f\u8bf4",
+    ];
     const Shortcuts_URL =
         "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png";
     const UserManual =
@@ -112,18 +151,6 @@
         GM_setValue("installeddate", Date.now());
         GM_openInTab(UserManual, { insert: true });
         GM_openInTab(Shortcuts_URL, { insert: true });
-    };
-    const mergeArray = (origin, target) => {
-        origin = origin.concat(target);
-        const newArr = [];
-        const tmpObj = {};
-        for (const e of origin) {
-            if (!tmpObj[e]) {
-                newArr.push(e);
-                tmpObj[e] = 1;
-            }
-        }
-        return newArr;
     };
     const getSelection = () => {
         const select = window.getSelection();
@@ -922,7 +949,9 @@
             info.tags = tags;
             const title = document.title;
             info.note = note || "";
-            info.title = title.slice(0, title.length - 5);
+            info.title = title.endsWith("- 知乎")
+                ? title.slice(0, title.length - 5)
+                : title;
             this.db.update(info, "pid", false).then(
                 () =>
                     Notification(
@@ -2037,7 +2066,8 @@
                 if (this.no_scroll) title = this.get_article_title(node);
                 else {
                     title = document.title;
-                    title = title.slice(0, title.lastIndexOf("-") - 1);
+                    title.endsWith("- 知乎") &&
+                        (title = title.slice(0, title.length - 5));
                 }
                 const bgpic = GM_getValue("bgpreader");
                 const meta = node.getElementsByClassName(
@@ -4319,10 +4349,23 @@
                         if (!select) return;
                         else if (this.string_length(select) > 38) {
                             const reg = /[\u4e00-\u9fa5]/;
-                            if (reg.test(select) || select.length > 60) {
+                            let f = false;
+                            if ((f = reg.test(select)) || select.length > 60) {
                                 Notification(
                                     "the length of keyword is too long",
                                     "Tips"
+                                );
+                                return;
+                            }
+                            if (f && blackKey.includes(select)) {
+                                Notification(
+                                    "your keyword contains rubbish word; don't search rubbish",
+                                    "Warning",
+                                    3500
+                                );
+                                colorful_Console.main(
+                                    { title: "rubbish:", content: select },
+                                    colorful_Console.colors.warning
                                 );
                                 return;
                             }
@@ -5149,6 +5192,222 @@
                 this.disableShade.cmenu();
             },
         },
+        settings_Popup: {
+            node: null,
+            create() {
+                const html = `
+                <div
+                    id="settingLayerMask"
+                    style="
+                        display: flex;
+                        justify-content: center;
+                        align-items: stretch;
+                        opacity: 1;
+                    "
+                >
+                    <style>
+                        #settingLayerMask {
+                            display: none;
+                            justify-content: center;
+                            align-items: center;
+                            position: fixed;
+                            top: 0;
+                            right: 0;
+                            bottom: 0;
+                            left: 0;
+                            background-color: rgba(0, 0, 0, 0.5);
+                            z-index: 200000000;
+                            overflow: auto;
+                            font-family: arial, sans-serif;
+                            min-height: 100%;
+                            font-size: 16px;
+                            transition: 0.5s;
+                            opacity: 0;
+                            user-select: none;
+                            -moz-user-select: none;
+                            padding-bottom: 80px;
+                            box-sizing: border-box;
+                        }
+                        #settingLayer {
+                            height: 360px;
+                            display: flex;
+                            flex-wrap: wrap;
+                            padding: 20px;
+                            margin: 0px 25px 50px 5px;
+                            background-color: #fff;
+                            border-radius: 4px;
+                            position: absolute;
+                            min-width: 700px;
+                            transition: 0.5s;
+                        }
+                        span.drag {
+                            display: block;
+                            position: relative;
+                        }
+                        span.sej-engine {
+                            background-color: #ccc;
+                            border-radius: 2px;
+                            width: 100%;
+                            box-sizing: border-box;
+                            cursor: pointer;
+                            line-height: 2;
+                            display: inline-block;
+                            margin: 0 0px 0 0;
+                            border: none;
+                            padding: 0 6px;
+                            font-weight: 500;
+                            color: #333 !important;
+                            transition: background-color 0.15s ease-in-out;
+                        }
+                        #btnEle {
+                            position: absolute;
+                            width: 100%;
+                            bottom: 4px;
+                            right: 0;
+                            background: #fff;
+                            border-radius: 4px;
+                        }
+                        #btnEle > div {
+                            width: 100%;
+                            margin-bottom: -100%;
+                            display: flex;
+                            justify-content: space-around;
+                            background: #eff4f8;
+                            border-radius: 4px;
+                        }
+                        #btnEle .feedback {
+                            border-color: #aaa;
+                        }
+                        #btnEle span {
+                            display: inline-block;
+                            background: #eff4f8;
+                            border: 1px solid #3abdc1;
+                            margin: 12px auto 10px;
+                            color: #3abdc1;
+                            padding: 5px 10px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            outline: none;
+                            transition: 0.3s;
+                        }
+                        #btnEle a {
+                            color: #999;
+                            text-decoration: none;
+                        }
+                        #xin-close {
+                            background: white;
+                            color: #3abdc1;
+                            line-height: 20px;
+                            text-align: center;
+                            height: 20px;
+                            width: 20px;
+                            text-align: center;
+                            font-size: 20px;
+                            padding: 10px;
+                            border: 3px solid #3abdc1;
+                            border-radius: 50%;
+                            transition: 0.5s;
+                            top: -20px;
+                            right: -20px;
+                            position: absolute;
+                        }
+                        #xin-close::before {
+                            content: "\\2716";
+                        }
+                    </style>
+                    <div
+                        id="settingLayer"
+                        style="top: 45%; left: 50%; transform: translate(-50%, -50%)"
+                    >
+                        <div class="setting_content" style="margin-left: 5%"></div>
+                        <div id="btnEle">
+                            <div class="btnEleLayer">
+                                <span class="feedback"
+                                    ><a
+                                        target="_blank"
+                                        href="https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer"
+                                        >Greasyfork</a
+                                    ></span
+                                ><span class="feedback"
+                                    ><a
+                                        target="_blank"
+                                        title="user manual"
+                                        href="https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md"
+                                        >GitHub</a
+                                    ></span
+                                ><span class="feedback"
+                                    ><a
+                                        target="_blank"
+                                        href="https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png"
+                                        >Shortcuts</a
+                                    ></span
+                                ><span class="feedback"
+                                ><a
+                                    target="_blank"
+                                    href="https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer/feedback"
+                                    >Feedback</a
+                                ></span
+                                >
+                                <span id="xin-save" title="save &amp; close">Save&Close</span>
+                            </div>
+                        </div>
+                        <span id="xin-close" title="close"></span>
+                    </div>
+                </div>`;
+                document.body.insertAdjacentHTML("beforeend", html);
+                this.event();
+            },
+            event() {
+                setTimeout(() => {
+                    this.node = document.getElementById("settingLayerMask");
+                    this.node.onclick = (e) => {
+                        const id = e.target.id;
+                        id && id.includes('close') && this.remove()
+                    }
+                }, 50);
+            },
+            remove() {
+                if (this.node) {
+                    this.node.remove();
+                    this.node = null;
+                }
+            },
+            main() {
+                this.node ? this.remove() : this.create();
+            },
+        },
+        create_settings(node) {
+            const html = `
+            <i
+                class="my_settings"
+                title="settings"
+                style="
+                    content: url(data:image/webp;base64,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);
+                    height: 28px;
+                    width: 28px;
+                    margin-left: 120%;
+                    position: absolute;
+                    border: 1px solid #06f;
+                "
+            ></i>`;
+            let f = node.previousElementSibling.getElementsByClassName(
+                "ColumnPageHeader-Button"
+            )[0];
+            let n = f.firstElementChild;
+            n.innerText = "Note";
+            n.title = 'right mouse click to open note';
+            n.oncontextmenu = (e) => {
+                e.preventDefault();
+                this.settings_Popup.main();
+            };
+            n = null;
+            f.insertAdjacentHTML("afterend", html);
+            setTimeout(() => {
+                f.nextElementSibling.onclick = (e) =>
+                    this.settings_Popup.main();
+                f = null;
+            }, 50);
+        },
         column_homePage() {
             const ch = document.getElementsByClassName("ColumnHome")[0];
             let chs = ch.children;
@@ -5182,7 +5441,7 @@
                         e
                     );
                 });
-            } else return;
+            }
             const targetElements = this.Filter.getTagetElements(1);
             this.qaReader.no_scroll = true;
             chs[i].onclick = (e) => {
@@ -5196,6 +5455,7 @@
                 if (!item) return;
                 this.qaReader.main(item, this.Filter.foldAnswer.getid(item));
             };
+            this.create_settings(chs[i]);
             chs = null;
             this.QASkeyBoardEvent(9);
             unsafeWindow.addEventListener("visibilitychange", () =>
@@ -8329,7 +8589,8 @@
                         if (config) info = config;
                         else {
                             let title = document.title;
-                            title = title.slice(0, title.length - 5);
+                            title.endsWith("- 知乎") &&
+                                (title = title.slice(0, title.length - 5));
                             info.title = title;
                             info.update = Date.now();
                             info.type = type;
@@ -9831,6 +10092,7 @@
                 );
             },
             main(mode) {
+                if (!dataBaseInstance.db) return;
                 dataBaseInstance
                     .getdataCount(
                         mode ? ["collection", "preference"] : ["foldedAnswer"]
@@ -10098,10 +10360,21 @@
                 }
             );
         },
+        pre_Check(content) {
+            blackKey.some((e) => content.includes(e)) &&
+                confirm(
+                    "The link you are currently visiting contains rubbish, close the tab?"
+                ) &&
+                window.close();
+        },
         start() {
             const pathname = location.pathname;
             const excludes = ["/write", "/api/"];
             if (excludes.some((e) => pathname.includes(e))) return;
+            const search = location.search;
+            search &&
+                search.length > 2 &&
+                this.pre_Check(decodeURIComponent(search));
             const includes = [
                 "/answer/",
                 "/question/",
@@ -10119,13 +10392,15 @@
             let f = false;
             (
                 (z = index === 5)
-                    ? (f = href.endsWith("zhihu.com/")) || z
+                    ? (!(f = href.endsWith("zhihu.com/")) &&
+                          this.pre_Check(document.title)) ||
+                      z
                     : index === 4
             )
                 ? this.zhuanlanStyle(
                       z && pathname.includes("/p/") ? 0 : f ? 1 : 2
                   )
-                : this.pageOfQA(index, href);
+                : (this.pre_Check(document.title), this.pageOfQA(index, href));
             this.antiRedirect();
             this.antiLogin();
             this.shade.start();
