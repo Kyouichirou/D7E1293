@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.1.0
+// @version      3.4.1.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -525,6 +525,16 @@
                 return null;
             } else return this.check(wh, args, offset);
         },
+    };
+    const change_Title = (title) => {
+        const chs = document.head.children;
+        for (const c of chs) {
+            if (c.localName === "title") {
+                c.innerHTML = title;
+                document.title = title;
+                break;
+            }
+        }
     };
     /*
     convert image to base64 code
@@ -3702,7 +3712,7 @@
                         this.allAnswser_loaded) &&
                     setTimeout(() => this.curNode.scrollIntoView(), 300);
                 this.no_scroll
-                    ? (document.title = "IGNORANCE IS STRENGTH")
+                    ? change_Title("IGNORANCE IS STRENGTH")
                     : this.ctrl_click.call(zhihu, false);
             },
             //load lazy pic
@@ -4088,7 +4098,7 @@
                             ? href.match(/(?<=question\/)\d+/)[0]
                             : null;
                 }
-                document.title = a.innerText;
+                change_Title(a.innerText);
             },
             main(pnode, aid, mode = false) {
                 this.initial_id && clearTimeout(this.initial_id);
@@ -7075,6 +7085,12 @@
                     this.anti_setInterval();
                     this.Column.isZhuanlan = true;
                 } else {
+                    document.title = "IGNORANCE IS STRENGTH";
+                    Object.defineProperty(document, "title", {
+                        writable: true,
+                        enumerable: true,
+                        configurable: true,
+                    });
                     this.Column.is_column_home = true;
                     GM_addStyle(home);
                 }
@@ -7084,7 +7100,6 @@
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
                     } else {
-                        document.title = "IGNORANCE IS STRENGTH";
                         this.Column.main(1);
                         this.column_homePage();
                     }
