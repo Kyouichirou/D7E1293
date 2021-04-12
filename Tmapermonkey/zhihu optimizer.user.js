@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.2.1
+// @version      3.4.3.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -794,7 +794,6 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
-                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -887,9 +886,9 @@
     }
     const dataBaseInstance = {
         db: null,
-        additem(columnID, node) {
+        additem(columnID, node, pid) {
             const info = {};
-            info.pid = this.pid;
+            info.pid = pid || this.pid;
             info.update = Date.now();
             info.excerpt = "";
             info.visitTimes = 1;
@@ -2647,10 +2646,11 @@
                 remove(href) {
                     this.columnsModule.recentModule.remove("c", href);
                 },
-                collect(node) {
+                collect(node, pid) {
                     dataBaseInstance.additem(
                         this.home_Module.current_Column_id,
-                        node
+                        node,
+                        pid
                     );
                 },
                 log(config) {
@@ -5380,6 +5380,85 @@
                 this.node ? this.remove() : this.create();
             },
         },
+        white_noise: {
+            get Index() {
+                const index = GM_getValue("white_noise");
+                return typeof index === "number" ? index : 0;
+            },
+            get_musice(index) {
+                const audio_sources = [
+                    "rain_sound_1",
+                    "rain_sound_2",
+                    "white_noise_1",
+                    "river_stream_1",
+                    "campfire_1",
+                    "winter_traffic_1",
+                    "ocean_waves_1",
+                    "blizzard_1",
+                    "forest_wind_1",
+                    "crickets_1",
+                ];
+                const pref = "https://noizzze.com/audio/";
+                const suffix = ".mp3";
+                const f = index > audio_sources.length - 1;
+                f && GM_setValue("white_noise", 0);
+                return pref + audio_sources[f ? 0 : index] + suffix;
+            },
+            create(node) {
+                const html = `
+                    <div class="white_noise" style="position: absolute; margin-left: -35%">
+                    <button
+                        style="
+                            display: inline-block;
+                            font-size: 12px;
+                            text-align: center;
+                            cursor: pointer;
+                            border: 0.5px solid lightgray;
+                            border-radius: 3px;
+                            height: 25px;
+                            width: 64px;
+                            margin-right: 10px;
+                        "
+                        title="change style of white noise"
+                    >
+                        Change
+                    </button>
+
+                    <audio
+                        class="rain_sound_1 allaudio"
+                        loop=""
+                        controls="controls"
+                        style="position: absolute; height: 28px; width: 216px"
+                    >
+                        <source
+                            src=${this.get_musice(this.Index)}
+                            type="audio/mpeg"
+                        />
+                    </audio>
+                </div>`;
+                node.insertAdjacentHTML("afterbegin", html);
+                this.event(node);
+            },
+            change_music(audio) {
+                const index = this.Index + 1;
+                audio.src = this.get_musice(index);
+                GM_setValue("white_noise", index);
+            },
+            event(node) {
+                setTimeout(() => {
+                    const f = node.firstElementChild.firstElementChild;
+                    f.onclick = (e) =>
+                        this.change_music(e.target.nextElementSibling);
+                    const audio = f.nextElementSibling;
+                    audio.autoplay = true;
+                    audio.onerror = (e) => {
+                        console.log(e);
+                        Notification('failed to load mp3 auido', 'Warning');
+                    }
+                    audio.onload = () => audio.play();
+                }, 50);
+            }
+        },
         create_settings(node) {
             const html = `
             <i
@@ -5409,6 +5488,7 @@
             setTimeout(() => {
                 f.nextElementSibling.onclick = (e) =>
                     this.settings_Popup.main();
+                this.white_noise.create(f.parentNode);
                 f = null;
             }, 50);
         },
@@ -5552,7 +5632,8 @@
             //click the ico of button
             svgCheck(node, targetElements) {
                 let pnode = node.parentNode;
-                if (pnode.className === targetElements.buttonClass) return pnode;
+                if (pnode.className === targetElements.buttonClass)
+                    return pnode;
                 else {
                     pnode = pnode.parentNode;
                     let className = pnode.className;
@@ -5797,10 +5878,12 @@
                 */
                 const id = this.foldAnswer.getid(item);
                 (id ? !this.checked_list.includes(id) : true) &&
-                setTimeout(
-                    () => !this.content_check(item, targetElements) && this.checked_list.push(id),
-                    300
-                );
+                    setTimeout(
+                        () =>
+                            !this.content_check(item, targetElements) &&
+                            this.checked_list.push(id),
+                        300
+                    );
             },
             //check the content when the content expanded
             colorIndicator: {
@@ -8277,7 +8360,7 @@
                 },
                 home_DB_initial() {
                     this.loaed_list = [];
-                    dataBaseInstance.initial(["collection"], false).then(
+                    dataBaseInstance.initial(["collection"], true).then(
                         () => {},
                         () =>
                             Notification(
@@ -9369,7 +9452,7 @@
                     } else {
                         s = "Remove";
                         t = "remove this article frome collection list";
-                        dataBaseInstance.additem(this.columnID, document);
+                        dataBaseInstance.additem(this.columnID);
                         this.columnsModule.recentModule.log("c");
                     }
                     button.innerText = s;
@@ -10400,9 +10483,7 @@
                       z
                     : index === 4
             )
-                ? this.zhuanlanStyle(
-                      z && href.includes("/p/") ? 0 : f ? 1 : 2
-                  )
+                ? this.zhuanlanStyle(z && href.includes("/p/") ? 0 : f ? 1 : 2)
                 : (this.pre_Check(document.title), this.pageOfQA(index, href));
             this.antiRedirect();
             this.antiLogin();
