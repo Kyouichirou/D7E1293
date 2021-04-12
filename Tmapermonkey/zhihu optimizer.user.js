@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.2.0
+// @version      3.4.2.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -794,6 +794,7 @@
         update(info, keyPath, mode = false) {
             //if db has contained the item, will update the info; if it does not, a new item is added
             return new Promise((resolve, reject) => {
+                if (mode && (!this.table || this.isfinish)) this.openTable();
                 //keep cursor
                 if (mode) {
                     this.read(info[keyPath]).then(
@@ -886,9 +887,9 @@
     }
     const dataBaseInstance = {
         db: null,
-        additem(columnID, node, pid) {
+        additem(columnID, node) {
             const info = {};
-            info.pid = pid || this.pid;
+            info.pid = this.pid;
             info.update = Date.now();
             info.excerpt = "";
             info.visitTimes = 1;
@@ -2646,11 +2647,10 @@
                 remove(href) {
                     this.columnsModule.recentModule.remove("c", href);
                 },
-                collect(node, pid) {
+                collect(node) {
                     dataBaseInstance.additem(
                         this.home_Module.current_Column_id,
-                        node,
-                        pid
+                        node
                     );
                 },
                 log(config) {
@@ -4347,10 +4347,14 @@
                         //baidu restrict the length of search keyword is 38;
                         const select = keyword || getSelection();
                         if (!select) return;
-                        else if (this.string_length(select) > 38) {
+                        else {
                             const reg = /[\u4e00-\u9fa5]/;
-                            let f = false;
-                            if ((f = reg.test(select)) || select.length > 60) {
+                            const f = reg.test(select);
+                            if (
+                                f
+                                    ? this.string_length(select) > 38
+                                    : select.length > 60
+                            ) {
                                 Notification(
                                     "the length of keyword is too long",
                                     "Tips"
@@ -5362,8 +5366,8 @@
                     this.node = document.getElementById("settingLayerMask");
                     this.node.onclick = (e) => {
                         const id = e.target.id;
-                        id && id.includes('close') && this.remove()
-                    }
+                        id && id.includes("close") && this.remove();
+                    };
                 }, 50);
             },
             remove() {
@@ -5395,7 +5399,7 @@
             )[0];
             let n = f.firstElementChild;
             n.innerText = "Note";
-            n.title = 'right mouse click to open note';
+            n.title = "right mouse click to open note";
             n.oncontextmenu = (e) => {
                 e.preventDefault();
                 this.settings_Popup.main();
@@ -5545,19 +5549,17 @@
             4. article
             5. content keyword
             */
-            checked: null,
             //click the ico of button
             svgCheck(node, targetElements) {
                 let pnode = node.parentNode;
-                if (pnode.className === targetElements.buttonClass) {
-                    return pnode;
-                } else {
+                if (pnode.className === targetElements.buttonClass) return pnode;
+                else {
                     pnode = pnode.parentNode;
                     let className = pnode.className;
                     let ic = 0;
                     while (className !== targetElements.buttonClass) {
                         pnode = pnode.parentNode;
-                        if (!node || ic > 2) return null;
+                        if (!node || ic > 3) return null;
                         className = pnode.className;
                         ic++;
                     }
@@ -5588,14 +5590,6 @@
                 const pathname = a[0].pathname;
                 return pathname.slice(pathname.lastIndexOf("/") + 1);
             },
-            //checks if the part of answer is expanded
-            checkExpand(item) {
-                return (
-                    item.getElementsByClassName(
-                        "RichContent is-collapsed RichContent--unescapable"
-                    ).length > 0
-                );
-            },
             /*
             0, normal
             1, searchpage => check username
@@ -5603,66 +5597,6 @@
             3, article page => check expand
             if the item has been checked, return
             */
-            contentCheck(item, targetElements, mode) {
-                let id = "";
-                if (mode === 2) {
-                    id = this.getTargetID(item);
-                    if (id && this.checked.includes(id)) return false;
-                }
-                const content = item.getElementsByClassName(
-                    targetElements.contentID
-                );
-                if (content.length === 0) {
-                    console.log("get content fail");
-                    return false;
-                }
-                const text = content[0].innerText;
-                if (mode === 1) {
-                    const name = text.startsWith("匿名用户：")
-                        ? ""
-                        : text.slice(0, text.indexOf("："));
-                    if (name && blackName.includes(name)) {
-                        console.log(
-                            `%cuser of ${name} has been blocked`,
-                            "color: red;"
-                        );
-                        item.style.display = "none";
-                        return true;
-                    }
-                }
-                const result = blackKey.some((e) => text.includes(e));
-                if (result) {
-                    console.log("%citem has been blocked", "color: red;");
-                    item.style.display = "none";
-                } else if (
-                    mode === 2 ||
-                    (targetElements.index < 2 && !this.checkExpand(item))
-                ) {
-                    (id || (id = this.getTargetID(item))) &&
-                        this.checked.push(id);
-                }
-                return result;
-            },
-            userCheck(item, targetElements) {
-                const user = item.getElementsByClassName(targetElements.userID);
-                if (user.length === 0) {
-                    console.log("get user fail, anonymous user");
-                    return false;
-                }
-                let i = user.length - 1;
-                i = i > 1 ? 1 : i;
-                const name = user[i].innerText;
-                const result = blackName.includes(name);
-                if (result) {
-                    console.log(
-                        `%cuser of ${name} has been blocked`,
-                        "color: red;"
-                    );
-                    item.style.display = "none";
-                }
-                return result;
-            },
-            //block question
             get Topic_question_ID() {
                 const href = location.href;
                 const reg = /(?<=(question|topic)\/)\d+/;
@@ -5764,30 +5698,86 @@
                         remote && (blackTopicAndQuestion = newValue)
                 );
             },
-            check(item, targetElements, mode) {
-                let result = false;
-                if (targetElements.index === 3) {
-                    //zhihu hot news(the whole) => don't treat
-                    const h = item.getElementsByClassName("MinorHotSpot");
-                    if (h.length > 0) return;
-                    result = this.contentCheck(item, targetElements, 1);
-                } else {
-                    result = this.userCheck(item, targetElements);
-                    result =
-                        !result &&
-                        this.contentCheck(item, targetElements, mode);
-                }
-                if (!result && this.dbInitial) {
-                    if (targetElements.index < 2) {
-                        this.foldAnswer.check(
-                            item.className !== "ContentItem AnswerItem"
-                                ? item.getElementsByClassName(
-                                      "ContentItem AnswerItem"
-                                  )[0]
-                                : item
+            get_content_element(item, targetElements) {
+                const content = item.getElementsByClassName(
+                    targetElements.contentID
+                );
+                return content.length === 0 ? null : content[0];
+            },
+            content_check(item, targetElements, node) {
+                const content = node || this.get_content_element(item, targetElements);
+                if (!content) return false;
+                const text = content.innerText;
+                return blackKey.some((e) => {
+                    if (text.includes(e)) {
+                        colorful_Console.main(
+                            {
+                                title: "content block",
+                                content: "rubbish word " + e,
+                            },
+                            colorful_Console.colors.warning
                         );
-                    } else this.foldAnswer.Three.main(item);
+                        this.hidden_item(item);
+                        return true;
+                    }
+                    return false;
+                });
+            },
+            hidden_item(item) {
+                item.className === "ContentItem AnswerItem"
+                    ? (item.parentNode.style.display = "none")
+                    : (item.style.display = "none");
+            },
+            user_check(item, targetElements) {
+                const user = item.getElementsByClassName(targetElements.userID);
+                if (user.length === 0) {
+                    colorful_Console.main(
+                        { title: "anonymous user", content: "no user info" },
+                        colorful_Console.colors.info
+                    );
+                    return false;
                 }
+                const i = user.length - 1;
+                const name = user[i > 1 ? 1 : i].innerText;
+                const result = blackName.includes(name);
+                if (result) {
+                    colorful_Console.main(
+                        { title: "Blocked User", content: name },
+                        colorful_Console.colors.warning
+                    );
+                    this.hidden_item(item);
+                }
+                return result;
+            },
+            search_check(item, targetElements) {
+                const content = this.get_content_element(item, targetElements);
+                if (!content) return false;
+                const user = content.firstElementChild.innerText;
+                if (blackName.includes(user)) {
+                    colorful_Console.main(
+                        { title: "Blocked User", content: user },
+                        colorful_Console.colors.warning
+                    );
+                    this.hidden_item(item);
+                    return true;
+                }
+                return this.content_check(item, targetElements, content);
+            },
+            get_main_element(item) {
+                return item.className === "ContentItem AnswerItem"
+                    ? item
+                    : item.getElementsByClassName("ContentItem AnswerItem")[0];
+            },
+            check(item, targetElements) {
+                const tmp = this.get_main_element(item);
+                (tmp ? !(targetElements.index === 3
+                    ? this.search_check(tmp, targetElements)
+                    : this.user_check(tmp, targetElements) ||
+                      this.content_check(tmp, targetElements)) : true) &&
+                    this.dbInitial &&
+                    (targetElements.index < 2
+                        ? this.foldAnswer.check(tmp)
+                        : this.foldAnswer.Three.main(item));
             },
             /*
             1. URL change, for example, forward or backward, ...disable MutationObserver
@@ -5800,13 +5790,15 @@
                     : targetElements.zone.some((e) => href.includes(e));
             },
             clickCheck(item, targetElements) {
-                // user without userid when in the search page, if the answer is not expanded
-                if (targetElements.index === 3) {
-                    const result = this.userCheck(item, targetElements);
-                    if (result) return;
-                }
+                /*
+                without userid when in the search page, if the answer is not expanded
+                the content only has the abstract section, if in search page and topic page
+                check the content, and record the cheched status;
+                */
+                const id = this.foldAnswer.getid(item);
+                (id ? !this.checked_list.includes(id) : true) &&
                 setTimeout(
-                    () => this.contentCheck(item, targetElements, 2),
+                    () => !this.content_check(item, targetElements) && this.checked_list.push(id),
                     300
                 );
             },
@@ -5860,6 +5852,7 @@
                 const tags = ["blockquote", "p", "br", "li"];
                 this.colorIndicator.stat = GM_getValue("highlight");
                 node.onclick = (e) => {
+                    //when open reader mode, if create click event of document, no node
                     if (this.isReader) return;
                     let limit = true;
                     if (targetElements.index < 2)
@@ -5876,6 +5869,7 @@
                     }
                     this.colorIndicator.restore();
                     const className = target.className;
+                    //take care of svg element, the classname
                     if (
                         className &&
                         typeof className === "string" &&
@@ -5911,10 +5905,10 @@
                         }
                         return;
                     }
-                    let item = null;
                     //click the expand button, the rich node has contained all content in q & a webpage;
                     if (targetElements.index < 2) return;
-                    item = this.check_click_all(
+                    //-----------------------------------------------
+                    const item = this.check_click_all(
                         className,
                         localName,
                         target,
@@ -5935,6 +5929,7 @@
                     }
                     if (item) this.clickCheck(item, targetElements);
                     else {
+                        //some internal url with redirect paramter, the antiredirect function does not treat
                         const path = e.path;
                         let ic = 0;
                         for (const c of path) {
@@ -6084,15 +6079,15 @@
                     2: "topicPage",
                     3: "searchPage",
                 };
-                this.checked = [];
                 const targetElements = this[pos[index]](index);
                 return targetElements;
             },
             dbInitial: false,
             reader_sync: null,
+            checked_list: null,
             main(index, reader_sync) {
                 this.foldAnswer.initial().then((r) => {
-                    this.checked = [];
+                    index > 1 && (this.checked_list = []);
                     this.dbInitial = r;
                     this.reader_sync = reader_sync;
                     const targetElements = this.getTagetElements(index);
@@ -7207,6 +7202,15 @@
                             fuckzhihu.stopImmediatePropagation();
                             fuckzhihu.stopPropagation();
                         } else {
+                            if (
+                                blackKey.some((e) => this.box.value.includes(e))
+                            ) {
+                                Notification(
+                                    "keyword contains rubbish word",
+                                    "Warning"
+                                );
+                                return;
+                            }
                             const url = `https://www.zhihu.com/search?q=${this.box.value}&type=content`;
                             window.open(url, "_blank");
                         }
@@ -8273,7 +8277,7 @@
                 },
                 home_DB_initial() {
                     this.loaed_list = [];
-                    dataBaseInstance.initial(["collection"], true).then(
+                    dataBaseInstance.initial(["collection"], false).then(
                         () => {},
                         () =>
                             Notification(
@@ -9365,7 +9369,7 @@
                     } else {
                         s = "Remove";
                         t = "remove this article frome collection list";
-                        dataBaseInstance.additem(this.columnID);
+                        dataBaseInstance.additem(this.columnID, document);
                         this.columnsModule.recentModule.log("c");
                     }
                     button.innerText = s;
@@ -10368,9 +10372,9 @@
                 window.close();
         },
         start() {
-            const pathname = location.pathname;
+            const href = location.href;
             const excludes = ["/write", "/api/"];
-            if (excludes.some((e) => pathname.includes(e))) return;
+            if (excludes.some((e) => href.includes(e))) return;
             const search = location.search;
             search &&
                 search.length > 2 &&
@@ -10386,7 +10390,6 @@
                 "/org/",
                 "/www",
             ];
-            const href = location.href;
             const index = includes.findIndex((e) => href.includes(e));
             let z = false;
             let f = false;
@@ -10398,7 +10401,7 @@
                     : index === 4
             )
                 ? this.zhuanlanStyle(
-                      z && pathname.includes("/p/") ? 0 : f ? 1 : 2
+                      z && href.includes("/p/") ? 0 : f ? 1 : 2
                   )
                 : (this.pre_Check(document.title), this.pageOfQA(index, href));
             this.antiRedirect();
