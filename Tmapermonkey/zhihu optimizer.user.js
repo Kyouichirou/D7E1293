@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.3.1
+// @version      3.4.3.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -2660,7 +2660,7 @@
             collect(target) {
                 const config = {};
                 config.type = "c";
-                const upt = Date.now();
+                const upt = Date.now;
                 if (this.content_type === "answer") {
                     const index = this.check_Answers(this.qid);
                     const pref = "https://www.zhihu.com/question/";
@@ -5404,6 +5404,55 @@
                 f && GM_setValue("white_noise", 0);
                 return pref + audio_sources[f ? 0 : index] + suffix;
             },
+            audio_ctrl: {
+                audio: null,
+                volume: 1,
+                play_pause() {
+                    this.audio && this.audio.paused
+                        ? this.audio.play()
+                        : this.audio.pause();
+                    return true;
+                },
+                voice_up_down(e) {
+                    let vx = this.volume;
+                    if (e) {
+                        if (vx >= 1) return true;
+                        vx += 0.1;
+                    } else {
+                        if (vx <= 0) return true;
+                        vx -= 0.1;
+                    }
+                    this.audio && (this.audio.volume = vx);
+                    this.volume = vx;
+                    return true;
+                },
+            },
+            set_audio(audio, mode = false) {
+                audio.loop = true;
+                audio.oncanplay = () => (mode ? (mode = false) : audio.play());
+                audio.onerror = (e) => {
+                    console.log(e);
+                    Notification(
+                        "failed to load mp3 of white noise",
+                        "Warning"
+                    );
+                };
+            },
+            just_audio() {
+                const audio = document.createElement("audio");
+                audio.src = this.get_musice(this.Index);
+                this.set_audio(audio);
+                Notification("create audio successfully", "Tips");
+                this.audio_ctrl.audio = audio;
+            },
+            destroy_audio() {
+                if (this.audio_ctrl.audio) {
+                    this.audio_ctrl.audio.pause();
+                    this.audio_ctrl.audio = null;
+                    Notification("the audio has been destroyed", "Tips");
+                } else this.just_audio();
+                return true;
+            },
             create(node) {
                 const html = `
                     <div class="white_noise" style="position: absolute; margin-left: -35%">
@@ -5423,10 +5472,8 @@
                     >
                         Change
                     </button>
-
                     <audio
                         class="rain_sound_1 allaudio"
-                        loop=""
                         controls="controls"
                         style="position: absolute; height: 28px; width: 216px"
                     >
@@ -5439,25 +5486,25 @@
                 node.insertAdjacentHTML("afterbegin", html);
                 this.event(node);
             },
-            change_music(audio) {
+            change_music(mode) {
+                if (!this.audio_ctrl.audio) return true;
                 const index = this.Index + 1;
-                audio.src = this.get_musice(index);
+                this.audio_ctrl.audio.src = this.get_musice(index);
                 GM_setValue("white_noise", index);
+                mode &&
+                    Notification("change style of white noise successfully");
+                return true;
             },
             event(node) {
                 setTimeout(() => {
-                    const f = node.firstElementChild.firstElementChild;
-                    f.onclick = (e) =>
-                        this.change_music(e.target.nextElementSibling);
+                    let f = node.firstElementChild.firstElementChild;
+                    f.onclick = () => this.change_music();
                     const audio = f.nextElementSibling;
-                    audio.autoplay = true;
-                    audio.onerror = (e) => {
-                        console.log(e);
-                        Notification('failed to load mp3 auido', 'Warning');
-                    }
-                    audio.onload = () => audio.play();
+                    this.set_audio(audio, true);
+                    this.audio_ctrl.audio = audio;
+                    f = null;
                 }, 50);
-            }
+            },
         },
         create_settings(node) {
             const html = `
@@ -5786,14 +5833,15 @@
                 return content.length === 0 ? null : content[0];
             },
             content_check(item, targetElements, node) {
-                const content = node || this.get_content_element(item, targetElements);
+                const content =
+                    node || this.get_content_element(item, targetElements);
                 if (!content) return false;
                 const text = content.innerText;
                 return blackKey.some((e) => {
                     if (text.includes(e)) {
                         colorful_Console.main(
                             {
-                                title: "content block",
+                                title: "content block:",
                                 content: "rubbish word " + e,
                             },
                             colorful_Console.colors.warning
@@ -5851,10 +5899,12 @@
             },
             check(item, targetElements) {
                 const tmp = this.get_main_element(item);
-                (tmp ? !(targetElements.index === 3
-                    ? this.search_check(tmp, targetElements)
-                    : this.user_check(tmp, targetElements) ||
-                      this.content_check(tmp, targetElements)) : true) &&
+                (tmp
+                    ? !(targetElements.index === 3
+                          ? this.search_check(tmp, targetElements)
+                          : this.user_check(tmp, targetElements) ||
+                            this.content_check(tmp, targetElements))
+                    : true) &&
                     this.dbInitial &&
                     (targetElements.index < 2
                         ? this.foldAnswer.check(tmp)
@@ -10194,7 +10244,14 @@
                     });
             },
         },
-        common_KeyEevnt(shift, keyCode) {
+        common_KeyEevnt(shift, keyCode, index) {
+            /*
+            open user manual webpage;
+            open shortcuts webpage;
+            enable/disable convert chinese letter to english letter;
+            multi search;
+            white noise control
+            */
             if (shift) {
                 const url =
                     keyCode === 85
@@ -10205,6 +10262,16 @@
                         ? this.key_ctrl_clip()
                         : keyCode === 77
                         ? this.multiSearch.site()
+                        : keyCode === 87
+                        ? index !== 9 && this.white_noise.destroy_audio()
+                        : keyCode === 86
+                        ? this.white_noise.audio_ctrl.play_pause()
+                        : keyCode === 187
+                        ? this.white_noise.audio_ctrl.voice_up_down(true)
+                        : keyCode === 189
+                        ? this.white_noise.audio_ctrl.voice_up_down(false)
+                        : keyCode === 90
+                        ? this.white_noise.change_music(true)
                         : null;
                 if (url) {
                     typeof url === "string" &&
@@ -10285,7 +10352,7 @@
                     return;
                 const shift = e.shiftKey;
                 const keyCode = e.keyCode;
-                if (this.common_KeyEevnt(shift, keyCode)) return;
+                if (this.common_KeyEevnt(shift, keyCode, index)) return;
                 const r = this.qaReader.readerMode;
                 r
                     ? this.qaReader.keyEvent(keyCode, shift)
