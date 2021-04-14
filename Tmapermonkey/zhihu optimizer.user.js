@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.3.2
+// @version      3.4.3.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -2647,6 +2647,7 @@
                     this.columnsModule.recentModule.remove("c", href);
                 },
                 collect(node, pid) {
+                    dataBaseInstance.TableName = 'collection';
                     dataBaseInstance.additem(
                         this.home_Module.current_Column_id,
                         node,
@@ -2660,7 +2661,7 @@
             collect(target) {
                 const config = {};
                 config.type = "c";
-                const upt = Date.now;
+                const upt = Date.now();
                 if (this.content_type === "answer") {
                     const index = this.check_Answers(this.qid);
                     const pref = "https://www.zhihu.com/question/";
@@ -5406,7 +5407,7 @@
             },
             audio_ctrl: {
                 audio: null,
-                volume: 1,
+                volume: 0,
                 play_pause() {
                     this.audio && this.audio.paused
                         ? this.audio.play()
@@ -5414,6 +5415,7 @@
                     return true;
                 },
                 voice_up_down(e) {
+                    if (!this.audio) return true;
                     let vx = this.volume;
                     if (e) {
                         if (vx >= 1) return true;
@@ -5422,13 +5424,14 @@
                         if (vx <= 0) return true;
                         vx -= 0.1;
                     }
-                    this.audio && (this.audio.volume = vx);
+                    this.audio.volume = vx;
                     this.volume = vx;
                     return true;
                 },
             },
             set_audio(audio, mode = false) {
                 audio.loop = true;
+                this.audio_ctrl.volume = audio.volume;
                 audio.oncanplay = () => (mode ? (mode = false) : audio.play());
                 audio.onerror = (e) => {
                     console.log(e);
@@ -6557,6 +6560,24 @@
                         if (title.length === 0) return null;
                         const a = title[0].getElementsByTagName("a");
                         if (a.length === 0) return null;
+                        const text = a[0].innerText;
+                        if (
+                            blackKey.some((e) => {
+                                if (text.includes(e)) {
+                                    item.style.display = "none";
+                                    colorful_Console.main(
+                                        {
+                                            title: "Blocked title: ",
+                                            content: "rubbish word " + e,
+                                        },
+                                        colorful_Console.colors.warning
+                                    );
+                                    return true;
+                                }
+                                return false;
+                            })
+                        )
+                            return null;
                         const p = a[0].pathname;
                         const info = {};
                         info.cblock = false;
