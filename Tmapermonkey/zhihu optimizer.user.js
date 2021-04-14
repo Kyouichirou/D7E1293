@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.3.3
+// @version      3.4.4.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -48,17 +48,16 @@
 
 (() => {
     "use strict";
-    const mergeArray = (origin, target) => {
-        origin = origin.concat(target);
-        const newArr = [];
-        const tmpObj = {};
-        for (const e of origin) {
-            if (!tmpObj[e]) {
-                newArr.push(e);
-                tmpObj[e] = 1;
-            }
-        }
-        return newArr;
+    const Assist_info_URL = {
+        shortcuts:
+            "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png",
+        usermanual:
+            "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md",
+        feedback:
+            '"https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer/feedback"',
+        github: "https://github.com/Kyouichirou",
+        greasyfork:
+            "https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer",
     };
     const blackKey = [
         "\u5171\u9752\u56e2",
@@ -88,10 +87,6 @@
         "\u8a00\u60c5\u5c0f\u8bf4",
         "\u803d\u7f8e\u5c0f\u8bf4",
     ];
-    const Shortcuts_URL =
-        "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png";
-    const UserManual =
-        "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md";
     let blackName = null;
     let blackTopicAndQuestion = null;
     let collect_Answers = null;
@@ -149,8 +144,8 @@
             6000
         );
         GM_setValue("installeddate", Date.now());
-        GM_openInTab(UserManual, { insert: true });
-        GM_openInTab(Shortcuts_URL, { insert: true });
+        GM_openInTab(Assist_info_URL.usermanual, { insert: true });
+        GM_openInTab(Assist_info_URL.shortcuts, { insert: true });
     };
     const getSelection = () => {
         const select = window.getSelection();
@@ -337,9 +332,19 @@
                         this.item_Raw(json, this.item_index, info)
                     );
                     this.item_index += 1;
-                    zhihu.Column.home_Module.loaed_list.push(id);
                 },
-                (err) => console.log(err)
+                (err) => {
+                    const index = zhihu.Column.home_Module.loaded_list.indexOf(
+                        id
+                    );
+                    index > -1 &&
+                        zhihu.Column.home_Module.loaded_list.splice(index, 1);
+                    colorful_Console.main(
+                        { title: id, content: "failed to request data" },
+                        colorful_Console.colors.warning
+                    );
+                    console.log(err);
+                }
             );
         },
         time_Format(date) {
@@ -513,22 +518,6 @@
             return html;
         },
     };
-    const rndRangeNum = (start, end, count) => {
-        if (end < 0 || start < 0) return null;
-        if (end < start || end - start + 1 < count) return null;
-        const tmpArr = [];
-        const rndArr = [];
-        end++;
-        for (let i = start; i < end; i++) tmpArr.push(i);
-        for (; count > 0; count--) {
-            const ir = tmpArr.length - 1;
-            const rnd = Math.floor(Math.random() * ir);
-            rndArr.push(tmpArr[rnd]);
-            tmpArr[rnd] = tmpArr[ir];
-            tmpArr.pop();
-        }
-        return rndArr;
-    };
     //hidden element = false
     const elementVisible = {
         getElementTop(obj) {
@@ -563,30 +552,11 @@
             }
         }
     };
-    /*
-    convert image to base64 code
-    just support a little type of image, chrome, don't support image/gif type
-    support type, test on this site: https://kangax.github.io/jstests/toDataUrl_mime_type_test/
-    */
-    const imageConvertor = {
-        canvas(image, format) {
-            const canvas = document.createElement("canvas");
-            const context2D = canvas.getContext("2d");
-            context2D.clearRect(0, 0, canvas.width, canvas.height);
-            canvas.width = image.naturalWidth;
-            canvas.height = image.naturalHeight;
-            context2D.drawImage(image, 0, 0);
-            return canvas.toDataURL("image/" + format, 0.92); //0-1, default: 0.92, the quality of pic
-        },
-        main(imgURL, format = "webp") {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.src = imgURL;
-                img.crossOrigin = "";
-                img.onload = () => resolve(this.canvas(img, format));
-                img.onerror = (err) => reject(err);
-            });
-        },
+    const get_Title = () => {
+        const title = document.title;
+        return title.endsWith("- 知乎")
+            ? title.slice(0, title.length - 5)
+            : title;
     };
     class Database {
         /*
@@ -827,8 +797,7 @@
             });
         }
         clear() {
-            if (!this.table) this.openTable();
-            this.table.clear();
+            this.Table.clear();
         }
         //must have primary key
         deleteiTems(keyPath) {
@@ -893,11 +862,11 @@
             info.excerpt = "";
             info.visitTimes = 1;
             info.visitTime = info.update;
-            const content_id = node ? "RichText ztext CopyrightRichText-richText" : 'RichText ztext Post-RichText';
+            const content_id = node
+                ? "RichText ztext CopyrightRichText-richText"
+                : "RichText ztext Post-RichText";
             node = node || document.body;
-            const contentholder = node.getElementsByClassName(
-                content_id
-            );
+            const contentholder = node.getElementsByClassName(content_id);
             if (contentholder.length > 0) {
                 const chs = contentholder[0].childNodes;
                 let excerpt = "";
@@ -947,11 +916,8 @@
                 "you can input something to highlight this article, eg: this article is about advantage python usage"
             );
             info.tags = tags;
-            const title = document.title;
             info.note = note || "";
-            info.title = title.endsWith("- 知乎")
-                ? title.slice(0, title.length - 5)
-                : title;
+            info.title = get_Title();
             this.db.update(info, "pid", false).then(
                 () =>
                     Notification(
@@ -2065,9 +2031,7 @@
                 let title = "";
                 if (this.no_scroll) title = this.get_article_title(node);
                 else {
-                    title = document.title;
-                    title.endsWith("- 知乎") &&
-                        (title = title.slice(0, title.length - 5));
+                    title = get_Title();
                 }
                 const bgpic = GM_getValue("bgpreader");
                 const meta = node.getElementsByClassName(
@@ -2267,7 +2231,7 @@
             change_Collected(tool, result) {
                 const b =
                     tool.lastElementChild.lastElementChild
-                        .previousElementSibling;
+                        .previousElementSibling.previousElementSibling;
                 const cl = b.className;
                 const tmp = cl.endsWith(" on")
                     ? result
@@ -2298,6 +2262,22 @@
                         )
                 );
             },
+            get_pocket_ico(f) {
+                return f
+                    ? "data:image/webp;base64,UklGRnwEAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSMUDAAABoGttm9ra+eYfsCTbAotleYeZk4qTGzhlGCpmTtpcQFZ6ZqrOvoR0qU8f5qRi2KhZSx5JYznpI8KBG0mOUt19ZJhjA8wXsBZrBQtxIRhAREM1DVbKGONCEGwgb+qR8jwFKwkpiRFr4VIpATtxPwh834WlJo4SfI1QjgJsvVhEU9jC3NYAuHKmM27LPE2TWNii/KmjCEw6jh+Gwg4/z4M0S4Xl7Sicuq5kTCmoKE6EDUFRBBBZkUkbnDT2GXMmnASASZrncpiwqkIAsqgKOYxX5BEDmBLMPI2iKo3iGO8q2TktMQpwVjsrhxuibqoqNt+PdytZ1pUEsd6P8Dk6mvnznnLWTOs6o+Fvoq4rBzjtxO2G7nv00ftu7+quRx595K72A26+AmBtVqucMKxpfVpw6cl/9GZqTt2yLnBVkN0ki+7Z0/p4M2mtX+Ir2xCu2tMHzaY6PNIvhpVdwLCrD3TTbHa70Uf698vALHPaP7oxstkVfagfgbCC44Q+XmdjH+pXwC25vUWPwgdg/2f0f4GPts7JrbO7UJbcN94hqaUV/NHx7l7sLG2c+OPxAepVNezwNP++EVHLusfmGg6q0/io805WddHdZh0G+EWVjDxvZVXlAuCu4N6MzbMiHH3ey6JIBfc9QZ4fJlmwhXUj8ywOA49hEkSJv5V1J9Mk8glQLQvaIuQFQZIltIUb2fqGy8hzMc+KVG7nKXOPk4TxRuW23oiz7rx179jSvO1bNw+NvW62vm63vm/8F/cti5c1jW6OjnXTWO2b9gzEqOOo9Zj79lC0/vRXfdh6xN+NwTyMS380PLDuNmIo94PjvJ8Mj4ZFRNdjMRz0eSSG0+9xnjIYGzebvNEdLT15dp1hm+zGypLbWppOXvArQq8v+sV00/JxtJI2MHH1njZWyZHW9/PTVnmv3eCmX4w/hY3e10/NT1/a2NtZvKf3jprjA+MVi7rXsjo9uOgnvX/cHO/pb4PJalkN2y3reP6JNnQvOBDVdU7d1KWL874yivrjOpBXL4uuO31DXiYc4oVTv/+0ew2MeqPlMiUj5bKU4Ehf/uzPb948GwR4VZkJM9zoW5IsJjCAginQOd2wLBMCZF4aJ0mACt1OVW6exRxgkmiioKJFaHwMB8AIHQV5HrNO39QtiDpVOcki4GyiiEnHmQc+g5X8LIuSrLclY/19WzBzHMlAyvGmlgFmcRwvBCwlZ54jN+9bwzCaM2zS+K7hQk2kbea+HwQzW0vV6ZsZSEpu2Rm7Dk08z7Ez53yg9ycbiIitCxRWNXWfCwBWUDggkAAAABAGAJ0BKkAAQAA//f7/f7+/t7IuEkxz8D+JaQANj8ImUrf0+gklgPogA0QMNUEJ7ufWDDUoyfbyAADM/9OIuT8zVXHQEz9GERQz6D+Z2WY1H89EFBYpFxQabQln+zAJuu5JdnmGILbGTkWvT7K3/qiKohH9n5X17smtGsW3pSOYgFzfI+596XJeZjAGd4AAAA=="
+                    : "data:image/webp;base64,UklGRpYFAABXRUJQVlA4WAoAAAAQAAAAPwAAPwAAQUxQSLUEAAABoGvbthrL2ZdUKlVJKhDDq9dmxsyRhyPOmKm5zcx2xh/QkZmZ/QHtjswQMjMz3jFUuldH/QUR4UiSpLipqT6gFTsQBF/AslhTIJSQkgGc864+dfaUMSak5KDAvZHHHc9zQCqpFGecNQjlOBK0EkEYBsEQxBq4jhRLpOM6ANXZbDoCFTZsBCAcdzQWVPw4juaSihOMXIeDKdcNJhNJI0jTME5iSWxPJ6PhUDHmOHCm80hSCLMshEyyRFFw43nAmDsQXAIYxGmqupkUxQSAyopMdeNl6ZQBzJGs/TOyIm91jgmzopVF1OqAW6/UrmgVN1MU8/bzhNmTsioUOLO+IhAwahz4lu4sGVVV0j1QvaoqXGBxzEmtWnvuuWtPMuvUzeduPrV5wbEHAqxJXaeUcT6qFuF+T/yi+9Xfrx+/7GCdcdogm57+p94BdbuoqeE4uMm2c0+0n7Wf3HLqmXf8o/WNk4IWMDyp9dYIgAhDQfpbQh84/Df94/5gxCx+0duTcuHGq6uxoJS7sljxcJPWWyBJCByj9blYU9V1PQOtVFlV6SG/6a0QRE7S+kQETSKAbJ3v8p2+D4zOSYgbSkVlVNf57t/3RKzWyVJysnTPH/qxNlydYbSUGs52/0E/0IdzwxhoSwww+0E/0QshYEoM/O/1EzOHyNqmAQGLtMD/Tj8RVYqEOHd5m4DN7hg8MFspKUaBgdWumNyHqi66nSyCtW3s2mPFKSuL7Q6FxUKc1KZDW+wwVVSZOc26DAiyIoJBl2a6gCqKVAJiKIU3Zn6STYRJp+10A5VlsRSBJ7kXTKIkhIVOW7McBag0mU9Cj2EQTqMANjqtMw4aUHE0DTjgNMx4H0rVE+6FYZREnNzIlxIbybIxZNwbwk+yWBEvyfhoKf0S3xNcofWg3HhQZ4CWPR4kmDluhye36I5hj3Fr+242tuiMRcJ3Q/5uu2K187slzhsnQ9jCwBkgLHbMG9R5ayOEPYADgJla5y36vOkpew575p3tFwDc1DJv9pm3S25GYJ1e1qNW+8/ba8PVjJtZr/X/L32r9RNWW+tG33Urt0Vvxn6fd9isW/3XTWvWQ2B3wx21biJoSLkt0qoqdwBYrcuqLiyBVVnWZd63cWZzCZstgkvNWGV1VarBnr3X3ZJBiCvMWH0qL2oJZH0edKLW53nKeNply3T4Ys44Q9Bn3J6l9Vo4rJUrg4LD6t5faf0UIDH8Vj8ZU7+bdVpfB2Dj8qxY1KnVYXho4+MCOOAPffd0UVIcpQf/on958q7n/m/dMausqmI13Kc5+dpd9374vz4Di6rodljUo/N1u9ZBANOqMlVFlQ+xx6e6VS8Ao7LMTI19Q5rFHCe+/O13X287EhxoLMuYt5KXuYLEyn2ffvfduze5YPCKPJHtCNkwiJI5AwN83zeXckzyPOKASvPWj+SA5/tO+5cO02QuAKY4HzhwprMJA1pDxRIgTNM5s+2bWKtD3Pijolko2MDhTLmuHwYMpAqSZBolEXnfFo5dVzFwx/VGxADj+Xw+IwZQY89V/fetk8nUZ+iz8V0ipDNQ1PhBEIZjqsox9s0MXClB3BkPXT7wPJemEKJj788pcN5aeIQk9cm8FgBWUDggugAAANAHAJ0BKkAAQAA//f7/f7+6v7+oFA1T8D+JaQANi0QOJXBoKdiIBnAXCgp3qen7fvtcKjwNXA2QZ6PBbFK72dug46kcWHwAAMz/04i5PzOGoTXtS3giZtgpUNd3SnJzoqXXuqkHfniGeO/uELS/XADxhhv9u+5dWGtFF45Pg0DNnKK/whETOV627vbgsGVivDelEzAjy5AudHYhB0mtYPO9IG9//Mdp96HrUJ6XPQxCD4st5f1lGCgAAA==";
+            },
+            get check_pocket() {
+                const recent = GM_getValue("recent");
+                return (
+                    recent &&
+                    Array.isArray(recent) &&
+                    recent.length > 0 &&
+                    recent.some(
+                        (r) => r.url.endsWith(`/${this.aid}`) && r.type === "p"
+                    )
+                );
+            },
             toolBar(arr) {
                 let collected = false;
                 collect_Answers = GM_getValue("collect_a");
@@ -2308,6 +2288,7 @@
                           this.aid
                       ))
                     : (collect_Answers = []);
+                const is_pocket = this.check_pocket;
                 const gifBase64 = `
                 data:image/gif;base64,R0lGODlhDQANAKIGABYcHwIEBP3///P7//T7/xccH////wAAACH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS41LWMwMTQgNzkuMTUxNDgxLCAyMDEzLzAzLzEzLTEyOjA5OjE1ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjQ3QzgxQkMzRUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjQ3QzgxQkM0RUZGNDExRTVBQ0VCQTYwQ0ZDNzdGMDlEIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NDdDODFCQzFFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NDdDODFCQzJFRkY0MTFFNUFDRUJBNjBDRkM3N0YwOUQiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4B//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eDf3t3c29rZ2NfW1dTT0tHQz87NzMvKycjHxsXEw8LBwL++vby7urm4t7a1tLOysbCvrq2sq6qpqKempaSjoqGgn56dnJuamZiXlpWUk5KRkI+OjYyLiomIh4aFhIOCgYB/fn18e3p5eHd2dXRzcnFwb25tbGtqaWhnZmVkY2JhYF9eXVxbWllYV1ZVVFNSUVBPTk1MS0pJSEdGRURDQkFAPz49PDs6OTg3NjU0MzIxMC8uLSwrKikoJyYlJCMiISAfHh0cGxoZGBcWFRQTEhEQDw4NDAsKCQgHBgUEAwIBAAAh+QQBAAAGACwAAAAADQANAAADHWi63P7QlKgKoRbfFVpmA7B8TWgAQ0QUKSVQcGwkADs=`;
                 const jpgBase64 = `
@@ -2462,7 +2443,7 @@
                             >change</i
                         >
                         <button
-                            style="margin-left: -4px;margin-top: 10px;"
+                            style="margin-left: -5px;margin-top: 10px;"
                             class="Button ContentItem-action Button--plain Button--withIcon Button--withLabel${
                                 collected ? " on" : ""
                             }"
@@ -2487,6 +2468,17 @@
                                     ></path></svg
                             ></span>
                         </button>
+                        <i
+                            class="read_it_later ${is_pocket ? " on" : ""}"
+                            title="read it later"
+                            style="
+                                height: 30px;
+                                display: block;
+                                margin-top: 10px;
+                                content: url(${this.get_pocket_ico(is_pocket)});
+                            "
+                            >Pocket</i
+                        >
                         <i
                             class="load_more"
                             title="load more answers"
@@ -2621,11 +2613,16 @@
                                     break;
                                 }
                             }
-                        } else if (name && name.startsWith("Button")) {
-                            t = e.target;
-                            name = name.endsWith(" on")
-                                ? "remove_collect"
-                                : "collect";
+                        } else if (name) {
+                            if (name.startsWith("Button")) {
+                                t = e.target;
+                                name = name.endsWith(" on")
+                                    ? "remove_collect"
+                                    : "collect";
+                            } else if (name.startsWith("read_")) {
+                                t = e.target;
+                                name = "read_it_later";
+                            }
                         }
                         name && this[name](t);
                     };
@@ -2643,11 +2640,11 @@
                 return collect_Answers.findIndex((e) => e.qid === qid);
             },
             Redirect: {
-                remove(href) {
-                    this.columnsModule.recentModule.remove("c", href);
+                remove(type, href) {
+                    this.columnsModule.recentModule.remove(type, href);
                 },
                 collect(node, pid) {
-                    dataBaseInstance.TableName = 'collection';
+                    dataBaseInstance.TableName = "collection";
                     dataBaseInstance.additem(
                         this.home_Module.current_Column_id,
                         node,
@@ -2657,6 +2654,48 @@
                 log(config) {
                     this.columnsModule.recentModule.log("c", config);
                 },
+            },
+            remove_pocket(mode) {
+                const href =
+                    this.content_type === "answer"
+                        ? `https://www.zhihu.com/question/${this.qid}/answer/${this.aid}`
+                        : `https://zhuanlan.zhihu.com/p/${this.aid}`;
+                if (mode) {
+                    const config = {};
+                    config.type = "p";
+                    config.url = href;
+                    config.update = Date.now();
+                    config.title = get_Title();
+                    this.Redirect.log.call(zhihu.Column, config);
+                } else this.Redirect.remove.call(zhihu.Column, "p", href);
+            },
+            change_pocket_status() {
+                const f = this.check_pocket;
+                const tool = this.Toolbar;
+                const p =
+                    tool.lastElementChild.lastElementChild
+                        .previousElementSibling;
+                const cl = p.className;
+                const tmp = cl.endsWith(" on")
+                    ? f
+                        ? null
+                        : cl.slice(0, cl.length - 3)
+                    : f
+                    ? cl + " on"
+                    : null;
+                if (tmp) {
+                    p.className = tmp;
+                    p.style.content = `url(${this.get_pocket_ico(
+                        tmp.endsWith(" on")
+                    )})`;
+                }
+            },
+            read_it_later(target) {
+                const cl = target.className;
+                const f = cl.endsWith(" on");
+                target.style.content = `url(${this.get_pocket_ico(!f)})`;
+                target.className = f ? cl.slice(0, cl.length - 3) : `${cl} on`;
+                this.remove_pocket(!f);
             },
             collect(target) {
                 const config = {};
@@ -2674,12 +2713,7 @@
                         config.url = `${pref}${c.qid}/answer/${this.aid}`;
                     } else {
                         const info = {};
-                        const t = document.title;
-                        config.title = info.title = this.no_scroll
-                            ? t
-                            : t.endsWith("- 知乎")
-                            ? t.slice(0, t.length - 5)
-                            : t;
+                        config.title = info.title = get_Title();
                         info.qid = this.qid;
                         info.data = [];
                         info.data.push({ aid: this.aid, update: upt });
@@ -2687,15 +2721,14 @@
                         collect_Answers.push(info);
                     }
                     GM_setValue("collect_a", collect_Answers);
-                } else if (this.content_type === "article"){
-                    this.Redirect.collect.call(zhihu.Column, this.curNode, this.aid);
+                } else if (this.content_type === "article") {
+                    this.Redirect.collect.call(
+                        zhihu.Column,
+                        this.curNode,
+                        this.aid
+                    );
                     config.url = `https://zhuanlan.zhihu.com/p/${this.aid}`;
-                    const t = document.title;
-                    config.title = this.no_scroll
-                    ? t
-                    : t.endsWith("- 知乎")
-                    ? t.slice(0, t.length - 5)
-                    : t;
+                    config.title = get_Title();
                 }
                 config.update = upt;
                 this.Redirect.log.call(zhihu.Column, config);
@@ -2735,7 +2768,7 @@
                     href = `https://zhuanlan.zhihu.com/p/${this.aid}`;
                 }
                 this.change_collect_status(target, false);
-                this.Redirect.remove.call(zhihu.Column, href);
+                this.Redirect.remove.call(zhihu.Column, "c", href);
             },
             picIndex: 0,
             disable_bgp() {
@@ -3655,6 +3688,7 @@
                               this.check_answer_collected(this.qid, this.aid)
                           )
                         : this.check_article_collected(this.Toolbar, this.aid);
+                    this.change_pocket_status();
                     this.loadLazy(f);
                     this.getVideo_element(f);
                     setTimeout(() => {
@@ -4939,7 +4973,7 @@
                                     style="font-size: 12px; font-weight: normal; float: right"
                                 >
                                     <a
-                                        href="https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png"
+                                        href=${Assist_info_URL.shortcuts}
                                         target="_blank"
                                         title="shortcuts diagram"
                                         style="color: #2b638b"
@@ -4974,7 +5008,7 @@
                                 15s, this Tips will be automatically closed or can you just click
                             </div>
                             <a
-                                href="https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md"
+                                href=${Assist_info_URL.usermanual}
                                 target="blank"
                                 style="margin: ${mt}px 10px 0px 0px; float: right; font-size: 14px"
                                 title="user manual"
@@ -5198,6 +5232,10 @@
             },
         },
         settings_Popup: {
+            /*
+            1. adopted from https://greasyfork.org/zh-CN/scripts/27752-searchenginejump
+            2. part of html and css is adpoted;
+            */
             node: null,
             create() {
                 const html = `
@@ -5330,26 +5368,26 @@
                                 <span class="feedback"
                                     ><a
                                         target="_blank"
-                                        href="https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer"
+                                        href=${Assist_info_URL.greasyfork}
                                         >Greasyfork</a
                                     ></span
                                 ><span class="feedback"
                                     ><a
                                         target="_blank"
                                         title="user manual"
-                                        href="https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md"
+                                        href=${Assist_info_URL.usermanual}
                                         >GitHub</a
                                     ></span
                                 ><span class="feedback"
                                     ><a
                                         target="_blank"
-                                        href="https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png"
+                                        href=${Assist_info_URL.shortcuts}
                                         >Shortcuts</a
                                     ></span
                                 ><span class="feedback"
                                 ><a
                                     target="_blank"
-                                    href="https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer/feedback"
+                                    href=${Assist_info_URL.feedback}
                                     >Feedback</a
                                 ></span
                                 >
@@ -5458,7 +5496,7 @@
             },
             create(node) {
                 const html = `
-                    <div class="white_noise" style="position: absolute; margin-left: -35%">
+                    <div class="white_noise" style="position: absolute; margin-left: -35%; opacity:0.6;">
                     <button
                         style="
                             display: inline-block;
@@ -5542,7 +5580,7 @@
                 f = null;
             }, 50);
         },
-        column_homePage() {
+        column_homePage(mode) {
             const ch = document.getElementsByClassName("ColumnHome")[0];
             let chs = ch.children;
             let i = chs.length;
@@ -5563,18 +5601,27 @@
             let k = chs[i].children.length;
             for (k; k--; ) chs[i].children[k].remove();
             ch.style.display = "block";
-            const r = GM_getValue("recent");
-            if (r && Array.isArray(r) && r.length > 0) {
-                r.forEach((e) => {
-                    const url = e.url;
-                    const id = url.slice(url.lastIndexOf("/") + 1);
-                    column_Home.single_Content_request(
-                        url.includes("answer") ? 0 : 2,
-                        id,
-                        chs[i],
-                        e
-                    );
-                });
+            if (mode) {
+                const r = GM_getValue("recent");
+                if (!this.Column.home_Module.loaded_list)
+                    this.Column.home_Module.loaded_list = [];
+                if (r && Array.isArray(r) && r.length > 0) {
+                    r.forEach((e) => {
+                        const url = e.url;
+                        const id = url.slice(url.lastIndexOf("/") + 1);
+                        if (
+                            !zhihu.Column.home_Module.loaded_list.includes(id)
+                        ) {
+                            this.Column.home_Module.loaded_list.push(id);
+                            column_Home.single_Content_request(
+                                url.includes("answer") ? 0 : 2,
+                                id,
+                                chs[i],
+                                e
+                            );
+                        }
+                    });
+                }
             }
             const targetElements = this.Filter.getTagetElements(1);
             this.qaReader.no_scroll = true;
@@ -5616,6 +5663,7 @@
         },
         //if has logined or the login window is not loaded(or be blocked) when the page is loaded;
         hasLogin: false,
+        is_delayed: false,
         antiLogin() {
             /*
             note:
@@ -5641,6 +5689,7 @@
                         ) {
                             node.style.display = "none";
                             setTimeout(() => {
+                                this.is_delayed = false;
                                 mo.disconnect();
                                 mo = null;
                                 node.remove();
@@ -5655,6 +5704,7 @@
                 ? mo.observe(document.body, { childList: true })
                 : (document.onreadystatechange = () =>
                       mo && mo.observe(document.body, { childList: true }));
+            setTimeout(() => (this.is_delayed = true), 10000);
         },
         //the original js(int.js) of zhihu, which will cause stuck autoscroll
         anti_setInterval() {
@@ -5921,7 +5971,11 @@
                 const href = location.href;
                 return targetElements.index < 2
                     ? true
-                    : targetElements.zone.some((e) => href.includes(e));
+                    : (targetElements.index === 2 &&
+                          !href
+                              .slice(href.lastIndexOf("/topic/") + 7)
+                              .includes("/")) ||
+                          targetElements.zone.some((e) => href.includes(e));
             },
             clickCheck(item, targetElements) {
                 /*
@@ -6979,12 +7033,12 @@
             get search_simple() {
                 let simple = "";
                 const common = `
+                    .RelevantQuery,
                     .KfeCollection-PcCollegeCard-wrapper,
                     .ContentItem.ZvideoItem,
                     .SearchClubCard,
                     .RelevantQuery,
-                    .SpecialItem-wrap,
-                    .ContentItem-main {display: none !important;}`;
+                    .SpecialItem-wrap{display: none !important;}`;
                 for (let i = 2; i < 10; i++)
                     simple += `.SearchTabs-actions li.Tabs-item.Tabs-item--noMeta:nth-of-type(${i}),`;
                 return simple + common;
@@ -7517,10 +7571,7 @@
                         this.colorAssistant.main();
                         this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
-                    } else {
-                        this.Column.main(1);
-                        this.column_homePage();
-                    }
+                    } else this.column_homePage(this.Column.main(1));
                     setTimeout(() => this.show_Total.main(true), 30000);
                     this.key_ctrl_sync(true);
                 };
@@ -8122,6 +8173,7 @@
                                 `${title} <摘要>: ` + e.excerpt
                             );
                             info.updated = this.timeStampconvertor(time);
+                            info.ctitle = escapeHTML(title);
                             title = titleSlice(title);
                             title = escapeHTML(title);
                             info.title = title;
@@ -8270,6 +8322,7 @@
                     <a
                         href=${info.url}
                         target="_blank"
+                        ctitle=${info.ctitle}
                         title=${info.excerpt}>${info.title}</a
                     >
                     <span class=${className} style="float: right" title=${title}>${info.updated}</span>
@@ -8348,7 +8401,8 @@
                         while (methods[func].call(this)) {
                             const e = follow[this.followCursor];
                             const info = {};
-                            info.title = e.columnName;
+                            info.ctitle = e.columnName;
+                            info.title = escapeHTML(e.columnName);
                             info.updated = this.timeStampconvertor(e.update);
                             info.excerpt = e.tags.join(";&nbsp;");
                             info.url = prefix + e.columnID;
@@ -8371,7 +8425,7 @@
                 },
             },
             home_Module: {
-                loaed_list: null,
+                loaded_list: null,
                 current_Column_id: null,
                 home_request: {
                     pre: null,
@@ -8430,7 +8484,8 @@
                     );
                 },
                 home_DB_initial() {
-                    this.loaed_list = [];
+                    !this.loaded_list && (this.loaded_list = []);
+                    this.loaded_qlist = [];
                     dataBaseInstance.initial(["collection"], true).then(
                         () => {},
                         () =>
@@ -8440,27 +8495,28 @@
                             )
                     );
                 },
-                /**
-                 * @param {boolean} mode
-                 */
-                set homeButton_display(mode) {
-                    this.home_button
-                        ? (this.home_button = mode ? "block" : "none")
-                        : this.create_home_button();
-                },
-                home_button: null,
+                is_create_button: false,
                 create_home_button() {
                     createButton("Next", "", "", "right");
                     setTimeout(() => {
-                        this.home_button = document.getElementById(
+                        let button = document.getElementById(
                             "assist-button-container"
                         );
-                        this.home_button.onclick = () => this.home_nextButton();
+                        button.onclick = () => this.home_nextButton();
+                        button = null;
                     }, 0);
+                    this.is_create_button = true;
                 },
                 get Node() {
                     return document.getElementsByClassName("ColumnHomeTop")[0];
                 },
+                get_full_title(a) {
+                    const attributes = a.attributes;
+                    for (const e of attributes)
+                        if (e.name === "ctitle") return e.value;
+                    return "";
+                },
+                loaded_qlist: null,
                 home_click(href, target) {
                     if (!this.home_request.is_loaded) return;
                     const id = href.slice(href.lastIndexOf("/") + 1);
@@ -8474,25 +8530,28 @@
                         this.current_Column_id = id;
                         const url = `https://www.zhihu.com/api/v4/columns/${id}/items?limit=5&offset=0`;
                         this.home_request.request(url, this.Node);
-                        this.homeButton_display = true;
+                        !this.is_create_button && this.create_home_button();
                         column_Home.item_index = 0;
                         this.home_request.index = 0;
-                        this.loaed_list.length = 0;
+                        this.loaded_list.length = 0;
+                        this.loaded_qlist.length = 0;
                     } else if (index < 2) {
-                        if (this.loaed_list.includes(id)) return;
+                        if (this.loaded_list.includes(id)) return;
                         this.current_article_id = id;
                         this.current_Column_id = null;
                         const info = {};
-                        info.title = target.innerText;
+                        info.title = this.get_full_title(target);
                         info.url = href;
+                        this.loaded_list.push(id);
                         column_Home.single_Content_request(
                             index === 0 ? 0 : 2,
                             id,
                             this.Node,
                             info
                         );
-                        this.home_button && (this.homeButton_display = false);
                     } else {
+                        if (this.loaded_qlist.includes(id)) return;
+                        this.loaded_qlist.push(id);
                         const index = collect_Answers.findIndex(
                             (e) => e.qid === id
                         );
@@ -8501,16 +8560,18 @@
                             const title = c.title;
                             const data = c.data;
                             for (const d of data) {
+                                if (this.loaded_list.includes(d.aid)) continue;
+                                this.loaded_list.push(d.aid);
                                 const info = {};
                                 info.title = title;
                                 info.url =
-                                    "https://www.zhihu.co/" +
+                                    "https://www.zhihu.com/question/" +
                                     id +
                                     "/answer/" +
                                     d.aid;
                                 column_Home.single_Content_request(
                                     0,
-                                    id,
+                                    d.aid,
                                     this.Node,
                                     info
                                 );
@@ -8701,6 +8762,7 @@
                             info.url = prefix + e.columnID;
                             info.updated = this.timeStampconvertor(e.update);
                             info.title = e.columnName;
+                            info.ctitle = escapeHTML(e.columnName);
                             info.excerpt = "";
                             id++;
                             return this.liTagRaw(info, title);
@@ -8738,18 +8800,16 @@
                         let r = GM_getValue("recent");
                         if (r && Array.isArray(r)) {
                             const index = r.findIndex((e) => e.url === href);
-                            if (index > -1 && r[index].type === type) {
-                                if (index === 0) return;
+                            if (index > -1) {
+                                if (index === 0 && r[index].type === type)
+                                    return;
                                 r.splice(index, 1);
                             }
                         } else r = [];
                         let info = {};
                         if (config) info = config;
                         else {
-                            let title = document.title;
-                            title.endsWith("- 知乎") &&
-                                (title = title.slice(0, title.length - 5));
-                            info.title = title;
+                            info.title = get_Title();
                             info.update = Date.now();
                             info.type = type;
                             info.url = href;
@@ -8790,6 +8850,7 @@
                             info.id = type;
                             info.excerpt = "";
                             info.url = e.url;
+                            info.ctitle = escapeHTML(e.title);
                             info.title = titleSlice(e.title);
                             const title =
                                 "recent&nbsp;" +
@@ -8969,6 +9030,7 @@
                     Resultshow(e, i, liTagRaw, timeStampconvertor) {
                         const info = {};
                         info.id = i;
+                        info.ctitle = escapeHTML(e.title);
                         info.title = titleSlice(e.title);
                         info.excerpt = escapeHTML(e.excerpt);
                         info.updated = timeStampconvertor(e.update);
@@ -9054,6 +9116,8 @@
                                     const result = fs.every((f) => f(info));
                                     if (result) {
                                         ic++;
+                                        info.ctitle = escapeHTML(info.title);
+                                        info.title = titleSlice(info.title);
                                         html.push(
                                             this.Resultshow(
                                                 info,
@@ -9095,6 +9159,8 @@
                                         (r) => {
                                             const html = [];
                                             if (r) {
+                                                r.ctitle = escapeHTML(r.title);
+                                                r.title = titleSlice(r.title);
                                                 html.push(
                                                     this.Resultshow(
                                                         r,
@@ -9185,7 +9251,8 @@
                             i++;
                             const info = {};
                             info.id = i;
-                            info.title = e.title;
+                            info.ctitle = e.title;
+                            info.title = titleSlice(e.title);
                             info.excerpt = e.data.length;
                             info.updated = this.timeStampconvertor(
                                 e.data[0].update
@@ -9244,7 +9311,8 @@
                             i++;
                             const info = {};
                             info.id = i;
-                            info.title = e.columnName;
+                            info.ctitle = e.columnName;
+                            info.title = titleSlice(e.columnName);
                             info.excerpt = e.tags.join(";&nbsp;");
                             info.updated = this.timeStampconvertor(e.update);
                             info.url = prefix + e.columnID;
@@ -9692,15 +9760,17 @@
                         },
                         colorful_Console.colors.warning
                     );
+                return f;
             },
             main(mode = 0) {
                 if (mode > 0) {
+                    let f = false;
                     mode === 2
                         ? (window.onload = () => (
                               this.no_Article(mode), this.subscribeOrfollow()
                           ))
-                        : this.no_Article(mode);
-                    return;
+                        : (f = this.no_Article(mode));
+                    return f;
                 }
                 if (this.ColumnDetail) {
                     if (this.readerMode)
@@ -10276,9 +10346,9 @@
             if (shift) {
                 const url =
                     keyCode === 85
-                        ? UserManual
-                        : keyCode === 83
-                        ? Shortcuts_URL
+                        ? Assist_info_URL.usermanual
+                        : keyCode === 75
+                        ? Assist_info_URL.shortcuts
                         : keyCode === 69
                         ? this.key_ctrl_clip()
                         : keyCode === 77
@@ -10293,10 +10363,12 @@
                         ? this.white_noise.audio_ctrl.voice_up_down(false)
                         : keyCode === 90
                         ? this.white_noise.change_music(true)
+                        : keyCode === 88
+                        ? "https://zhuanlan.zhihu.com/"
                         : null;
                 if (url) {
                     typeof url === "string" &&
-                        GM_openInTab(url, { insert: true });
+                        GM_openInTab(url, { insert: true, active: true });
                     return true;
                 }
             }
@@ -10542,8 +10614,18 @@
                 ) &&
                 window.close();
         },
+        remove_noise(href) {
+            const tmp = href.slice(href.lastIndexOf("com/") + 4);
+            if (tmp && !tmp.includes("/")) {
+                const noise = ["?", "#"];
+                const arr = noise.map((e) => href.lastIndexOf(e));
+                const index = Math.min(...arr);
+                if (index > 0) return href.slice(0, index);
+            }
+            return href;
+        },
         start() {
-            const href = location.href;
+            let href = location.href;
             const excludes = ["/write", "/api/"];
             if (excludes.some((e) => href.includes(e))) return;
             const search = location.search;
@@ -10565,7 +10647,7 @@
             let z = false;
             let f = false;
             (
-                (z = index === 5)
+                (z = index === 5) && (href = this.remove_noise(href))
                     ? (!(f = href.endsWith("zhihu.com/")) &&
                           this.pre_Check(document.title)) ||
                       z
@@ -10576,7 +10658,7 @@
             this.antiRedirect();
             this.antiLogin();
             this.shade.start();
-            setTimeout(() => (this.hasLogin = true), 15000);
+            setTimeout(() => !this.is_delayed && (this.hasLogin = true), 15000);
             this.clipboardClear.event();
             installTips();
         },
