@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.4.0
+// @version      3.4.4.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -30,7 +30,7 @@
 // @grant        window.close
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @match        https://*.zhihu.com/*
-// @compatible   chrome 80+; test on chrome 64(x86), some features don't work
+// @compatible   chrome 80+
 // @license      MIT
 // @noframes
 // @note         more spam users of zhihu, https://zhuanlan.zhihu.com/p/127021293, it is recommended to block all of these users.
@@ -6616,6 +6616,7 @@
                         if (a.length === 0) return null;
                         const text = a[0].innerText;
                         if (
+                            text &&
                             blackKey.some((e) => {
                                 if (text.includes(e)) {
                                     item.style.display = "none";
@@ -6638,21 +6639,21 @@
                         info.ablcok = false;
                         info.qblock = false;
                         info.tblock = false;
-                        const flags = ["/topic", "/p/", "/question"];
+                        const flags = ["/question", "/p/", "/topic"];
                         const index = flags.findIndex((e) => p.includes(e));
                         if (index === 0) {
-                            info.type = "topic";
-                            info.tid = p.slice(p.lastIndexOf("/") + 1);
-                        } else if (index === 1) {
-                            info.type = "column";
-                            info.cid = p.slice(p.lastIndexOf("/") + 1);
-                        } else {
                             info.type = "answer";
                             const tmp = p.split("/");
                             if (tmp.length !== 5) return null;
                             info.qid = tmp[2];
                             info.aid = tmp[4];
-                        }
+                        } else if (index === 1) {
+                            info.type = "column";
+                            info.cid = p.slice(p.lastIndexOf("/") + 1);
+                        } else if (index === 2) {
+                            info.type = "topic";
+                            info.tid = p.slice(p.lastIndexOf("/") + 1);
+                        } else return null;
                         return info;
                     },
                     btnRaw(c, t, n, b) {
