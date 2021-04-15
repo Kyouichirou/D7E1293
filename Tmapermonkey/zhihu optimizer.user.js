@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.5.2
+// @version      3.4.6.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -5227,6 +5227,18 @@
             },
             colorlistenID: null,
             opacitylistenID: null,
+            get tmp_cover() {
+                const tc = GM_getValue("tmp_cover");
+                if (!tc) return null;
+                if (tc.status !== "a") return null;
+                const u = tc.update;
+                if (!u) return null;
+                const r = tc.rtime;
+                if (!r) return null;
+                if (Date.now() - u > r) return null;
+                return tc;
+            },
+            sing_protect: false,
             createShade() {
                 const colors = {
                     yellow: "rgb(247, 232, 176)",
@@ -5234,13 +5246,16 @@
                     grey: "rgb(182, 182, 182)",
                     olive: "rgb(207, 230, 161)",
                 };
+                const tc = this.tmp_cover;
                 let color = GM_getValue("color");
                 color && (color = colors[color]);
+                tc && tc.color && (color = tc.color);
                 if (!color) {
                     const h = new Date().getHours();
                     color = h > 8 && h < 17 ? colors.yellow : colors.grey;
                 }
-                const opacity = this.opacity;
+                const opacity =
+                    (tc && tc.opacity && tc.opacity) || this.opacity;
                 this.cover(color, opacity);
                 const UpperCase = (e) =>
                     e.slice(0, 1).toUpperCase() + e.slice(1);
@@ -5257,16 +5272,26 @@
                 this.colorlistenID = GM_addValueChangeListener(
                     "color",
                     (name, oldValue, newValue, remote) => {
-                        if (!remote || oldValue === newValue) return;
+                        if (
+                            !remote ||
+                            oldValue === newValue ||
+                            this.sing_protect
+                        )
+                            return;
                         this.menu.call(colors, newValue);
                     }
                 );
                 GM_setValue("opacity", opacity);
                 this.opacitylistenID = GM_addValueChangeListener(
                     "opacity",
-                    this.opacityMonitor
+                    (name, oldValue, newValue, remote) =>
+                        remote &&
+                        !this.sing_protect &&
+                        oldValue !== newValue &&
+                        this.opacityMonitor()
                 );
                 this.disableShade.cmenu();
+                !tc && GM_deleteValue("tmp_cover");
             },
         },
         settings_Popup: {
@@ -6136,7 +6161,7 @@
                     //click the expand button, the rich node has contained all content in q & a webpage;
                     if (targetElements.index < 2) return;
                     //-----------------------------------------------
-                    const item = this.check_click_all(
+                    let item = this.check_click_all(
                         className,
                         localName,
                         target,
@@ -10667,8 +10692,8 @@
                 },
             },
             expand: {
-                main(cms, index) {
-                    return index < 2
+                main(index) {
+                    return index > 1
                         ? "Button ContentItem-more Button--plain"
                         : "Button ContentItem-rightButton ContentItem-expandButton Button--plain";
                 },
@@ -10679,13 +10704,19 @@
                     button.length > 0 && button[0].click();
                 },
                 main(name) {
+                    const buttons = document.body.getElementsByClassName(name);
+                    if (buttons.length < 6) {
+                        let i = buttons.length;
+                        for (i; i--; ) buttons[i].click();
+                        return;
+                    }
                     const items = document.body.getElementsByClassName(
                         "ContentItem AnswerItem"
                     );
                     let i = items.length;
                     if (i === 0) return;
                     else if (i < 6) {
-                        for (i; i--; ) this.f(items[i], name);
+                        for (i; i--; ) this.c(items[i], name);
                     } else {
                         let index = 0;
                         for (const item of items) {
@@ -10706,7 +10737,7 @@
                             end = i;
                         }
                         start--;
-                        for (end; end > start; end--) this.c(items[i]);
+                        for (end; end > start; end--) this.c(items[end], name);
                     }
                 },
             },
@@ -10732,6 +10763,7 @@
                 },
                 a(cm, tc) {
                     tc.status = "a";
+                    return true;
                 },
                 item_no_match(name) {
                     Notification(
@@ -10744,33 +10776,38 @@
                     const m = cm.match(reg);
                     if (!m) {
                         this.item_no_match("color");
-                        return;
+                        return false;
                     }
                     this.set_color(co, m[0]);
                     tc.color = m[0];
+                    return true;
                 },
                 o(cm, tc, co) {
                     const reg = /(?<=-o\s?)(0\.)?\d+(\.\d+)?/;
                     const m = cm.match(reg);
                     if (!m) {
                         this.item_no_match("opacity");
-                        return;
+                        return false;
                     }
                     let v = m[0] * 1;
                     v > 1 && (v = 1);
                     this.set_opacity(co, v);
                     tc.opacity = v;
+                    return true;
                 },
                 t(cm, tc) {
                     const reg = /(?<=-t\s?)(0\.)?\d+(\.\d+)?/;
                     const m = cm.match(reg);
                     if (!m) {
                         this.item_no_match("time");
-                        return;
+                        return false;
                     }
-                    tc.rtime = m[0] * 60 * 24 * 60 * 1000;
+                    let v = m[0] * 1;
+                    v > 24 && (v = 24);
+                    tc.rtime = v * 60 * 24 * 60 * 1000;
+                    return true;
                 },
-                _s(funcs, cm) {
+                _s(funcs, cm, type) {
                     const c = this.cover;
                     if (!c) {
                         Notification(
@@ -10779,10 +10816,30 @@
                         );
                         return;
                     }
-                    let tc = this.get;
-                    !tc && (tc = {});
-                    tc.status = "s";
-                    funcs.forEach((e) => this[e](cm, tc, c));
+                    const tc = {};
+                    tc.status = type ? "a" : "s";
+                    tc.update = Date.now();
+                    funcs.some((e) => this[e](cm, tc, c)) &&
+                        type &&
+                        this.set_sync(funcs, tc);
+                },
+                /**
+                 * @param {object} v
+                 */
+                set _o(tc) {
+                    GM_setValue("opacity", tc.opacity);
+                },
+                /**
+                 * @param {object} v
+                 */
+                set _c(tc) {
+                    GM_setValue("color", tc.color);
+                },
+                set_sync(funcs, tc) {
+                    funcs.forEach((e) => {
+                        const n = this[`_${e}`];
+                        n && (n = tc);
+                    });
                     this.set = tc;
                 },
                 no_match_tips() {
@@ -10793,6 +10850,7 @@
                 },
                 cm_format(cm) {
                     cm = cm.slice("light".length);
+                    this._is_single = true;
                     if (cm) {
                         const reg = /(?<=\s-)[acot]/g;
                         const m = cm.match(reg);
@@ -10800,36 +10858,32 @@
                             this.no_match_tips();
                             return;
                         }
-                        if (m.length === 1) this[m[0]](cm);
-                        else {
-                            const arr = [...new Set(m)];
-                            const i = arr.length;
-                            if (i === 1) this[arr[0]](cm);
-                            else if (i > 4) this.no_match_tips();
-                            else {
-                                const t = arr.includes("t");
-                                const a = arr.includes("a");
-                                if (t && !a) {
-                                    this.no_match_tips();
-                                    return;
-                                }
-                                this._s(arr, cm);
-                            }
+                        const arr = [...new Set(m)];
+                        const a = arr.includes("a");
+                        const t = arr.includes("t");
+                        if ((t && !a) || arr.length > 4) {
+                            this.no_match_tips();
+                            return;
                         }
+                        this._s(arr, cm, a);
+                        this._is_single = !a;
                     }
                 },
+                _is_single: false,
                 main(cm) {
                     this.cm_format(cm);
                 },
             },
             main(index) {
-                let cm = prompt("please input commander string");
+                let cm = prompt("please input commander string, e.g.: fold, ligth, expand, bgi");
                 if (!cm || !(cm = cm.trim()) || cm[0] !== "$") return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
                 const cms = ["bgi", "light", "fold", "expand"];
                 const r = cms.findIndex((e) => cm.startsWith(e));
-                r < 2 ? this[cms[r]].main(cm) : this.f_e(this[cms[r]].main(index));
+                r < 2
+                    ? this[cms[r]].main(cm)
+                    : this.f_e.main(this[cms[r]].main(index));
                 return true;
             },
         },
@@ -10870,7 +10924,11 @@
                         : keyCode === 88
                         ? "https://zhuanlan.zhihu.com/"
                         : keyCode === 81
-                        ? index > 0 && index < 4 && this.commander.main(index)
+                        ? (index > -1 &&
+                              index < 4 &&
+                              this.commander.main(index) &&
+                              (this.shade.sing_protect = this.commander.light._is_single)) ||
+                          true
                         : null;
                 if (url) {
                     typeof url === "string" &&
