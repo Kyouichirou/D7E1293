@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.4.1
+// @version      3.4.5.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -11,11 +11,7 @@
 // @grant        GM_setValue
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
-// @connect      www.zhihu.com
-// @connect      lens.zhihu.com
-// @connect      api.zhihu.com
-// @connect      img.meituan.net
-// @connect      www.cnblogs.com
+// @grant        GM_deleteValue
 // @grant        GM_unregisterMenuCommand
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
@@ -24,10 +20,17 @@
 // @grant        GM_openInTab
 // @grant        GM_getTab
 // @grant        GM_getTabs
+// @grant        GM_download
 // @grant        GM_saveTab
 // @grant        GM_info
 // @grant        window.onurlchange
 // @grant        window.close
+// @connect      www.zhihu.com
+// @connect      lens.zhihu.com
+// @connect      api.zhihu.com
+// @connect      cn.bing.com
+// @connect      img.meituan.net
+// @connect      www.cnblogs.com
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @match        https://*.zhihu.com/*
 // @compatible   chrome 80+
@@ -275,6 +278,29 @@
             </div>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
+    };
+    const Download_module = (url, filename, timeout = 3000) => {
+        return new Promise((resolve, reject) => {
+            GM_download({
+                url: url,
+                name: filename,
+                timeout: timeout,
+                onload: () => resolve(true),
+                onerror: (err) => {
+                    console.log(err);
+                    reject(null);
+                },
+                ontimeout: () => reject("timeout error"),
+            });
+        });
+    };
+    const image_base64_download = (url, filename) => {
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        a.remove();
+        a = null;
     };
     const xmlHTTPRequest = (
         url,
@@ -4454,9 +4480,18 @@
                     ? code
                     : 0;
             },
+            get Searchbar() {
+                const header = document.getElementsByClassName(
+                    "Sticky AppHeader"
+                );
+                if (header.length === 0) return "";
+                const input = heade[0].getElementsByTagName("input");
+                return input.length === 0 ? "" : input[0].defaultValue.trim();
+            },
             site() {
                 let keyword = prompt(
-                    "enter keyword or choose a search engine: like: z python; (zhihu); default: google"
+                    "enter keyword or choose a search engine: like: z python; (zhihu); default: google",
+                    this.Searchbar
                 );
                 if (!keyword || !(keyword = keyword.trim())) return true;
                 const reg = /[a-z]\s/i;
@@ -4874,6 +4909,11 @@
             check_common_key(shift, keyCode) {
                 return this.common_KeyEevnt(shift, keyCode);
             },
+            key_conflict(keyCode, shift) {
+                return (
+                    68 === keyCode || (shift && [85, 71, 67].includes(keyCode))
+                );
+            },
             keyBoardEvent() {
                 window.onkeydown = (e) => {
                     const keyCode = e.keyCode;
@@ -4889,9 +4929,7 @@
                     const shift = e.shiftKey;
                     if (this.check_common_key.call(zhihu, shift, keyCode))
                         return;
-                    if (keyCode === 68 || (shift && keyCode === 71)) {
-                        //68, d, default is login shortcut of zhihu
-                        //71, g, + shift, default is scroll to the bottom of webpage
+                    if (this.key_conflict(keyCode, shift)) {
                         e.preventDefault();
                         e.stopPropagation();
                     }
@@ -7203,6 +7241,16 @@
                     (this.id = GM_addStyle(this.search_simple).id);
             },
         },
+        body_image() {
+            const bgi = this.commander.bgi.get;
+            let s = "";
+            if (bgi && (s = bgi.status) && s !== "tmp") {
+                const url = bgi.url;
+                s === "auto" && this.commander.bgi.auto_update(bgi);
+                return url ? `body{background-image: url(${url});}` : "";
+            }
+            return "";
+        },
         addStyle(index) {
             const common = `
                 .ModalExp-content{display: none !important;}
@@ -7311,14 +7359,18 @@
                       common,
                       inpustyle,
                       search,
-                      topicAndquestion
+                      topicAndquestion,
+                      this.body_image()
                   )
                 : GM_addStyle(
                       common +
                           (index < 2
-                              ? contentstyle + inpustyle
+                              ? contentstyle + inpustyle + this.body_image()
                               : index === 2
-                              ? inpustyle + topicAndquestion + topic
+                              ? inpustyle +
+                                topicAndquestion +
+                                topic +
+                                this.body_image()
                               : inpustyle)
                   );
         },
@@ -10336,7 +10388,458 @@
                     });
             },
         },
-        common_KeyEevnt(shift, keyCode, index) {
+        commander: {
+            bgi: {
+                bing_image(index) {
+                    return new Promise((resolve, reject) => {
+                        const day = 1000 * 60 * 60 * 24;
+                        const api = `https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&nc=${
+                            Date.now() - index * day
+                        }&pid=hp`;
+                        xmlHTTPRequest(api).then(
+                            (json) => resolve(json.images[0].url),
+                            (err) => {
+                                reject(null);
+                                console.log(err);
+                                Notification(
+                                    "failed to get image from bing",
+                                    "Warning"
+                                );
+                            }
+                        );
+                    });
+                },
+                timeID: null,
+                auto_update(bgi) {
+                    const update = bgi.update;
+                    let gap = 0;
+                    let d = 0;
+                    if (
+                        (update &&
+                            (gap = Date.now() - update) >
+                                (d = 1000 * 60 * 60 * 24)) ||
+                        !update
+                    ) {
+                        this.timeID = setTimeout(() => {
+                            this.timeID = null;
+                            const i = bgi.index;
+                            const index =
+                                gap > 9 * d ? (index = 0) : i || 0 ? i : 1;
+                            this._i(bgi, index);
+                        }, 20000);
+                    }
+                },
+                name: "bgi_image",
+                get get() {
+                    return GM_getValue(this.name);
+                },
+                /**
+                 * @param {object} v
+                 */
+                set set(v) {
+                    GM_setValue(this.name, v);
+                },
+                get_base64_fileType(url) {
+                    return url.slice(url.indexOf("/") + 1, url.indexOf(";"));
+                },
+                d() {
+                    const bgi = this.get;
+                    if (!bgi) return;
+                    const url = Reflect.get(bgi, "url");
+                    if (url) {
+                        const reg = /\.(ico|gif|png|jpe?g)/;
+                        let r = null;
+                        let filename = "";
+                        let m = false;
+                        if (
+                            url.startsWith("data:image") ||
+                            (r = url.match(reg))
+                        ) {
+                            if (r) {
+                                filename =
+                                    "zhihu_bgi_image_" + Date.now() + r[0];
+                            } else {
+                                m = true;
+                                filename =
+                                    "zhihu_bgi_image_" +
+                                    Date.now() +
+                                    this.get_base64_fileType(url);
+                            }
+                        } else {
+                            xmlHTTPRequest(url, 300000, "blob").then(
+                                (blob) => {
+                                    const file = new FileReader();
+                                    file.readAsDataURL(blob);
+                                    file.onload = (result) => {
+                                        if (result.target.readyState === 2) {
+                                            filename =
+                                                "zhihu_bgi_image_" +
+                                                Date.now() +
+                                                this.get_base64_fileType(url);
+                                            image_base64_download(
+                                                result.target.result,
+                                                filename
+                                            );
+                                        }
+                                    };
+                                    file.onerror = (e) => {
+                                        console.log(e);
+                                        Notification(
+                                            "failed to convert file to base64",
+                                            "Warning"
+                                        );
+                                    };
+                                },
+                                (err) => {
+                                    console.log(err);
+                                    Notification(
+                                        "failed to donwload background image"
+                                    );
+                                }
+                            );
+                            return;
+                        }
+                        m
+                            ? image_base64_download(url, filename)
+                            : Download_module(url, filename, 30000).then(
+                                  () =>
+                                      colorful_Console.main(
+                                          {
+                                              title: "download:",
+                                              content:
+                                                  "download image successfully",
+                                          },
+                                          colorful_Console.colors.info
+                                      ),
+                                  (err) =>
+                                      Notification(
+                                          `fialed to download image; ${
+                                              err ? `, ${err}` : ""
+                                          }`,
+                                          "Warning"
+                                      )
+                              );
+                    }
+                },
+                /**
+                 * @param {String} url
+                 */
+                set body_img(url) {
+                    document.body.style.backgroundImage =
+                        url === "none" ? "none" : `url(${url})`;
+                },
+                get is_body_iamge() {
+                    return document.body.style.backgroundImage;
+                },
+                f() {
+                    const bgi = this.get;
+                    if (!bgi) return;
+                    bgi.status = "fixed";
+                    this.set = bgi;
+                },
+                t() {
+                    let bgi = this.get;
+                    if (this.is_body_iamge) {
+                        if (bgi) {
+                            bgi.status = "tmp";
+                            this.set = bgi;
+                        }
+                        return;
+                    }
+                    let index = 0;
+                    bgi ? (index = bgi.index || 0) : (bgi = {});
+                    this.bing_image(index).then((url) => {
+                        bgi.update = Date.now();
+                        bgi.status = "tmp";
+                        this.body_img = bgi.url = `https://cn.bing.com${url}`;
+                        this.set = bgi;
+                    });
+                },
+                s() {
+                    const bgi = this.get;
+                    if (!bgi) return;
+                    let index = bgi.index;
+                    typeof index !== "number" ? (index = 1) : (index += 1);
+                    index > 28 && (index = 0);
+                    this.bing_image(index).then((url) => {
+                        bgi.index = index;
+                        bgi.update = Date.now();
+                        this.body_img = bgi.url = `https://cn.bing.com${url}`;
+                        this.set = bgi;
+                    });
+                },
+                r(type) {
+                    const bgp = GM_getValue("bgpreader");
+                    if (!bgp) return;
+                    let bgi = this.get;
+                    !bgi && (bgi = {});
+                    bgi.status = type ? "tmp" : "reader";
+                    this.set = bgi;
+                    this.body_img = bgp;
+                },
+                o() {
+                    this.body_img = "none";
+                    GM_deleteValue(this.name);
+                },
+                u(cm, type) {
+                    const m = cm.match(/https.+(?=\s)?/g);
+                    if (!m) {
+                        Notification(
+                            "your image url does not match rule",
+                            "Warning"
+                        );
+                        return;
+                    }
+                    const url = m[0];
+                    let bgi = this.get;
+                    !bgi && (bgi = {});
+                    bgi.status = type ? "tmp" : "self";
+                    bgi.url = url;
+                    this.set = bgi;
+                    this.body_img = url;
+                },
+                _i(bgi, index) {
+                    this.bing_image(0).then((url) => {
+                        bgi.update = Date.now();
+                        bgi.index = index ? index - 1 : 0;
+                        bgi.status = "auto";
+                        this.body_img = bgi.url = `https://cn.bing.com${url}`;
+                        this.set = bgi;
+                    });
+                },
+                i() {
+                    let bgi = this.get;
+                    if (bgi) {
+                        if (!this.is_body_iamge) {
+                            const url = bgi.url;
+                            bgi.status === "auto" &&
+                                url &&
+                                (this.body_img = url);
+                        }
+                    } else bgi = {};
+                    this._i(bgi);
+                },
+                no_match_tips() {
+                    Notification(
+                        "please check the command, which does not match the rule",
+                        "Warning"
+                    );
+                },
+                cm_format(cm) {
+                    this.timeID && clearTimeout(this.timeID);
+                    cm = cm.slice(3);
+                    if (cm) {
+                        const reg = /(?<=\s-)[tosdfur]/g;
+                        const m = cm.match(reg);
+                        if (!m) {
+                            this.no_match_tips();
+                            return;
+                        }
+                        if (m.length === 1) this[m[0]](cm);
+                        else {
+                            const arr = [...new Set(m)];
+                            const i = arr.length;
+                            if (i === 1) this[arr[0]](cm);
+                            else if (i > 2) this.no_match_tips();
+                            else {
+                                let f = arr.indexOf("t");
+                                if (f < 0) {
+                                    this.no_match_tips();
+                                    return;
+                                }
+                                const cn = f === 0 ? arr[1] : arr[0];
+                                if (!(cn === "u" || cn === "r")) {
+                                    this.no_match_tips();
+                                    return;
+                                }
+                                this[cn](cm, true);
+                            }
+                        }
+                    } else this.i();
+                },
+                main(cm) {
+                    this.cm_format(cm);
+                },
+            },
+            fold: {
+                main() {
+                    return "Button ContentItem-action ContentItem-rightButton Button--plain";
+                },
+            },
+            expand: {
+                main(cms, index) {
+                    return index < 2
+                        ? "Button ContentItem-more Button--plain"
+                        : "Button ContentItem-rightButton ContentItem-expandButton Button--plain";
+                },
+            },
+            f_e: {
+                c(item, name) {
+                    const button = item.getElementsByClassName(name);
+                    button.length > 0 && button[0].click();
+                },
+                main(name) {
+                    const items = document.body.getElementsByClassName(
+                        "ContentItem AnswerItem"
+                    );
+                    let i = items.length;
+                    if (i === 0) return;
+                    else if (i < 6) {
+                        for (i; i--; ) this.f(items[i], name);
+                    } else {
+                        let index = 0;
+                        for (const item of items) {
+                            if (
+                                elementVisible.main(
+                                    document.documentElement,
+                                    item
+                                )
+                            )
+                                break;
+                            index++;
+                        }
+                        let start = index - 2;
+                        start < 0 && (start = 0);
+                        let end = start + 4;
+                        if (end > --i) {
+                            start = start - (end - i);
+                            end = i;
+                        }
+                        start--;
+                        for (end; end > start; end--) this.c(items[i]);
+                    }
+                },
+            },
+            light: {
+                get cover() {
+                    return document.getElementById("screen_shade_cover");
+                },
+                set_opacity(co, v) {
+                    co.style.opacity = v;
+                },
+                set_color(co, c) {
+                    co.style.background = c;
+                },
+                /**
+                 * @param {any} v
+                 */
+                set set(v) {
+                    GM_setValue(this.name, v);
+                },
+                name: "tmp_cover",
+                get get() {
+                    return GM_getValue(this.name);
+                },
+                a(cm, tc) {
+                    tc.status = "a";
+                },
+                item_no_match(name) {
+                    Notification(
+                        `the format of ${name} does not match rule`,
+                        "Tips"
+                    );
+                },
+                c(cm, tc, co) {
+                    const reg = /#\w{4}/;
+                    const m = cm.match(reg);
+                    if (!m) {
+                        this.item_no_match("color");
+                        return;
+                    }
+                    this.set_color(co, m[0]);
+                    tc.color = m[0];
+                },
+                o(cm, tc, co) {
+                    const reg = /(?<=-o\s?)(0\.)?\d+(\.\d+)?/;
+                    const m = cm.match(reg);
+                    if (!m) {
+                        this.item_no_match("opacity");
+                        return;
+                    }
+                    let v = m[0] * 1;
+                    v > 1 && (v = 1);
+                    this.set_opacity(co, v);
+                    tc.opacity = v;
+                },
+                t(cm, tc) {
+                    const reg = /(?<=-t\s?)(0\.)?\d+(\.\d+)?/;
+                    const m = cm.match(reg);
+                    if (!m) {
+                        this.item_no_match("time");
+                        return;
+                    }
+                    tc.rtime = m[0] * 60 * 24 * 60 * 1000;
+                },
+                _s(funcs, cm) {
+                    const c = this.cover;
+                    if (!c) {
+                        Notification(
+                            "the dom of cover has been removed",
+                            "Tips"
+                        );
+                        return;
+                    }
+                    let tc = this.get;
+                    !tc && (tc = {});
+                    tc.status = "s";
+                    funcs.forEach((e) => this[e](cm, tc, c));
+                    this.set = tc;
+                },
+                no_match_tips() {
+                    Notification(
+                        "please check the command, which does not match the rule",
+                        "Warning"
+                    );
+                },
+                cm_format(cm) {
+                    cm = cm.slice("light".length);
+                    if (cm) {
+                        const reg = /(?<=\s-)[acot]/g;
+                        const m = cm.match(reg);
+                        if (!m) {
+                            this.no_match_tips();
+                            return;
+                        }
+                        if (m.length === 1) this[m[0]](cm);
+                        else {
+                            const arr = [...new Set(m)];
+                            const i = arr.length;
+                            if (i === 1) this[arr[0]](cm);
+                            else if (i > 4) this.no_match_tips();
+                            else {
+                                const t = arr.includes("t");
+                                const a = arr.includes("a");
+                                if (t && !a) {
+                                    this.no_match_tips();
+                                    return;
+                                }
+                                this._s(arr, cm);
+                            }
+                        }
+                    }
+                },
+                main(cm) {
+                    this.cm_format(cm);
+                },
+            },
+            main(index) {
+                let cm = prompt("please input commander string");
+                if (!cm || !(cm = cm.trim()) || cm[0] !== "$") return true;
+                cm = cm.slice(1).toLowerCase().trim();
+                if (!cm) return true;
+                const cms = ["bgi", "light", "fold", "expand"];
+                const r = cms.findIndex((e) => cm.startsWith(e));
+                r < 2 ? this[cms[r]].main(cm) : this.f_e(this[cms[r]].main(index));
+                return true;
+            },
+        },
+        //the origin keyboard event of zhihu
+        key_conflict(keyCode, shift) {
+            return (
+                68 === keyCode || (shift && (71 === keyCode || 85 === keyCode))
+            );
+        },
+        common_KeyEevnt(shift, keyCode, index = -1) {
             /*
             open user manual webpage;
             open shortcuts webpage;
@@ -10366,6 +10869,8 @@
                         ? this.white_noise.change_music(true)
                         : keyCode === 88
                         ? "https://zhuanlan.zhihu.com/"
+                        : keyCode === 81
+                        ? index > 0 && index < 4 && this.commander.main(index)
                         : null;
                 if (url) {
                     typeof url === "string" &&
@@ -10446,6 +10951,10 @@
                     return;
                 const shift = e.shiftKey;
                 const keyCode = e.keyCode;
+                if (this.key_conflict(keyCode, shift)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
                 if (this.common_KeyEevnt(shift, keyCode, index)) return;
                 const r = this.qaReader.readerMode;
                 r
