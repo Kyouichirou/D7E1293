@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.3
+// @version      3.4.6.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -4485,7 +4485,7 @@
                     "Sticky AppHeader"
                 );
                 if (header.length === 0) return "";
-                const input = heade[0].getElementsByTagName("input");
+                const input = header[0].getElementsByTagName("input");
                 return input.length === 0 ? "" : input[0].defaultValue.trim();
             },
             site() {
@@ -7266,12 +7266,13 @@
                     (this.id = GM_addStyle(this.search_simple).id);
             },
         },
+        body_img_update: null,
         body_image() {
             const bgi = this.commander.bgi.get;
             let s = "";
             if (bgi && (s = bgi.status) && s !== "tmp") {
                 const url = bgi.url;
-                s === "auto" && this.commander.bgi.auto_update(bgi);
+                s === "auto" && (this.body_img_update = bgi);
                 return url ? `body{background-image: url(${url});}` : "";
             }
             return "";
@@ -7647,8 +7648,11 @@
                 window.onload = () => {
                     if (mode === 0) {
                         this.colorAssistant.main();
-                        this.autoScroll.keyBoardEvent();
                         this.Column.main(0);
+                        this.autoScroll.keyBoardEvent();
+                        unsafeWindow.addEventListener("visibilitychange", () =>
+                            this.visibleChange(document.hidden)
+                        );
                     } else this.column_homePage(this.Column.main(1));
                     setTimeout(() => this.show_Total.main(true), 30000);
                     this.key_ctrl_sync(true);
@@ -10415,12 +10419,13 @@
         },
         commander: {
             bgi: {
-                bing_image(index) {
+                bing_image(bgi, mode) {
                     return new Promise((resolve, reject) => {
-                        const day = 1000 * 60 * 60 * 24;
-                        const api = `https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&nc=${
-                            Date.now() - index * day
-                        }&pid=hp`;
+                        let index = bgi.index || 0;
+                        index += mode ? 1 : 0;
+                        bgi.index = index > 7 ? 0 : index;
+                        bgi.atime = Date.now();
+                        const api = `https://cn.bing.com/HPImageArchive.aspx?format=js&idx=${bgi.index}&n=1&pid=hp`;
                         xmlHTTPRequest(api).then(
                             (json) => resolve(json.images[0].url),
                             (err) => {
@@ -10436,23 +10441,15 @@
                 },
                 timeID: null,
                 auto_update(bgi) {
-                    const update = bgi.update;
-                    let gap = 0;
-                    let d = 0;
-                    if (
-                        (update &&
-                            (gap = Date.now() - update) >
-                                (d = 1000 * 60 * 60 * 24)) ||
-                        !update
-                    ) {
-                        this.timeID = setTimeout(() => {
-                            this.timeID = null;
-                            const i = bgi.index;
-                            const index =
-                                gap > 9 * d ? (index = 0) : i || 0 ? i : 1;
-                            this._i(bgi, index);
-                        }, 6000);
+                    const a = bgi.atime;
+                    if (a && Date.now() - a < 1000 * 60 * 60 * 24) {
+                        bgi = null;
+                        return;
                     }
+                    this.timeID = setTimeout(() => {
+                        this.timeID = null;
+                        this._i(bgi, 1);
+                    }, 5000);
                 },
                 name: "bgi_image",
                 get get() {
@@ -10553,30 +10550,35 @@
                     document.body.style.backgroundImage =
                         url === "none" ? "none" : `url(${url})`;
                 },
-                get is_body_iamge() {
+                get is_body_image() {
                     return document.body.style.backgroundImage;
                 },
                 f() {
-                    const bgi = this.get;
-                    if (!bgi) return;
-                    bgi.status = "fixed";
-                    this.set = bgi;
+                    const url = this.is_body_image;
+                    if (url) {
+                        const bgi = this.get || {};
+                        bgi.url = url.slice(5, -3);
+                        bgi.status = "fixed";
+                        this.set = bgi;
+                    } else
+                        Notification(
+                            "you need set up background iamge firstly",
+                            "Tips"
+                        );
                 },
                 t() {
                     let bgi = this.get;
-                    if (this.is_body_iamge) {
-                        if (bgi) {
+                    if (bgi) {
+                        if (bgi.url && !this.is_body_image) {
                             bgi.status = "tmp";
+                            this.body_img = bgi.url;
                             this.set = bgi;
+                            return;
                         }
-                        return;
-                    }
-                    let index = 0;
-                    bgi ? (index = bgi.index || 0) : (bgi = {});
-                    this.bing_image(index).then((url) => {
-                        bgi.update = Date.now();
-                        bgi.status = "tmp";
+                    } else bgi = {};
+                    this.bing_image(bgi).then((url) => {
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
+                        bgi.status = "tmp";
                         this.set = bgi;
                     });
                 },
@@ -10589,21 +10591,21 @@
                         );
                         return;
                     }
-                    let index = bgi.index;
-                    typeof index !== "number" ? (index = 1) : (index += 1);
-                    index > 28 && (index = 0);
-                    this.bing_image(index).then((url) => {
-                        bgi.index = index;
-                        bgi.update = Date.now();
+                    this.bing_image(bgi, true).then((url) => {
+                        bgi.status === "reader" && (bgi.status = "auto");
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         this.set = bgi;
                     });
                 },
                 r(type) {
                     const bgp = GM_getValue("bgpreader");
-                    if (!bgp) return;
-                    let bgi = this.get;
-                    !bgi && (bgi = {});
+                    if (!bgp) {
+                        Notification(
+                            "you have not set up the backgorund iamge of reader"
+                        );
+                        return;
+                    }
+                    const bgi = this.get || {};
                     bgi.status = type ? "tmp" : "reader";
                     this.set = bgi;
                     this.body_img = bgp;
@@ -10612,6 +10614,7 @@
                     this.body_img = "none";
                     GM_deleteValue(this.name);
                 },
+                //type -tmp
                 u(cm, type) {
                     const m = cm.match(/https.+(?=\s)?/g);
                     if (!m) {
@@ -10622,33 +10625,22 @@
                         return;
                     }
                     const url = m[0];
-                    let bgi = this.get;
-                    !bgi && (bgi = {});
+                    const bgi = this.get || {};
                     bgi.status = type ? "tmp" : "self";
                     bgi.url = url;
                     this.set = bgi;
                     this.body_img = url;
                 },
                 _i(bgi, index) {
-                    this.bing_image(0).then((url) => {
-                        bgi.update = Date.now();
-                        bgi.index = index ? index - 1 : 0;
+                    this.bing_image(bgi, index).then((url) => {
                         bgi.status = "auto";
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         this.set = bgi;
+                        bgi = null;
                     });
                 },
                 i() {
-                    let bgi = this.get;
-                    if (bgi) {
-                        if (!this.is_body_iamge) {
-                            const url = bgi.url;
-                            bgi.status === "auto" &&
-                                url &&
-                                (this.body_img = url);
-                        }
-                    } else bgi = {};
-                    this._i(bgi);
+                    this._i({}, 0);
                 },
                 no_match_tips() {
                     Notification(
@@ -10673,6 +10665,7 @@
                             if (i === 1) this[arr[0]](cm);
                             else if (i > 2) this.no_match_tips();
                             else {
+                                //only use -t this paramter with -u or -t
                                 let f = arr.indexOf("t");
                                 if (f < 0) {
                                     this.no_match_tips();
@@ -11159,6 +11152,10 @@
                                           );
                                   }, 300)
                                 : index === 3 && this.searchPage.main();
+                            this.body_img_update &&
+                                this.commander.bgi.auto_update(
+                                    this.body_img_update
+                                );
                         }, 100);
                     (index === 6 || index === 7) && this.userPage.main();
                 }
