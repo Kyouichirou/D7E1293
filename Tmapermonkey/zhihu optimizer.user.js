@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.2
+// @version      3.4.6.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -10451,7 +10451,7 @@
                             const index =
                                 gap > 9 * d ? (index = 0) : i || 0 ? i : 1;
                             this._i(bgi, index);
-                        }, 20000);
+                        }, 6000);
                     }
                 },
                 name: "bgi_image",
@@ -10582,7 +10582,13 @@
                 },
                 s() {
                     const bgi = this.get;
-                    if (!bgi) return;
+                    if (!bgi) {
+                        Notification(
+                            "you need setup background image firstly",
+                            "Tips"
+                        );
+                        return;
+                    }
                     let index = bgi.index;
                     typeof index !== "number" ? (index = 1) : (index += 1);
                     index > 28 && (index = 0);
@@ -10772,7 +10778,7 @@
                     );
                 },
                 c(cm, tc, co) {
-                    const reg = /#\w{4}/;
+                    const reg = /#\w{3,6}/;
                     const m = cm.match(reg);
                     if (!m) {
                         this.item_no_match("color");
@@ -10875,7 +10881,9 @@
                 },
             },
             main(index) {
-                let cm = prompt("please input commander string, e.g.: fold, ligth, expand, bgi");
+                let cm = prompt(
+                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi"
+                );
                 if (!cm || !(cm = cm.trim()) || cm[0] !== "$") return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
