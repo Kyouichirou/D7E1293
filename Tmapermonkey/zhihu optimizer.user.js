@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.6
+// @version      3.4.6.7
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -6075,7 +6075,7 @@
                         () =>
                             !this.content_check(item, targetElements) &&
                             this.checked_list.push(id),
-                        300
+                        350
                     );
             },
             //check the content when the content expanded
@@ -6395,9 +6395,29 @@
                 }, 350);
             },
             is_update: false,
+            get_items(cl, ic, n, mode, targetElements) {
+                setTimeout(() => {
+                    const items = document.getElementsByClassName(cl);
+                    const i = items.length;
+                    if (i > n || ic > 20) {
+                        if (i === 0) {
+                            colorful_Console.main(
+                                {
+                                    title: "info:",
+                                    content: "failed to get items",
+                                },
+                                colorful_Console.colors.info
+                            );
+                            return;
+                        }
+                        for (const item of items)
+                            this.check(item, targetElements, 0);
+                        mode && this.monitor(targetElements, items[0]);
+                    } else this.get_items(cl, ++ic, n, mode, targetElements);
+                }, 50 + 5 * ic);
+            },
             firstRun(targetElements) {
                 if (!this.checkURL(targetElements)) return;
-                let ic = 0;
                 let n = 4;
                 let cl = "";
                 let mode = true;
@@ -6413,27 +6433,7 @@
                     targetElements.index = n === 0 ? 0 : 1;
                     if (this.is_update && !mode) return;
                 }
-                let id = setInterval(() => {
-                    const items = document.getElementsByClassName(cl);
-                    const i = items.length;
-                    if (i > n || ic > 25) {
-                        clearInterval(id);
-                        if (i === 0) {
-                            colorful_Console.main(
-                                {
-                                    title: "info:",
-                                    content: "failed to get items",
-                                },
-                                colorful_Console.colors.info
-                            );
-                            return;
-                        }
-                        for (const item of items)
-                            this.check(item, targetElements, 0);
-                        mode && this.monitor(targetElements, items[0]);
-                    }
-                    ic++;
-                }, 20);
+                this.get_items(cl, 0, n, mode, targetElements);
             },
             isMonitor: false,
             answerPage() {
@@ -10968,12 +10968,7 @@
                     "please input commander string, e.g.:$+ fold, ligth, expand, bgi",
                     this.last_time_cm || "$"
                 );
-                if (
-                    !cm ||
-                    !(cm = cm.trim()) ||
-                    cm.length === 0 ||
-                    cm[0] !== "$"
-                )
+                if (!cm || cm.length < 2 || !(cm = cm.trim()) || cm[0] !== "$")
                     return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
