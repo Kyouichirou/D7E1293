@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.5
+// @version      3.4.6.6
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -61,6 +61,8 @@
         github: "https://github.com/Kyouichirou",
         greasyfork:
             "https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer",
+        cmd_help:
+            "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png",
     };
     const blackKey = [
         "\u5171\u9752\u56e2",
@@ -4496,7 +4498,7 @@
             site() {
                 let keyword = prompt(
                     "support z, d, g, h, m, b, p: like: z python; (search in zhihu); default: g",
-                    this.Searchbar
+                    this.Searchbar || getSelection() || ""
                 );
                 if (!keyword || !(keyword = keyword.trim())) return true;
                 const ms = this.m(keyword);
@@ -7240,6 +7242,26 @@
                     { childList: true }
                 );
             },
+            set_user_display(item, mode) {
+                let i = 0;
+                let p = item.parentNode;
+                let c = p.className;
+                while (c !== "Card SearchResult-Card") {
+                    p = p.parentNode;
+                    if (!p || i > 4) break;
+                    c = p.className;
+                }
+                i < 5 && (p.style.display = mode ? "block" : "none");
+            },
+            user_AD(mode) {
+                const users = document.getElementsByClassName(
+                    "ContentItem-main"
+                );
+                for (const u of users) {
+                    const b = u.getElementsByClassName("ContentItem-extra");
+                    b.length > 0 && this.set_user_display(item, mode);
+                }
+            },
             click_event(c, html) {
                 c.insertAdjacentHTML("beforeend", html);
                 setTimeout(() => {
@@ -7259,6 +7281,7 @@
                                     const style = document.getElementById(
                                         this.id
                                     );
+                                    this.user_AD(true);
                                     style && style.remove();
                                     this.id = null;
                                 }
@@ -7270,6 +7293,7 @@
                                 this.id = GM_addStyle(this.search_simple).id;
                                 f = true;
                                 newName = className + " on";
+                                this.user_AD(false);
                             }
                             this.buttons.forEach(
                                 (e) => (e.className = newName)
@@ -10900,17 +10924,62 @@
                     this.cm_format(cm);
                 },
             },
-            last_time_cm: '',
+            last_time_cm: "",
+            help: {
+                a() {
+                    GM_openInTab(Assist_info_URL.cmd_help, {
+                        insert: true,
+                        active: true,
+                    });
+                    setTimeout(
+                        () =>
+                            GM_openInTab(Assist_info_URL.shortcuts, {
+                                insert: true,
+                                active: true,
+                            }),
+                        300
+                    );
+                    setTimeout(
+                        () =>
+                            GM_openInTab(Assist_info_URL.usermanual, {
+                                insert: true,
+                                active: true,
+                            }),
+                        600
+                    );
+                },
+                i() {
+                    GM_openInTab(Assist_info_URL.cmd_help, {
+                        insert: true,
+                        active: true,
+                    });
+                },
+                main(cm) {
+                    cm = cm.slice(4);
+                    if (cm) {
+                        const reg = /\s-a/;
+                        cm.match(reg) && this.a();
+                    }
+                    this.i();
+                },
+            },
             main(index) {
                 let cm = prompt(
-                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi", this.last_time_cm || '$'
+                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi",
+                    this.last_time_cm || "$"
                 );
-                if (!cm || !(cm = cm.trim()) || cm[0] !== "$") return true;
+                if (
+                    !cm ||
+                    !(cm = cm.trim()) ||
+                    cm.length === 0 ||
+                    cm[0] !== "$"
+                )
+                    return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
-                const cms = ["bgi", "light", "fold", "expand"];
+                const cms = ["bgi", "light", "help", "fold", "expand"];
                 const r = cms.findIndex((e) => cm.startsWith(e));
-                r < 2
+                r < 3
                     ? this[cms[r]].main(cm, index)
                     : index > 3
                     ? Notification(
@@ -10918,7 +10987,7 @@
                           "Tips"
                       )
                     : this.f_e.main(this[cms[r]].main(index));
-                this.last_time_cm = cm;
+                this.last_time_cm = `$${cm}`;
                 return true;
             },
         },
