@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.4
+// @version      3.4.6.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -4488,12 +4488,33 @@
                 const input = header[0].getElementsByTagName("input");
                 return input.length === 0 ? "" : input[0].defaultValue.trim();
             },
+            m(keyword) {
+                const reg = /(?<=-)[a-z]\s/gi;
+                const m = keyword.match(reg);
+                return m ? (m.length === 0 ? m[0] : [...new Set(m)]) : null;
+            },
             site() {
                 let keyword = prompt(
-                    "enter keyword or choose a search engine: like: z python; (zhihu); default: google",
+                    "support z, d, g, h, m, b, p: like: z python; (search in zhihu); default: g",
                     this.Searchbar
                 );
                 if (!keyword || !(keyword = keyword.trim())) return true;
+                const ms = this.m(keyword);
+                if (ms) {
+                    const wreg = /(?<=-[a-z]\s)(?!-)\S+(?=\s)?/;
+                    const tmp = keyword.match(wreg);
+                    if (!tmp) {
+                        Notification("failed to get keyword", "Warning");
+                        return;
+                    }
+                    ms.forEach((e, index) => {
+                        setTimeout(() => {
+                            const c = this.checkCode(e);
+                            c && this.main(c, tmp[0]);
+                        }, index * 300);
+                    });
+                    return;
+                }
                 const reg = /[a-z]\s/i;
                 const code = this.checkCode(keyword[0]);
                 code && keyword.match(reg)
@@ -4907,7 +4928,7 @@
                     : this.multiSearch.main(keyCode);
             },
             check_common_key(shift, keyCode) {
-                return this.common_KeyEevnt(shift, keyCode);
+                return this.common_KeyEevnt(shift, keyCode, 5);
             },
             key_conflict(keyCode, shift) {
                 return (
@@ -10560,6 +10581,7 @@
                         bgi.url = url.slice(5, -3);
                         bgi.status = "fixed";
                         this.set = bgi;
+                        Notification("change setup successfully", "Tips");
                     } else
                         Notification(
                             "you need set up background iamge firstly",
@@ -10681,8 +10703,13 @@
                         }
                     } else this.i();
                 },
-                main(cm) {
-                    this.cm_format(cm);
+                main(cm, index) {
+                    index > 3
+                        ? Notification(
+                              "current webpage does not support this feature",
+                              "Tips"
+                          )
+                        : this.cm_format(cm);
                 },
             },
             fold: {
@@ -10873,9 +10900,10 @@
                     this.cm_format(cm);
                 },
             },
+            last_time_cm: '',
             main(index) {
                 let cm = prompt(
-                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi"
+                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi", this.last_time_cm || '$'
                 );
                 if (!cm || !(cm = cm.trim()) || cm[0] !== "$") return true;
                 cm = cm.slice(1).toLowerCase().trim();
@@ -10883,8 +10911,14 @@
                 const cms = ["bgi", "light", "fold", "expand"];
                 const r = cms.findIndex((e) => cm.startsWith(e));
                 r < 2
-                    ? this[cms[r]].main(cm)
+                    ? this[cms[r]].main(cm, index)
+                    : index > 3
+                    ? Notification(
+                          "current webpage does not support this feature",
+                          "Tips"
+                      )
                     : this.f_e.main(this[cms[r]].main(index));
+                this.last_time_cm = cm;
                 return true;
             },
         },
@@ -10925,9 +10959,7 @@
                         : keyCode === 88
                         ? "https://zhuanlan.zhihu.com/"
                         : keyCode === 81
-                        ? (index > -1 &&
-                              index < 4 &&
-                              this.commander.main(index) &&
+                        ? (this.commander.main(index) &&
                               (this.shade.sing_protect = this.commander.light._is_single)) ||
                           true
                         : null;
