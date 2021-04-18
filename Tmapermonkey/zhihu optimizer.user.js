@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.6.7
+// @version      3.4.7.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -280,6 +280,32 @@
             </div>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
+    };
+    /*
+    convert image to base64 code
+    just support a little type of image, chrome, don't support image/gif type
+    support type, test on this site: https://kangax.github.io/jstests/toDataUrl_mime_type_test/
+    */
+    const imageConvertor = {
+        canvas(image, format, quality) {
+            const canvas = document.createElement("canvas");
+            const context2D = canvas.getContext("2d");
+            context2D.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            context2D.drawImage(image, 0, 0);
+            return canvas.toDataURL("image/" + format, quality);
+            //0-1, default: 0.92, the quality of pic
+        },
+        main(imgURL, format = "webp", quality = 0.92) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = imgURL;
+                img.crossOrigin = "";
+                img.onload = () => resolve(this.canvas(img, format, quality));
+                img.onerror = (err) => reject(err);
+            });
+        },
     };
     const Download_module = (url, filename, timeout = 3000) => {
         return new Promise((resolve, reject) => {
@@ -2414,10 +2440,10 @@
                             color: #00a1d6;
                         }
                     </style>
-                    <a href="#" class="artfullscreen_closer" id="artfullscreen_closer">×</a>
+                    <a href="#" class="artfullscreen_closer" id="artfullscreen_closer" title="exit reader">×</a>
                     <div class="d1">
                         <div class="a_bgcolor">
-                            <img src=${jpgBase64} />
+                            <img src=${jpgBase64} style="height: 20px; width:20px; margin-left: -1px;" />
                             <div class="a_colorlist" style="display: none">
                                 <span class="a_color1${arr[0]}">
                                     <img src=${gifBase64}
@@ -4492,29 +4518,36 @@
             },
             m(keyword) {
                 const reg = /(?<=-)[a-z]\s/gi;
-                const m = keyword.match(reg);
+                const m = (keyword.slice(-2, -1) === "-"
+                    ? `${keyword} `
+                    : keyword
+                ).match(reg);
                 return m ? (m.length === 0 ? m[0] : [...new Set(m)]) : null;
             },
+            last_time_s: "",
             site() {
                 let keyword = prompt(
                     "support z, d, g, h, m, b, p: like: z python; (search in zhihu); default: g",
-                    this.Searchbar || getSelection() || ""
+                    this.Searchbar || getSelection() || this.last_time_s
                 );
                 if (!keyword || !(keyword = keyword.trim())) return true;
+                this.last_time_s = keyword;
                 const ms = this.m(keyword);
                 if (ms) {
-                    const wreg = /(?<=-[a-z]\s)(?!-)\S+(?=\s)?/;
-                    const tmp = keyword.match(wreg);
+                    const wreg = /(?<=-[a-z]\s)(?!-).+(?=[\s-\b])/;
+                    const tmp = (keyword.slice(-2, -1) === "-"
+                        ? keyword
+                        : `${keyword} `
+                    ).match(wreg);
                     if (!tmp) {
                         Notification("failed to get keyword", "Warning");
-                        return;
-                    }
-                    ms.forEach((e, index) => {
-                        setTimeout(() => {
-                            const c = this.checkCode(e);
-                            c && this.main(c, tmp[0]);
-                        }, index * 300);
-                    });
+                    } else
+                        ms.forEach((e, index) => {
+                            setTimeout(() => {
+                                const c = this.checkCode(e);
+                                c && this.main(c, tmp[0]);
+                            }, index * 300);
+                        });
                     return;
                 }
                 const reg = /[a-z]\s/i;
@@ -7305,8 +7338,10 @@
                 }, 0);
             },
             id: null,
-            add(common, inpustyle, search, topicAndquestion) {
-                GM_addStyle(common + inpustyle + search + topicAndquestion);
+            add(common, inpustyle, search, topicAndquestion, bgi) {
+                GM_addStyle(
+                    common + inpustyle + search + topicAndquestion + bgi
+                );
                 (this.is_simple_search = GM_getValue("simplesearch")) &&
                     (this.id = GM_addStyle(this.search_simple).id);
             },
@@ -7316,8 +7351,10 @@
             const bgi = this.commander.bgi.get;
             let s = "";
             if (bgi && (s = bgi.status) && s !== "tmp") {
-                const url = bgi.url;
-                s === "auto" && (this.body_img_update = bgi);
+                const url =
+                    s === "auto"
+                        ? (this.body_img_update = bgi) && bgi.url
+                        : s === "fixed" && GM_getValue("fixed_image");
                 return url ? `body{background-image: url(${url});}` : "";
             }
             return "";
@@ -10011,7 +10048,16 @@
             getItem(node) {
                 //those tags will be ignored
                 const localName = node.localName;
-                const tags = ["a", "br", "b", "span", "code", "strong", "u"];
+                const tags = [
+                    "a",
+                    "br",
+                    "b",
+                    "span",
+                    "code",
+                    "strong",
+                    "u",
+                    "sup",
+                ];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
                     this.nodeCount += 1;
@@ -10493,7 +10539,7 @@
                     }
                     this.timeID = setTimeout(() => {
                         this.timeID = null;
-                        this._i(bgi, 1);
+                        this._i(bgi, 0);
                     }, 5000);
                 },
                 name: "bgi_image",
@@ -10598,6 +10644,15 @@
                 get is_body_image() {
                     return document.body.style.backgroundImage;
                 },
+                /**
+                 * @param {string} base64
+                 */
+                set image_cache(base64) {
+                    GM_setValue("fixed_image", base64);
+                },
+                dele_image_cache() {
+                    GM_deleteValue("fixed_image");
+                },
                 f() {
                     const url = this.is_body_image;
                     if (url) {
@@ -10605,6 +10660,34 @@
                         bgi.url = url.slice(5, -3);
                         bgi.status = "fixed";
                         this.set = bgi;
+                        const reg = /\.(jpe?g|webp)/;
+                        const m = bgi.url.match(reg);
+                        if (m) {
+                            imageConvertor
+                                .main(bgi.url, "webp", 0.3)
+                                .then((base64) => {
+                                    this.image_cache = base64;
+                                    colorful_Console.main(
+                                        {
+                                            title: "cached image",
+                                            content:
+                                                "cached image successfully",
+                                        },
+                                        colorful_Console.colors.info
+                                    );
+                                }),
+                                () => {
+                                    this.dele_image_cache();
+                                    colorful_Console.main(
+                                        {
+                                            title: "cached image",
+                                            content:
+                                                "failed to cache background iamge",
+                                        },
+                                        colorful_Console.colors.warning
+                                    );
+                                };
+                        }
                         Notification("change setup successfully", "Tips");
                     } else
                         Notification(
@@ -10627,6 +10710,7 @@
                         bgi.status = "tmp";
                         this.set = bgi;
                     });
+                    this.dele_image_cache();
                 },
                 s() {
                     const bgi = this.get;
@@ -10638,10 +10722,11 @@
                         return;
                     }
                     this.bing_image(bgi, true).then((url) => {
-                        bgi.status === "reader" && (bgi.status = "auto");
+                        bgi.status = "auto";
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         this.set = bgi;
                     });
+                    this.dele_image_cache();
                 },
                 r(type) {
                     const bgp = GM_getValue("bgpreader");
@@ -10655,10 +10740,12 @@
                     bgi.status = type ? "tmp" : "reader";
                     this.set = bgi;
                     this.body_img = bgp;
+                    this.dele_image_cache();
                 },
                 o() {
                     this.body_img = "none";
                     GM_deleteValue(this.name);
+                    this.dele_image_cache();
                 },
                 //type -tmp
                 u(cm, type) {
@@ -10676,6 +10763,7 @@
                     bgi.url = url;
                     this.set = bgi;
                     this.body_img = url;
+                    this.dele_image_cache();
                 },
                 _i(bgi, index) {
                     this.bing_image(bgi, index).then((url) => {
@@ -10687,6 +10775,7 @@
                 },
                 i() {
                     this._i({}, 0);
+                    this.dele_image_cache();
                 },
                 no_match_tips() {
                     Notification(
