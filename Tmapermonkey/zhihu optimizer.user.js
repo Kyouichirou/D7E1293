@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.7.0
+// @version      3.4.7.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -10579,7 +10579,7 @@
                                     this.get_base64_fileType(url);
                             }
                         } else {
-                            xmlHTTPRequest(url, 300000, "blob").then(
+                            xmlHTTPRequest(url, 30000, "blob").then(
                                 (blob) => {
                                     const file = new FileReader();
                                     file.readAsDataURL(blob);
@@ -10653,7 +10653,7 @@
                 dele_image_cache() {
                     GM_deleteValue("fixed_image");
                 },
-                f() {
+                f(cm) {
                     const url = this.is_body_image;
                     if (url) {
                         const bgi = this.get || {};
@@ -10663,8 +10663,18 @@
                         const reg = /\.(jpe?g|webp)/;
                         const m = bgi.url.match(reg);
                         if (m) {
+                            const reg = /(?<=-f\s?)(0\.)?\d+(\.\d+)?/;
+                            const mc = cm.match(reg);
+                            let ro = 0;
+                            const c_ratio = mc
+                                ? (ro = mc[0]) > 1
+                                    ? 1
+                                    : ro < 0.3
+                                    ? 0.3
+                                    : ro
+                                : 0.3;
                             imageConvertor
-                                .main(bgi.url, "webp", 0.3)
+                                .main(bgi.url, "webp", c_ratio)
                                 .then((base64) => {
                                     this.image_cache = base64;
                                     colorful_Console.main(
@@ -10737,7 +10747,7 @@
                         return;
                     }
                     const bgi = this.get || {};
-                    bgi.status = type ? "tmp" : "reader";
+                    bgi.status = type === true ? "tmp" : "reader";
                     this.set = bgi;
                     this.body_img = bgp;
                     this.dele_image_cache();
@@ -10766,6 +10776,7 @@
                     this.dele_image_cache();
                 },
                 _i(bgi, index) {
+                    this.dele_image_cache();
                     this.bing_image(bgi, index).then((url) => {
                         bgi.status = "auto";
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
@@ -10774,8 +10785,21 @@
                     });
                 },
                 i() {
-                    this._i({}, 0);
-                    this.dele_image_cache();
+                    let bgi = this.get;
+                    if (bgi) {
+                        const at = bgi.atime;
+                        if (at) {
+                            const url = bgi.url;
+                            if (url && Date.now() - at > 1000 * 60 * 60 * 24) {
+                                bgi.status = "auto";
+                                !this.is_body_image && (this.body_img = url);
+                                this.set = bgi;
+                                this.dele_image_cache();
+                                return;
+                            }
+                        }
+                    } else bgi = {};
+                    this._i(bgi, 0);
                 },
                 no_match_tips() {
                     Notification(
