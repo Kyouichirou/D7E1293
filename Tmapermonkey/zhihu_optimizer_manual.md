@@ -223,11 +223,11 @@ Tampermonkey版本: 4.x +
 
    如: 设置背景壁纸为必应每日壁纸
 
-![图示](https://img.meituan.net/csc/2dcf4e34b0d65ab329fb470900253b0e1072591.png)
+  ![图示](https://img.meituan.net/csc/2dcf4e34b0d65ab329fb470900253b0e1072591.png)
 
-![图示](https://img.meituan.net/csc/959bd8ed1b752e222581dc42b3feb54f1170477.png)
+  ![图示](https://img.meituan.net/csc/959bd8ed1b752e222581dc42b3feb54f1170477.png)
 
-![图示](https://img.meituan.net/csc/7b55294048790bfdb34ea87eed46d4401373678.png)
+  ![图示](https://img.meituan.net/csc/7b55294048790bfdb34ea87eed46d4401373678.png)
 
 ​	当然你也能自定义壁纸或者直接使用阅读器的壁纸
 
