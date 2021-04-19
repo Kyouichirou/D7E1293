@@ -16,3 +16,7 @@ Function CreateGUID() As String '创建GUID
         CreateGUID = Left$(CreateGUID, 8) + "-" + Mid$(CreateGUID, 9, 4) + "-" + Mid$(CreateGUID, 13, 4) + "-" + Mid$(CreateGUID, 17, 4) + "-" + Right$(CreateGUID, 12)
     End If
 End Function
+
+Function getGUID() '另一种方法
+    getGUID = LCase(Mid$(CreateObject("Scriptlet.TypeLib").GUID, 2, 36))
+End Function
