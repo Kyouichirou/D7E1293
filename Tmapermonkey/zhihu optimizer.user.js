@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.4.7.1
+// @version      3.5.0.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -9,6 +9,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_listValues
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @grant        GM_deleteValue
@@ -53,7 +54,7 @@
     "use strict";
     const Assist_info_URL = {
         shortcuts:
-            "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png",
+            "https://img.meituan.net/csc/df2540f418efadc25e0562df5924bb8b193354.png",
         usermanual:
             "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md",
         feedback:
@@ -62,7 +63,9 @@
         greasyfork:
             "https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer",
         cmd_help:
-            "https://img.meituan.net/csc/c67b957b2b711596f8af2d1ea29d4e1291396.png",
+            "https://img.meituan.net/csc/5409e56911b74b0fa3e8e0e3fc40c62587055.png",
+        search_help:
+            "https://img.meituan.net/csc/29bae0a159923ec0c3f196326b6e3a2816319.png",
     };
     const blackKey = [
         "\u5171\u9752\u56e2",
@@ -91,6 +94,7 @@
         "\u90fd\u5e02\u5c0f\u8bf4",
         "\u8a00\u60c5\u5c0f\u8bf4",
         "\u803d\u7f8e\u5c0f\u8bf4",
+        "\u6bdb\u6cfd\u4e1c",
     ];
     let blackName = null;
     let blackTopicAndQuestion = null;
@@ -1045,8 +1049,8 @@
         set TableName(name) {
             this.db.tbname = name;
         },
-        close(mode = true) {
-            mode && this.db.close();
+        close() {
+            this.db && this.db.close();
             this.db = null;
         },
         getdataCount(tables) {
@@ -2502,11 +2506,11 @@
                                 collected ? " on" : ""
                             }"
                             type="button"
-                            title=${
+                            title=${escapeBlank(
                                 collected
                                     ? `cancel the collection of ${this.content_type}`
                                     : `add the ${this.content_type} to collection`
-                            }
+                            )}
                         >
                             <span style="display: inline-flex; align-items: center"
                                 >&#8203;<svg
@@ -3276,20 +3280,25 @@
                                 else this.remove(n);
                             } else {
                                 const localName = target.localName;
-                                if (
-                                    localName &&
-                                    (localName === "path" ||
-                                        localName === "circle")
-                                ) {
-                                    const paths = e.path;
-                                    for (const p of paths) {
-                                        if (p.className === "_player_ico") {
-                                            this.video_Play(
-                                                p.previousElementSibling
-                                            );
-                                            break;
+                                if (localName) {
+                                    if (
+                                        localName === "path" ||
+                                        localName === "circle"
+                                    ) {
+                                        const paths = e.path;
+                                        for (const p of paths) {
+                                            if (p.className === "_player_ico") {
+                                                this.video_Play(
+                                                    p.previousElementSibling
+                                                );
+                                                break;
+                                            }
                                         }
-                                    }
+                                    } else if (
+                                        localName === "img" &&
+                                        target.dataset.original
+                                    )
+                                        this.showRawPic(box, target, n);
                                 }
                             }
                         };
@@ -3486,7 +3495,7 @@
                     }
                 },
                 speedUP() {
-                    this.scrollState && this.stepTime < 5
+                    this.scrollState && this.stepTime < 10
                         ? (this.stepTime = 5)
                         : (this.stepTime -= 5);
                 },
@@ -4418,6 +4427,9 @@
                     66: "BiliBili",
                     90: "Zhihu",
                     80: "Python",
+                    69: "Ecosia",
+                    1002: "Douban_movie",
+                    1001: "Douban_book",
                 };
                 const methods = {
                     Protocols: "https://",
@@ -4442,7 +4454,7 @@
                             if (
                                 f
                                     ? this.string_length(select) > 38
-                                    : select.length > 60
+                                    : select.length > 76
                             ) {
                                 Notification(
                                     "the length of keyword is too long",
@@ -4469,8 +4481,23 @@
                             active: true,
                         });
                     },
+                    Douban_movie() {
+                        this.Search(
+                            "search.douban.com/movie/subject_search?search_text=",
+                            "&cat=1002"
+                        );
+                    },
+                    Douban_book() {
+                        this.Search(
+                            "search.douban.com/book/subject_search?search_text=",
+                            "&cat=1001"
+                        );
+                    },
+                    Ecosia() {
+                        this.Search("www.ecosia.org/search?q=");
+                    },
                     Google() {
-                        this.Search("cn.bing.com/search?q=");
+                        this.Search("www.bing.com/search?q=");
                     },
                     Douban() {
                         this.Search("www.douban.com/search?q=");
@@ -4517,7 +4544,7 @@
                 return input.length === 0 ? "" : input[0].defaultValue.trim();
             },
             m(keyword) {
-                const reg = /(?<=-)[a-z]\s/gi;
+                const reg = /(?<=-)([a-z]|d[bm])\s/gi;
                 const m = (keyword.slice(-2, -1) === "-"
                     ? `${keyword} `
                     : keyword
@@ -4527,27 +4554,44 @@
             last_time_s: "",
             site() {
                 let keyword = prompt(
-                    "support z, d, g, h, m, b, p: like: z python; (search in zhihu); default: g",
-                    this.Searchbar || getSelection() || this.last_time_s
+                    "support z, d, g, h, m, b, p, e,db, dm: like: z python; (search in zhihu); default: g",
+                    getSelection() || this.Searchbar || this.last_time_s
                 );
                 if (!keyword || !(keyword = keyword.trim())) return true;
                 this.last_time_s = keyword;
-                const ms = this.m(keyword);
-                if (ms) {
-                    const wreg = /(?<=-[a-z]\s)(?!-).+(?=[\s-\b])/;
-                    const tmp = (keyword.slice(-2, -1) === "-"
-                        ? keyword
-                        : `${keyword} `
-                    ).match(wreg);
-                    if (!tmp) {
-                        Notification("failed to get keyword", "Warning");
-                    } else
-                        ms.forEach((e, index) => {
-                            setTimeout(() => {
-                                const c = this.checkCode(e);
-                                c && this.main(c, tmp[0]);
-                            }, index * 300);
-                        });
+                if (keyword[0] === "$") {
+                    keyword = keyword.slice(1);
+                    const ms = this.m(keyword);
+                    if (ms) {
+                        const wreg = /(?<=-([a-z]|d[bm])\s)(?!-).+(?=[\s-\b])/i;
+                        const tmp = (keyword.slice(-2, -1) === "-"
+                            ? keyword
+                            : `${keyword} `
+                        ).match(wreg);
+                        if (tmp) {
+                            ms.forEach((e, index) => {
+                                setTimeout(() => {
+                                    let c = this.checkCode(e);
+                                    c &&
+                                        (c =
+                                            c === 68
+                                                ? e[1]
+                                                    ? e[1].toLowerCase() === "b"
+                                                        ? 1001
+                                                        : 1002
+                                                    : c
+                                                : c) &&
+                                        this.main(c, tmp[0]);
+                                }, index * 350);
+                            });
+                        } else Notification("failed to get keyword", "Warning");
+                        return true;
+                    }
+                }
+                const tmp = keyword.slice(0, 3).toLowerCase();
+                const i = ["db ", "dm "].indexOf(tmp);
+                if (i > -1) {
+                    this.main(i === 0 ? 1001 : 1002, keyword.slice(3).trim());
                     return;
                 }
                 const reg = /[a-z]\s/i;
@@ -4897,7 +4941,7 @@
                 }
             },
             speedUP() {
-                this.stepTime < 5 ? (this.stepTime = 5) : (this.stepTime -= 5);
+                this.stepTime < 10 ? (this.stepTime = 5) : (this.stepTime -= 5);
             },
             slowDown() {
                 this.stepTime > 100
@@ -4971,58 +5015,62 @@
                 );
             },
             keyBoardEvent() {
-                window.onkeydown = (e) => {
-                    const keyCode = e.keyCode;
-                    if (e.ctrlKey || e.altKey) return;
-                    const className = e.target.className;
-                    if (
-                        (className &&
-                            typeof className === "string" &&
-                            className.includes("DraftEditor")) ||
-                        e.target.localName === "input"
-                    )
-                        return;
-                    const shift = e.shiftKey;
-                    if (this.check_common_key.call(zhihu, shift, keyCode))
-                        return;
-                    if (this.key_conflict(keyCode, shift)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                    shift
-                        ? keyCode === 65
-                            ? zhihu.Column.modePrint
-                                ? Notification(
-                                      "please exit print mode firstly",
-                                      "Tips"
+                document.addEventListener(
+                    "keydown",
+                    (e) => {
+                        const keyCode = e.keyCode;
+                        if (e.ctrlKey || e.altKey) return;
+                        const className = e.target.className;
+                        if (
+                            (className &&
+                                typeof className === "string" &&
+                                className.includes("DraftEditor")) ||
+                            e.target.localName === "input"
+                        )
+                            return;
+                        const shift = e.shiftKey;
+                        if (this.key_conflict(keyCode, shift)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                        if (this.check_common_key.call(zhihu, shift, keyCode))
+                            return;
+                        shift
+                            ? keyCode === 65
+                                ? zhihu.Column.modePrint
+                                    ? Notification(
+                                          "please exit print mode firstly",
+                                          "Tips"
+                                      )
+                                    : this.zhuanlanAuto()
+                                : keyCode === 66
+                                ? !this.scrollState &&
+                                  MangeData.exportData.main(false)
+                                : keyCode === 84
+                                ? this.noColorful()
+                                : keyCode === 73
+                                ? !this.scrollState &&
+                                  MangeData.importData.main(true)
+                                : this.Others.call(
+                                      zhihu,
+                                      keyCode,
+                                      shift,
+                                      this.zhuanlanAuto_mode
                                   )
-                                : this.zhuanlanAuto()
-                            : keyCode === 66
-                            ? !this.scrollState &&
-                              MangeData.exportData.main(false)
-                            : keyCode === 84
-                            ? this.noColorful()
-                            : keyCode === 73
-                            ? !this.scrollState &&
-                              MangeData.importData.main(true)
-                            : this.Others.call(
-                                  zhihu,
-                                  keyCode,
-                                  shift,
-                                  this.zhuanlanAuto_mode
-                              )
-                        : keyCode === 192
-                        ? this.start()
-                        : keyCode === 187
-                        ? this.speedUP()
-                        : keyCode === 189
-                        ? this.slowDown()
-                        : keyCode > 47 && keyCode < 58
-                        ? !this.scrollState && this.key_Click(keyCode)
-                        : keyCode === 188 || keyCode === 190
-                        ? this.key_next_Pre(keyCode)
-                        : this.Others.call(zhihu, keyCode);
-                };
+                            : keyCode === 192
+                            ? this.start()
+                            : keyCode === 187
+                            ? this.speedUP()
+                            : keyCode === 189
+                            ? this.slowDown()
+                            : keyCode > 47 && keyCode < 58
+                            ? !this.scrollState && this.key_Click(keyCode)
+                            : keyCode === 188 || keyCode === 190
+                            ? this.key_next_Pre(keyCode)
+                            : this.Others.call(zhihu, keyCode);
+                    },
+                    true
+                );
             },
         },
         shade: {
@@ -5171,6 +5219,7 @@
                     (target.style.background = this[e]) &&
                     arguments.length === 2 &&
                     GM_setValue("color", e);
+                GM_deleteValue("tmp_cover");
             },
             get opacity() {
                 const date = new Date();
@@ -5295,6 +5344,10 @@
                 return tc;
             },
             sing_protect: false,
+            tmp_c(color) {
+                const c = document.getElementById("screen_shade_cover");
+                c.style.background = color;
+            },
             createShade() {
                 const colors = {
                     yellow: "rgb(247, 232, 176)",
@@ -5334,7 +5387,9 @@
                             this.sing_protect
                         )
                             return;
-                        this.menu.call(colors, newValue);
+                        newValue.startsWith("#")
+                            ? this.tmp_c(newValue)
+                            : this.menu.call(colors, newValue);
                     }
                 );
                 GM_setValue("opacity", opacity);
@@ -5761,6 +5816,7 @@
             unsafeWindow.addEventListener("visibilitychange", () =>
                 this.visibleChange()
             );
+            this.rightMouse_OpenQ(9);
         },
         antiRedirect() {
             //only those links can be capture, which has the attribute of classname with ' external'
@@ -6018,16 +6074,19 @@
                             },
                             colorful_Console.colors.warning
                         );
-                        this.hidden_item(item);
+                        this.hidden_item(item, targetElements);
                         return true;
                     }
                     return false;
                 });
             },
-            hidden_item(item) {
-                item.className === "ContentItem AnswerItem"
-                    ? (item.parentNode.style.display = "none")
-                    : (item.style.display = "none");
+            hidden_item(item, targetElements) {
+                (item.className === "ContentItem AnswerItem"
+                    ? targetElements.index === 3
+                        ? item.parentNode.parentNode
+                        : item.parentNode
+                    : item
+                ).style.display = "none";
             },
             user_check(item, targetElements) {
                 const user = item.getElementsByClassName(targetElements.userID);
@@ -6046,7 +6105,7 @@
                         { title: "Blocked User", content: name },
                         colorful_Console.colors.warning
                     );
-                    this.hidden_item(item);
+                    this.hidden_item(item, targetElements);
                 }
                 return result;
             },
@@ -6059,7 +6118,7 @@
                         { title: "Blocked User", content: user },
                         colorful_Console.colors.warning
                     );
-                    this.hidden_item(item);
+                    this.hidden_item(item, targetElements);
                     return true;
                 }
                 return this.content_check(item, targetElements, content);
@@ -6069,18 +6128,37 @@
                     ? item
                     : item.getElementsByClassName("ContentItem AnswerItem")[0];
             },
+            check_Hot(item) {
+                const hot_list = ["TimeBox-MainContent", "MinorHotSpot"];
+                return hot_list.some(
+                    (e) => item.getElementsByClassName(e).length > 0
+                );
+            },
             check(item, targetElements) {
+                const i = targetElements.index;
+                if (i === 3 && this.check_Hot(item)) {
+                    if (this.is_simple_search) {
+                        const items = item.getElementsByClassName(
+                            targetElements.itemClass
+                        );
+                        for (const it of items) this.check(it, targetElements);
+                    }
+                    return;
+                }
                 const tmp = this.get_main_element(item);
                 (tmp
-                    ? !(targetElements.index === 3
+                    ? !(i === 3
                           ? this.search_check(tmp, targetElements)
                           : this.user_check(tmp, targetElements) ||
                             this.content_check(tmp, targetElements))
                     : true) &&
                     this.dbInitial &&
-                    (targetElements.index < 2
+                    (i < 2
                         ? this.foldAnswer.check(tmp)
-                        : this.foldAnswer.Three.main(item));
+                        : this.foldAnswer.Three.main(
+                              item,
+                              i === 3 && this.is_simple_search
+                          ));
             },
             /*
             1. URL change, for example, forward or backward, ...disable MutationObserver
@@ -6365,15 +6443,34 @@
                 );
                 this.is_connect = true;
             },
+            simple_search(item) {
+                const arr = [
+                    "RelevantQuery",
+                    "KfeCollection-PcCollegeCard-wrapper",
+                    "ContentItem ZvideoItem",
+                    "SearchClubCard",
+                    "ContentItem-extra",
+                    "SearchItem-userTitleWrapper",
+                ];
+                for (const e of arr) {
+                    if (item.getElementsByClassName(e).length > 0) {
+                        item.className = `${item.className} hidden`;
+                        item.style.display = "none";
+                        break;
+                    }
+                }
+            },
             monitor(targetElements, node) {
                 //only in answer || question webpage, the muta will note be destroyed, without need to rebuilded;
                 const mo = new MutationObserver((e) => {
-                    e.forEach(
-                        (item) =>
-                            item.addedNodes.length > 0 &&
-                            item.addedNodes[0].className ===
-                                targetElements.itemClass &&
-                            this.check(item.addedNodes[0], targetElements, 0)
+                    e.forEach((item) =>
+                        item.addedNodes.length > 0 &&
+                        item.addedNodes[0].className ===
+                            targetElements.itemClass
+                            ? this.check(item.addedNodes[0], targetElements)
+                            : targetElements.index === 3 &&
+                              this.is_simple_search &&
+                              this.simple_search(item.addedNodes[0])
                     );
                     targetElements.index === 1 &&
                         e.length > 2 &&
@@ -6394,6 +6491,7 @@
             dbInitial: false,
             reader_sync: null,
             checked_list: null,
+            is_simple_search: false,
             main(index, reader_sync) {
                 this.foldAnswer.initial().then((r) => {
                     index > 1 && (this.checked_list = []);
@@ -6428,9 +6526,16 @@
                 }, 350);
             },
             is_update: false,
-            get_items(cl, ic, n, mode, targetElements) {
+            search_items() {
+                return document.getElementsByClassName("List")[0]
+                    .firstElementChild.children;
+            },
+            common_items(cl) {
+                return document.getElementsByClassName(cl);
+            },
+            get_items(cl, ic, n, mode, targetElements, w) {
                 setTimeout(() => {
-                    const items = document.getElementsByClassName(cl);
+                    const items = this[w](cl);
                     const i = items.length;
                     if (i > n || ic > 20) {
                         if (i === 0) {
@@ -6446,7 +6551,7 @@
                         for (const item of items)
                             this.check(item, targetElements, 0);
                         mode && this.monitor(targetElements, items[0]);
-                    } else this.get_items(cl, ++ic, n, mode, targetElements);
+                    } else this.get_items(cl, ++ic, n, mode, targetElements, w);
                 }, 50 + 5 * ic);
             },
             firstRun(targetElements) {
@@ -6454,7 +6559,19 @@
                 let n = 4;
                 let cl = "";
                 let mode = true;
-                if (targetElements.index > 1) cl = targetElements.itemClass;
+                const i = targetElements.index;
+                if (i === 3 && this.is_simple_search) {
+                    this.get_items(
+                        cl,
+                        0,
+                        n,
+                        mode,
+                        targetElements,
+                        "search_items"
+                    );
+                    return;
+                }
+                if (i > 1) cl = targetElements.itemClass;
                 else {
                     const p = location.pathname;
                     const a = p.includes("/answers/");
@@ -6466,7 +6583,7 @@
                     targetElements.index = n === 0 ? 0 : 1;
                     if (this.is_update && !mode) return;
                 }
-                this.get_items(cl, 0, n, mode, targetElements);
+                this.get_items(cl, 0, n, mode, targetElements, "common_items");
             },
             isMonitor: false,
             answerPage() {
@@ -6728,11 +6845,51 @@
                         n.style.display = "grid";
                         n.nextElementSibling.style.display = "block";
                     },
-                    getInfo(item) {
+                    simple_search_hide(item) {
+                        item.className = `${item.className} hidden`;
+                        item.style.display = "none";
+                    },
+                    check_simple_search(p) {
+                        const arr = [
+                            "/zvideo/",
+                            "/lives/",
+                            "/club/",
+                            "/market/",
+                            "/people/",
+                        ];
+                        return arr.some((e) => p.includes(e));
+                    },
+                    market_ad(item) {
+                        const arr = [
+                            "RelevantQuery",
+                            "KfeCollection-PcCollegeCard-wrapper",
+                            "ContentItem ZvideoItem",
+                            "SearchClubCard",
+                            "ContentItem-extra",
+                            "SearchItem-userTitleWrapper",
+                        ];
+                        for (const e of arr) {
+                            if (item.getElementsByClassName(e).length > 0) {
+                                this.simple_search_hide(item);
+                                break;
+                            }
+                        }
+                    },
+                    getInfo(item, mode) {
                         const title = item.getElementsByTagName("h2");
-                        if (title.length === 0) return null;
+                        if (title.length === 0) {
+                            mode && this.market_ad(item);
+                            return null;
+                        }
+                        if (mode && title[0].innerText === "相关搜索") {
+                            this.simple_search_hide(item);
+                            return null;
+                        }
                         const a = title[0].getElementsByTagName("a");
-                        if (a.length === 0) return null;
+                        if (a.length === 0) {
+                            mode && this.market_ad(item);
+                            return null;
+                        }
                         const text = a[0].innerText;
                         if (
                             text &&
@@ -6753,6 +6910,10 @@
                         )
                             return null;
                         const p = a[0].pathname;
+                        if (mode && this.check_simple_search(p)) {
+                            this.simple_search_hide(item);
+                            return null;
+                        }
                         const info = {};
                         info.cblock = false;
                         info.ablcok = false;
@@ -6928,8 +7089,8 @@
                             )
                         );
                     },
-                    main(item) {
-                        const info = this.getInfo(item);
+                    main(item, mode) {
+                        const info = this.getInfo(item, mode);
                         if (!info) return;
                         this[info.type](item, info);
                     },
@@ -7129,7 +7290,7 @@
                             <button class="fold_temp" title="temporarily fold the answer">Fold</button>
                             <button class="fold_edit" title="edit the answer">Edit</button>
                             <button class="fold_select" title="select the answer">Select</button>
-                            <button class="fold_reader" title="open the answer in reader">Reader</button>`;
+                            <button class="fold_reader" title="open the answer in reader" style="color: #F3752C; margin-right: 12px;">Reader</button>`;
                         const html = `
                         <div class="hidden_fold">
                             <button class="fold_block" title="fold the answer forever">Block</button>
@@ -7156,9 +7317,7 @@
                     .RelevantQuery,
                     .KfeCollection-PcCollegeCard-wrapper,
                     .ContentItem.ZvideoItem,
-                    .SearchClubCard,
-                    .RelevantQuery,
-                    .SpecialItem-wrap{display: none !important;}`;
+                    .SearchClubCard{display: none !important;}`;
                 for (let i = 2; i < 10; i++)
                     simple += `.SearchTabs-actions li.Tabs-item.Tabs-item--noMeta:nth-of-type(${i}),`;
                 return simple + common;
@@ -7275,24 +7434,42 @@
                     { childList: true }
                 );
             },
-            set_user_display(item, mode) {
-                let i = 0;
-                let p = item.parentNode;
-                let c = p.className;
-                while (c !== "Card SearchResult-Card") {
-                    p = p.parentNode;
-                    if (!p || i > 4) break;
-                    c = p.className;
-                }
-                i < 5 && (p.style.display = mode ? "block" : "none");
+            get _list() {
+                const list = document.getElementsByClassName("List");
+                return list.length > 0
+                    ? list[0].firstElementChild.children
+                    : null;
             },
-            user_AD(mode) {
-                const users = document.getElementsByClassName(
-                    "ContentItem-main"
-                );
-                for (const u of users) {
-                    const b = u.getElementsByClassName("ContentItem-extra");
-                    b.length > 0 && this.set_user_display(item, mode);
+            pNode_hide() {
+                const arr = [
+                    "RelevantQuery",
+                    "KfeCollection-PcCollegeCard-wrapper",
+                    "ContentItem ZvideoItem",
+                    "SearchClubCard",
+                    "ContentItem-extra",
+                    "SearchItem-userTitleWrapper",
+                ];
+                const list = this._list;
+                if (!list) return;
+                for (const l of list) {
+                    for (const e of arr) {
+                        if (l.getElementsByClassName(e).length > 0) {
+                            l.className = `${l.className} hidden`;
+                            l.style.display = "none";
+                            break;
+                        }
+                    }
+                }
+            },
+            pNode_show() {
+                const list = this._list;
+                if (!list) return;
+                for (const l of list) {
+                    const c = l.className;
+                    if (c && c.endsWith(" hidden")) {
+                        l.className = c.slice(0, -7);
+                        l.style.display = "block";
+                    }
                 }
             },
             click_event(c, html) {
@@ -7314,7 +7491,7 @@
                                     const style = document.getElementById(
                                         this.id
                                     );
-                                    this.user_AD(true);
+                                    this.pNode_show();
                                     style && style.remove();
                                     this.id = null;
                                 }
@@ -7326,7 +7503,7 @@
                                 this.id = GM_addStyle(this.search_simple).id;
                                 f = true;
                                 newName = className + " on";
-                                this.user_AD(false);
+                                this.pNode_hide();
                             }
                             this.buttons.forEach(
                                 (e) => (e.className = newName)
@@ -7688,6 +7865,7 @@
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
             const home = `
+                .RichContent.is-collapsed{cursor: default !important;}
                 .List-item {
                     margin-top: 8px;
                     position: relative;
@@ -8604,6 +8782,14 @@
                                 const data = json.data;
                                 const arr = [];
                                 for (const d of data) {
+                                    const type = d.type;
+                                    if (
+                                        !(
+                                            type === "article" ||
+                                            type === "answer"
+                                        )
+                                    )
+                                        continue;
                                     const info = {};
                                     info.url = d.url;
                                     info.title = d.title;
@@ -8681,7 +8867,39 @@
                     return "";
                 },
                 loaded_qlist: null,
-                home_click(href, target) {
+                li_set_blod(t) {
+                    this.cancel_li_bold(t);
+                    t.parentNode.style.fontWeight = "bold";
+                },
+                get_article_list(t) {
+                    let p = t.parentNode;
+                    let cn = p.className;
+                    if (cn === "article_lists") return p;
+                    else {
+                        p = p.parentNode;
+                        cn = p.className;
+                        let ic = 0;
+                        while (cn !== "article_lists") {
+                            p = p.previousElementSibling;
+                            if (!p || ic > 4) return null;
+                            cn = p.className;
+                            ic++;
+                        }
+                        return p;
+                    }
+                },
+                cancel_li_bold(t) {
+                    const p = this.get_article_list(t.parentNode);
+                    if (!p) return;
+                    const cs = p.children;
+                    for (const c of cs) {
+                        if (c.style.fontWeight === "bold") {
+                            c.style.fontWeight = "normal";
+                            break;
+                        }
+                    }
+                },
+                home_click(href, target, mode) {
                     if (!this.home_request.is_loaded) return;
                     const id = href.slice(href.lastIndexOf("/") + 1);
                     const pos = ["answer", "zhuanlan", "column", "question"];
@@ -8699,6 +8917,9 @@
                         this.home_request.index = 0;
                         this.loaded_list.length = 0;
                         this.loaded_qlist.length = 0;
+                        mode
+                            ? this.li_set_blod(target)
+                            : this.cancel_li_bold(target);
                     } else if (index < 2) {
                         if (this.loaded_list.includes(id)) return;
                         this.current_article_id = id;
@@ -8768,14 +8989,16 @@
                             Notification("please operate slowly...", "Tips");
                             return;
                         }
-                        const href = e.target.previousElementSibling.href;
+                        const t = e.target;
+                        const href = t.previousElementSibling.href;
                         if (location.href === href) return;
-                        const className = e.target.className;
+                        const className = t.className;
                         if (className === "list_date_follow") {
                             if (this.is_column_home) {
                                 this.home_Module.home_click(
                                     href,
-                                    e.target.previousElementSibling
+                                    t.previousElementSibling,
+                                    true
                                 );
                                 return;
                             }
@@ -8815,8 +9038,8 @@
                         if (toc) {
                             const refresh = toc.getElementsByClassName(
                                 "toc-bar__refresh toc-bar__icon-btn"
-                            )[0];
-                            refresh.click();
+                            );
+                            refresh.length > 0 && refresh[0].click();
                         }
                         const author = this.backupInfo[i].author;
                         if (author && this.authorID !== author.url_token)
@@ -8982,7 +9205,7 @@
                         if (i === 0) {
                             r.push(info);
                         } else {
-                            if (i === 5) r.pop();
+                            if (i === 10) r.pop();
                             r.unshift(info);
                         }
                         GM_setValue("recent", r);
@@ -9103,7 +9326,7 @@
                             </span>
                             <hr>
                             <span class="header columns">no recent data</span>
-                            <ul></ul>
+                            <ul style="height: 120px; overflow: auto;"></ul>
                         </div>`;
                     const column = document.getElementById("column_lists");
                     if (column)
@@ -9402,16 +9625,28 @@
                         this.appendNewNode
                     );
                 },
+                _answer_check(title, arr) {
+                    return arr.some((e) =>
+                        title.length > e.length
+                            ? title.includes(e)
+                            : e.includes(title)
+                    );
+                },
                 search_Anwsers(key) {
                     const html = [];
-                    if (collect_Answers.length === 0) return html;
+                    if (
+                        collect_Answers.length === 0 ||
+                        !(key[1] === "=" || key[1] === " ")
+                    )
+                        return html;
                     key = key.slice(2).trim();
                     if (!key) return html;
+                    const tmp = key.split(" ");
                     let i = 0;
                     const title = escapeBlank("last active time");
                     const pref = "https://www.zhihu.com/question/";
                     for (const e of collect_Answers) {
-                        if (e.title.includes(key)) {
+                        if (this._answer_check(e.title, tmp)) {
                             i++;
                             const info = {};
                             info.id = i;
@@ -9433,7 +9668,7 @@
                 searchDatabase(key) {
                     if (
                         (key.charAt(0) === "$" && this.isZhuanlan) ||
-                        (this.is_column_home && key.length > 1)
+                        (this.is_column_home && key.length > 2)
                     ) {
                         const cm = ["a", "p", "d", "m", "y", "h", "w", "q"];
                         const f = key.charAt(1).toLowerCase();
@@ -9453,7 +9688,7 @@
                                 html,
                                 html.length === 0
                                     ? "no search result"
-                                    : "answers search results"
+                                    : "answer search results"
                             );
                             return true;
                         } else if (index > -1) {
@@ -10191,19 +10426,20 @@
                     }
                     return p;
                 },
+                exe(e) {
+                    const code = this.checkCodeZone(e.target);
+                    if (code) {
+                        e.preventDefault();
+                        zhihu.clipboardClear.clear(code.innerText);
+                        Notification(
+                            "this code has been copied to clipboard",
+                            "clipboard"
+                        );
+                    }
+                },
                 main(node) {
-                    node.oncontextmenu = (e) => {
-                        if (e.button !== 2 || !e.ctrlKey) return;
-                        const code = this.checkCodeZone(e.target);
-                        if (code) {
-                            e.preventDefault();
-                            zhihu.clipboardClear.clear(code.innerText);
-                            Notification(
-                                "this code has been copied to clipboard",
-                                "clipboard"
-                            );
-                        }
-                    };
+                    node.oncontextmenu = (e) =>
+                        e.button === 2 && e.ctrlKey && this.exe(e);
                 },
             },
             main() {
@@ -10381,6 +10617,11 @@
                 (name, oldValue, newValue, remote) =>
                     remote && (this.clipboardClear.replace_ZH = newValue)
             );
+            GM_addValueChangeListener(
+                "clear_close",
+                (name, oldValue, newValue, remote) =>
+                    remote && newValue && window.close()
+            );
             mode
                 ? GM_addValueChangeListener(
                       "topnopicture",
@@ -10538,9 +10779,10 @@
                         return;
                     }
                     this.timeID = setTimeout(() => {
+                        bgi.index = 0;
                         this.timeID = null;
                         this._i(bgi, 0);
-                    }, 5000);
+                    }, 3000);
                 },
                 name: "bgi_image",
                 get get() {
@@ -10654,12 +10896,9 @@
                     GM_deleteValue("fixed_image");
                 },
                 f(cm) {
-                    const url = this.is_body_image;
-                    if (url) {
-                        const bgi = this.get || {};
-                        bgi.url = url.slice(5, -3);
+                    const bgi = this.get;
+                    if (bgi && bgi.url && this.is_body_image) {
                         bgi.status = "fixed";
-                        this.set = bgi;
                         const reg = /\.(jpe?g|webp)/;
                         const m = bgi.url.match(reg);
                         if (m) {
@@ -10667,7 +10906,7 @@
                             const mc = cm.match(reg);
                             let ro = 0;
                             const c_ratio = mc
-                                ? (ro = mc[0]) > 1
+                                ? (ro = mc[0] * 1) > 1
                                     ? 1
                                     : ro < 0.3
                                     ? 0.3
@@ -10676,7 +10915,9 @@
                             imageConvertor
                                 .main(bgi.url, "webp", c_ratio)
                                 .then((base64) => {
+                                    this.body_img = base64;
                                     this.image_cache = base64;
+                                    this.set = bgi;
                                     colorful_Console.main(
                                         {
                                             title: "cached image",
@@ -10685,9 +10926,12 @@
                                         },
                                         colorful_Console.colors.info
                                     );
+                                    Notification(
+                                        "change setup successfully",
+                                        "Tips"
+                                    );
                                 }),
                                 () => {
-                                    this.dele_image_cache();
                                     colorful_Console.main(
                                         {
                                             title: "cached image",
@@ -10696,9 +10940,18 @@
                                         },
                                         colorful_Console.colors.warning
                                     );
+                                    Notification(
+                                        "failed to set up image",
+                                        "Warning",
+                                        3500
+                                    );
                                 };
-                        }
-                        Notification("change setup successfully", "Tips");
+                        } else
+                            Notification(
+                                "compression does not support the format of current image",
+                                "Tips",
+                                3500
+                            );
                     } else
                         Notification(
                             "you need set up background iamge firstly",
@@ -10708,19 +10961,28 @@
                 t() {
                     let bgi = this.get;
                     if (bgi) {
-                        if (bgi.url && !this.is_body_image) {
-                            bgi.status = "tmp";
-                            this.body_img = bgi.url;
-                            this.set = bgi;
-                            return;
+                        const at = bgi.atime;
+                        const st = bgi.status;
+                        if (at && bgi.url && st) {
+                            if (
+                                st === "auto" &&
+                                Date.now() - at < 1000 * 60 * 60 * 24
+                            ) {
+                                bgi.status = "tmp";
+                                !this.is_body_image &&
+                                    (this.body_img = bgi.url);
+                                this.set = bgi;
+                                this.dele_image_cache();
+                                return;
+                            }
                         }
                     } else bgi = {};
                     this.bing_image(bgi).then((url) => {
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         bgi.status = "tmp";
                         this.set = bgi;
+                        this.dele_image_cache();
                     });
-                    this.dele_image_cache();
                 },
                 s() {
                     const bgi = this.get;
@@ -10735,8 +10997,8 @@
                         bgi.status = "auto";
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         this.set = bgi;
+                        this.dele_image_cache();
                     });
-                    this.dele_image_cache();
                 },
                 r(type) {
                     const bgp = GM_getValue("bgpreader");
@@ -10776,12 +11038,12 @@
                     this.dele_image_cache();
                 },
                 _i(bgi, index) {
-                    this.dele_image_cache();
                     this.bing_image(bgi, index).then((url) => {
                         bgi.status = "auto";
                         this.body_img = bgi.url = `https://cn.bing.com${url}`;
                         this.set = bgi;
                         bgi = null;
+                        this.dele_image_cache();
                     });
                 },
                 i() {
@@ -10799,6 +11061,7 @@
                             }
                         }
                     } else bgi = {};
+                    bgi.index = 0;
                     this._i(bgi, 0);
                 },
                 no_match_tips() {
@@ -10967,7 +11230,7 @@
                     }
                     let v = m[0] * 1;
                     v > 24 && (v = 24);
-                    tc.rtime = v * 60 * 24 * 60 * 1000;
+                    tc.rtime = v * 60 * 60 * 1000;
                     return true;
                 },
                 _s(funcs, cm, type) {
@@ -10982,26 +11245,19 @@
                     const tc = {};
                     tc.status = type ? "a" : "s";
                     tc.update = Date.now();
-                    funcs.some((e) => this[e](cm, tc, c)) &&
-                        type &&
-                        this.set_sync(funcs, tc);
+                    funcs.forEach((e) => this[e](cm, tc, c));
+                    type && this.set_sync(funcs, tc);
                 },
-                /**
-                 * @param {object} v
-                 */
-                set _o(tc) {
+                set_o(tc) {
                     GM_setValue("opacity", tc.opacity);
                 },
-                /**
-                 * @param {object} v
-                 */
-                set _c(tc) {
+                set_c(tc) {
                     GM_setValue("color", tc.color);
                 },
                 set_sync(funcs, tc) {
                     funcs.forEach((e) => {
-                        const n = this[`_${e}`];
-                        n && (n = tc);
+                        const n = this[`set_${e}`];
+                        n && n(tc);
                     });
                     this.set = tc;
                 },
@@ -11024,7 +11280,8 @@
                         const arr = [...new Set(m)];
                         const a = arr.includes("a");
                         const t = arr.includes("t");
-                        if ((t && !a) || arr.length > 4) {
+                        const i = arr.length;
+                        if ((t && !a) || i > 3 || (i === 1 && (a || t))) {
                             this.no_match_tips();
                             return;
                         }
@@ -11040,25 +11297,17 @@
             last_time_cm: "",
             help: {
                 a() {
-                    GM_openInTab(Assist_info_URL.cmd_help, {
-                        insert: true,
-                        active: true,
-                    });
-                    setTimeout(
-                        () =>
-                            GM_openInTab(Assist_info_URL.shortcuts, {
-                                insert: true,
-                                active: true,
-                            }),
-                        300
-                    );
-                    setTimeout(
-                        () =>
-                            GM_openInTab(Assist_info_URL.usermanual, {
-                                insert: true,
-                                active: true,
-                            }),
-                        600
+                    const ts = Object.values(Assist_info_URL);
+                    ts.forEach(
+                        (a, index) =>
+                            (a.includes("meituan") || a.endsWith(".md")) &&
+                            setTimeout(() =>
+                                GM_openInTab(
+                                    a,
+                                    { insert: true, active: true },
+                                    index * 300
+                                )
+                            )
                     );
                 },
                 i() {
@@ -11076,18 +11325,133 @@
                     this.i();
                 },
             },
+            reset: {
+                get_confirm(name) {
+                    return confirm(`are you sure want to clear the ${name}`);
+                },
+                get_warning(name) {
+                    if (!this.get_confirm(name)) return false;
+                    return confirm(
+                        "this operation will clear your important data, continue?"
+                    );
+                },
+                get close_confirm() {
+                    return confirm(
+                        "this operation needs close other tab(page) of zhihu, continue?"
+                    );
+                },
+                success() {
+                    Notification("operation is completed", "Tips");
+                },
+                c() {
+                    if (!this.get_confirm("cookie")) return;
+                    const c = document.cookie;
+                    if (c) {
+                        const keys = c.match(/[^ =;]+(?=\=)/g);
+                        if (keys) {
+                            const domains = [
+                                ".zhihu.com",
+                                "www.zhihu.com",
+                                "zhuanlan.zhihu.com, api.zhihu.com",
+                            ];
+                            keys.forEach((e) =>
+                                domains.forEach(
+                                    (d) =>
+                                        (document.cookie =
+                                            e +
+                                            `=0; expires=Sat, 4 Jun 1989 12:00:00 GMT; path=/; domain=${d}`)
+                                )
+                            );
+                        }
+                    }
+                    this.success();
+                },
+                s() {
+                    if (!this.get_confirm("sessionStorage")) return;
+                    sessionStorage.clear();
+                    this.success();
+                },
+                l() {
+                    if (!this.get_confirm("localStorage")) return;
+                    localStorage.clear();
+                    this.success();
+                },
+                alert() {
+                    alert("current webpage need restart");
+                    GM_setValue("clear_close", false);
+                    setTimeout(() => window.close(), 50);
+                },
+                is_d: false,
+                is_close: false,
+                close_sync() {
+                    GM_setValue("clear_close", true);
+                    this.is_close = true;
+                },
+                d() {
+                    if (
+                        !this.get_warning("IndexedDB") ||
+                        (!this.is_close && !this.close_confirm)
+                    )
+                        return;
+                    !this.is_close && this.close_sync();
+                    this.is_d = true;
+                    setTimeout(() => {
+                        dataBaseInstance.close();
+                        setTimeout(() => Database.deleDB("zhihuDatabase"), 300);
+                    }, 300);
+                    this.success();
+                },
+                is_t: false,
+                t() {
+                    if (
+                        !this.get_warning("Tampermonkey") ||
+                        (!this.is_close && !this.close_confirm)
+                    )
+                        return;
+                    !this.is_close && this.close_sync();
+                    this.is_t = true;
+                    const items = GM_listValues();
+                    items &&
+                        setTimeout(
+                            () => items.forEach((e) => GM_deleteValue(e)),
+                            300
+                        );
+                    this.success();
+                },
+                fail() {
+                    Notification("your cmd does not match the rule", "Tips");
+                },
+                main(cm) {
+                    cm = cm.slice(5);
+                    if (cm) {
+                        const reg = /(?<=\s-)[sldtc]/g;
+                        const m = cm.match(reg);
+                        m
+                            ? [...new Set(m)].forEach((e) => this[e]())
+                            : this.fail();
+                        (this.is_d || this.is_t) &&
+                            setTimeout(
+                                () => this.alert(),
+                                this.is_d ? 1200 : 300
+                            );
+                        this.is_t = this.is_d = false;
+                    } else this.fail();
+                },
+            },
             main(index) {
                 let cm = prompt(
-                    "please input commander string, e.g.:$+ fold, ligth, expand, bgi",
+                    "please input cmd string, e.g.:$+ fold, ligth, expand, bgi, reset, help",
                     this.last_time_cm || "$"
                 );
                 if (!cm || cm.length < 2 || !(cm = cm.trim()) || cm[0] !== "$")
                     return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
-                const cms = ["bgi", "light", "help", "fold", "expand"];
+                const cms = ["bgi", "light", "help", "reset", "fold", "expand"];
                 const r = cms.findIndex((e) => cm.startsWith(e));
-                r < 3
+                r < 0
+                    ? this.reset.fail()
+                    : r < 4
                     ? this[cms[r]].main(cm, index)
                     : index > 3
                     ? Notification(
@@ -11101,9 +11465,7 @@
         },
         //the origin keyboard event of zhihu
         key_conflict(keyCode, shift) {
-            return (
-                68 === keyCode || (shift && (71 === keyCode || 85 === keyCode))
-            );
+            return 68 === keyCode || (shift && [71, 85].includes(keyCode));
         },
         common_KeyEevnt(shift, keyCode, index = -1) {
             /*
@@ -11202,66 +11564,152 @@
             /*
             when in autoloaded reader mode, block keyevent if the autoloaded is progressing;
             */
-            document.onkeydown = (e) => {
-                if (
-                    e.ctrlKey ||
-                    e.altKey ||
-                    e.target.localName === "input" ||
-                    this.auto_load_Reader.timeID
-                )
-                    return;
-                const className = e.target.className;
-                if (
-                    className &&
-                    typeof className === "string" &&
-                    className.includes("DraftEditor")
-                )
-                    return;
-                const shift = e.shiftKey;
-                const keyCode = e.keyCode;
-                if (this.key_conflict(keyCode, shift)) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                }
-                if (this.common_KeyEevnt(shift, keyCode, index)) return;
-                const r = this.qaReader.readerMode;
-                r
-                    ? this.qaReader.keyEvent(keyCode, shift)
-                    : shift
-                    ? keyCode === 72
-                        ? this.click_Highlight()
-                        : keyCode === 82
-                        ? index < 2 && this.key_open_Reader(false)
-                        : keyCode === 66
-                        ? index < 9 &&
-                          !this.autoScroll.scrollState &&
-                          MangeData.exportData.main(true)
-                        : keyCode === 73
-                        ? index < 9 &&
-                          !this.autoScroll.scrollState &&
-                          MangeData.importData.main(false)
-                        : keyCode === 68
-                        ? index < 2 && this.auto_load_Reader.main()
+            document.addEventListener(
+                "keydown",
+                (e) => {
+                    if (
+                        e.ctrlKey ||
+                        e.altKey ||
+                        e.target.localName === "input" ||
+                        this.auto_load_Reader.timeID
+                    )
+                        return;
+                    const className = e.target.className;
+                    if (
+                        className &&
+                        typeof className === "string" &&
+                        className.includes("DraftEditor")
+                    )
+                        return;
+                    const shift = e.shiftKey;
+                    const keyCode = e.keyCode;
+                    if (this.key_conflict(keyCode, shift)) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                    }
+                    if (this.common_KeyEevnt(shift, keyCode, index)) return;
+                    const r = this.qaReader.readerMode;
+                    r
+                        ? this.qaReader.keyEvent(keyCode, shift)
+                        : shift
+                        ? keyCode === 72
+                            ? this.click_Highlight()
+                            : keyCode === 82
+                            ? index < 2 && this.key_open_Reader(false)
+                            : keyCode === 66
+                            ? index < 9 &&
+                              !this.autoScroll.scrollState &&
+                              MangeData.exportData.main(true)
+                            : keyCode === 73
+                            ? index < 9 &&
+                              !this.autoScroll.scrollState &&
+                              MangeData.importData.main(false)
+                            : keyCode === 68
+                            ? index < 2 && this.auto_load_Reader.main()
+                            : keyCode === 78
+                            ? index < 2 && this.auto_load_Reader.nurse()
+                            : null
+                        : keyCode === 192
+                        ? (this.autoScroll.start(),
+                          (this.Filter.is_scroll_state = this.autoScroll.scrollState))
+                        : keyCode === 187
+                        ? this.autoScroll.speedUP()
+                        : keyCode === 189
+                        ? this.autoScroll.slowDown()
                         : keyCode === 78
-                        ? index < 2 && this.auto_load_Reader.nurse()
-                        : null
-                    : keyCode === 192
-                    ? (this.autoScroll.start(),
-                      (this.Filter.is_scroll_state = this.autoScroll.scrollState))
-                    : keyCode === 187
-                    ? this.autoScroll.speedUP()
-                    : keyCode === 189
-                    ? this.autoScroll.slowDown()
-                    : this.multiSearch.main(keyCode);
-            };
+                        ? !this.autoScroll.scrollState &&
+                          this.turnPage.start(true)
+                        : keyCode === 84
+                        ? !this.autoScroll.scrollState && this.scroll.toTop()
+                        : keyCode === 82
+                        ? index < 2 &&
+                          location.pathname.includes("/answer/") &&
+                          !this.autoScroll.scrollState &&
+                          this.scroll.toBottom()
+                        : keyCode === 85
+                        ? !this.autoScroll.scrollState &&
+                          this.turnPage.start(false)
+                        : this.multiSearch.main(keyCode);
+                },
+                true
+            );
         },
-        rightMouse_OpenQ() {
+        right_click_F_E: {
+            get_contentNode(node) {
+                return node.className === "ContentItem AnswerItem"
+                    ? node
+                    : node.parentNode.parentNode;
+            },
+            fold_item(node, className) {
+                const button = this.get_contentNode(
+                    node
+                ).getElementsByClassName(className);
+                button.length > 0 && button[0].click();
+            },
+            get_m_node(node) {
+                const tmp = node.getElementsByClassName("RichContent-inner");
+                return tmp.length === 0 ? null : tmp[0];
+            },
+            button_display(node, mode) {
+                const b = this.get_button(node);
+                b && (b.style.display = mode ? "block" : "none");
+            },
+            zhuanlan_fold(node) {
+                const m = this.get_m_node(node);
+                if (m) {
+                    m.style.maxHeight = "400px";
+                    m.parentNode.className =
+                        "RichContent is-collapsed RichContent--unescapable";
+                    this.button_display(node, true);
+                }
+            },
+            load_lazy_img(node) {
+                const imgs = node.getElementsByTagName("img");
+                for (const i of imgs) {
+                    if (i.currentSrc.startsWith("data:image/svg")) {
+                        const src = i.dataset.original || i.dataset.actualsrc;
+                        src && (i.src = src);
+                    }
+                }
+            },
+            get_button(node) {
+                const button = node.getElementsByClassName(
+                    "Button ContentItem-rightButton ContentItem-expandButton Button--plain"
+                );
+                return button.length === 0 ? null : button[0];
+            },
+            zhuanlan_expand(node, mode) {
+                const m = this.get_m_node(node);
+                if (m) {
+                    m.removeAttribute("style");
+                    m.parentNode.className =
+                        "RichContent RichContent--unescapable";
+                    !mode && this.load_lazy_img(node);
+                    this.button_display(node, false);
+                }
+            },
+            zhuanlan_E_F(p) {
+                let node = this.get_contentNode(p);
+                node.className !== "ContentItem AnswerItem" &&
+                    (node = node.parentNode);
+                const tmp = node.dataset.is_show;
+                tmp
+                    ? this.zhuanlan_fold(node)
+                    : tmp === false
+                    ? this.zhuanlan_expand(node, true)
+                    : this.zhuanlan_expand(node, false);
+                node.dataset.is_show = !tmp;
+                tmp && node.parentNode.scrollIntoView();
+            },
+        },
+        rightMouse_OpenQ(index) {
             //open the specific url in search webpage or topic webpage directly
             document.oncontextmenu = (e) => {
                 if (e.shiftKey) {
                     const pt = e.path;
                     let i = 0;
                     for (const p of pt) {
+                        let cn = "";
                         if (p.localName === "a") {
                             const pos = ["/answer/", "/topic/"];
                             const index = pos.findIndex((o) =>
@@ -11284,10 +11732,25 @@
                                 );
                             }
                             break;
-                        } else if (i > 3) break;
+                        } else if (
+                            (cn = p.className) &&
+                            (cn ===
+                                "RichText ztext CopyrightRichText-richText" ||
+                                cn === "ContentItem AnswerItem")
+                        ) {
+                            e.preventDefault();
+                            index === 9
+                                ? this.right_click_F_E.zhuanlan_E_F(p)
+                                : this.right_click_F_E.fold_item(
+                                      p,
+                                      this.commander.fold.main()
+                                  );
+                            break;
+                        } else if (i > 6) break;
                         i++;
                     }
-                }
+                } else if (e.ctrlKey)
+                    this.colorAssistant.rightClickCopyCode.exe(e);
             };
         },
         original_status: false,
@@ -11325,8 +11788,47 @@
         Filter_Reader_sync() {
             this.qaReader.readerMode && (this.qaReader.scroll_record += 3);
         },
+        hide_search_sync(filter) {
+            let b = this.searchPage.is_simple_search;
+            Object.defineProperty(this.searchPage, "is_simple_search", {
+                enumerable: true,
+                configurable: true,
+                set(v) {
+                    filter.is_simple_search = b = v;
+                },
+                get() {
+                    return b;
+                },
+            });
+            return b;
+        },
+        add_reader_button() {
+            const html = `
+                <i
+                    class="reader_mode_ico"
+                    title="open current answer in reader mode"
+                    style="
+                        content: url(data:image/webp;base64,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);
+                        right: 10%;
+                        width: 45px;
+                        height: 55px;
+                        position: fixed;
+                        bottom: 12%;
+                    "
+                ></i>`;
+            document.body.insertAdjacentHTML("beforeend", html);
+            setTimeout(
+                () =>
+                    (document.body.getElementsByClassName(
+                        "reader_mode_ico"
+                    )[0].onclick = () =>
+                        !this.auto_load_Reader.timeID &&
+                        this.key_open_Reader()),
+                0
+            );
+        },
         pageOfQA(index, href) {
-            //inject as soon as possible; may be need to concern about some eventlisteners and mutaobser
+            //inject as soon as possible; maybe, need to concern about some conflict between eventlisteners and MutationObserver
             this.inputBox.controlEventListener();
             index < 2 && this.anti_setInterval();
             this.addStyle(index);
@@ -11339,6 +11841,7 @@
                         ? !(index === 1 && href.endsWith("/waiting"))
                         : false) &&
                         setTimeout(() => {
+                            this.Filter.is_simple_search = this.searchPage.is_simple_search;
                             this.Filter.main(
                                 index,
                                 this.Filter_Reader_sync.bind(this)
@@ -11349,9 +11852,10 @@
                                 30000
                             );
                             this.key_ctrl_sync(false);
-                            index > 1 && this.rightMouse_OpenQ();
+                            this.rightMouse_OpenQ(index);
                             index < 2
                                 ? setTimeout(() => {
+                                      this.add_reader_button();
                                       let n = false;
                                       ((n = this.auto_load_Reader.nsetup) ||
                                           this.auto_load_Reader.setup) &&
@@ -11360,7 +11864,9 @@
                                               n
                                           );
                                   }, 300)
-                                : index === 3 && this.searchPage.main();
+                                : index === 3 &&
+                                  (this.searchPage.main(),
+                                  this.hide_search_sync(this.Filter));
                             this.body_img_update &&
                                 this.commander.bgi.auto_update(
                                     this.body_img_update
