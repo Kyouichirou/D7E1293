@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.0
+// @version      3.5.0.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -58,7 +58,7 @@
         usermanual:
             "https://github.com/Kyouichirou/D7E1293/blob/main/Tmapermonkey/zhihu_optimizer_manual.md",
         feedback:
-            '"https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer/feedback"',
+            "https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer/feedback",
         github: "https://github.com/Kyouichirou",
         greasyfork:
             "https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer",
@@ -115,6 +115,7 @@
         });
     };
     const colorful_Console = {
+        //this function is adpated from jianshu.com
         colors: {
             warning: "#F73E3E",
             Tips: "#327662",
@@ -143,18 +144,29 @@
                 a);
         },
     };
-    const installTips = () => {
+    const installTips = {
         //first time run, open the usermanual webpage
-        if (GM_getValue("initial")) return;
-        GM_setValue("initial", true);
-        Notification(
-            "thanks for installing, please read user manual carefully",
-            "Tips",
-            6000
-        );
-        GM_setValue("installeddate", Date.now());
-        GM_openInTab(Assist_info_URL.usermanual, { insert: true });
-        GM_openInTab(Assist_info_URL.shortcuts, { insert: true });
+        e(mode) {
+            Notification(
+                mode
+                    ? "important update"
+                    : "thanks for installing, please read user manual carefully",
+                "Tips",
+                6000
+            );
+            GM_setValue("initial", "3.5");
+            GM_setValue("installeddate", Date.now());
+            GM_openInTab(Assist_info_URL.usermanual, { insert: true });
+            setTimeout(
+                () => GM_openInTab(Assist_info_URL.shortcuts, { insert: true }),
+                300
+            );
+        },
+        main() {
+            const i = GM_getValue("initial");
+            if (i === true) this.e(true);
+            else if (!i) this.e();
+        },
     };
     const getSelection = () => {
         const select = window.getSelection();
@@ -8776,62 +8788,75 @@
                     index: 0,
                     firstly: true,
                     request(url, node) {
-                        this.is_loaded = false;
-                        xmlHTTPRequest(url).then(
-                            (json) => {
-                                const data = json.data;
-                                const arr = [];
-                                for (const d of data) {
-                                    const type = d.type;
-                                    if (
-                                        !(
-                                            type === "article" ||
-                                            type === "answer"
+                        return new Promise((resolve, reject) => {
+                            this.is_loaded = false;
+                            xmlHTTPRequest(url).then(
+                                (json) => {
+                                    const data = json.data;
+                                    const arr = [];
+                                    for (const d of data) {
+                                        const type = d.type;
+                                        if (
+                                            !(
+                                                type === "article" ||
+                                                type === "answer"
+                                            )
                                         )
-                                    )
-                                        continue;
-                                    const info = {};
-                                    info.url = d.url;
-                                    info.title = d.title;
-                                    arr.push(
-                                        column_Home.item_Raw(
-                                            d,
-                                            this.index,
-                                            info
-                                        )
-                                    );
-                                    this.index += 1;
-                                    column_Home.item_index += 1;
+                                            continue;
+                                        const info = {};
+                                        info.url =
+                                            d.url ||
+                                            "https://www.zhihu.com/question/" +
+                                                d.question.id +
+                                                "/answer/" +
+                                                d.id;
+                                        info.title =
+                                            d.title || d.question.title;
+                                        arr.push(
+                                            column_Home.item_Raw(
+                                                d,
+                                                this.index,
+                                                info
+                                            )
+                                        );
+                                        this.index += 1;
+                                        column_Home.item_index += 1;
+                                    }
+                                    this.firstly
+                                        ? (node.innerHTML = arr.join(""))
+                                        : node.insertAdjacentHTML(
+                                              "afterbegin",
+                                              arr.join("")
+                                          );
+                                    this.firstly = false;
+                                    const p = json.paging;
+                                    this.pre = p.is_start ? null : p.previous;
+                                    this.next = p.is_end ? null : p.next;
+                                    this.is_loaded = true;
+                                    resolve(true);
+                                },
+                                (err) => {
+                                    console.log(err);
+                                    this.is_loaded = true;
+                                    reject(null);
                                 }
-                                this.firstly
-                                    ? (node.innerHTML = arr.join(""))
-                                    : node.insertAdjacentHTML(
-                                          "afterbegin",
-                                          arr.join("")
-                                      );
-                                this.firstly = false;
-                                const p = json.paging;
-                                this.pre = p.is_start ? null : p.previous;
-                                this.next = p.is_end ? null : p.next;
-                                this.is_loaded = true;
-                            },
-                            (err) => {
-                                console.log(err);
-                                this.is_loaded = true;
-                            }
-                        );
+                            );
+                        });
                     },
                 },
                 home_nextButton() {
-                    if (!this.home_request.is_loaded) return;
+                    if (
+                        !this.home_request.is_loaded ||
+                        Reflect.get(zhihu.autoScroll, "scrollState")
+                    )
+                        return;
                     if (!this.home_request.next) {
                         Notification("no more data", "Tips");
                         return;
                     }
-                    this.home_request.request(
-                        this.home_request.next,
-                        this.Node
-                    );
+                    this.home_request
+                        .request(this.home_request.next, this.Node)
+                        .then(() => zhihu.scroll.toTop());
                 },
                 home_DB_initial() {
                     !this.loaded_list && (this.loaded_list = []);
@@ -11738,6 +11763,7 @@
                                 "RichText ztext CopyrightRichText-richText" ||
                                 cn === "ContentItem AnswerItem")
                         ) {
+                            if (this.qaReader.readerMode) return;
                             e.preventDefault();
                             index === 9
                                 ? this.right_click_F_E.zhuanlan_E_F(p)
@@ -11948,7 +11974,7 @@
             this.shade.start();
             setTimeout(() => !this.is_delayed && (this.hasLogin = true), 15000);
             this.clipboardClear.event();
-            installTips();
+            setTimeout(() => installTips.main(), 3000);
         },
     };
     zhihu.start();
