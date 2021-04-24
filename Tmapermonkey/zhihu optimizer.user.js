@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.1
+// @version      3.5.0.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -2164,6 +2164,16 @@
                             text-align: left;
                             word-break: break-all;
                         }
+                        section.end_article:before {
+                            background: url(https://static.zhihu.com/heifetz/assets/bg@2x.033e5b2d.png)
+                                repeat-x;
+                            background-size: 20px 450px;
+                            content: "";
+                            height: 140px;
+                            left: 0;
+                            position: absolute;
+                            width: 100%;
+                        }
                     </style>
                     <div
                         id="artfullscreen__box"
@@ -2192,12 +2202,64 @@
                                                     height: 0;
                                                 "
                                             ></div>
-                                            <span class="RichText ztext CopyrightRichText-richText" itemprop="text"></span>
+                                            <span class="RichText ztext CopyrightRichText-richText" itemprop="text" style="display: block; min-height: ${Math.floor(
+                                                window.innerHeight * 0.52
+                                            )}px;"></span>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
+                        <section
+                            class="end_article"
+                            data-role="outer"
+                            mpa-from-tpl="t"
+                            style="margin-top: 25px"
+                        >
+                            <section
+                                mpa-from-tpl="t"
+                                style="border-width: 0px; border-style: none; border-color: initial"
+                            >
+                                <section mpa-from-tpl="t" style="color: rgb(51, 141, 175)">
+                                    <section mpa-from-tpl="t" style="text-align: center">
+                                        <section
+                                            mpa-from-tpl="t"
+                                            style="
+                                                margin-right: auto;
+                                                margin-left: auto;
+                                                width: 30px;
+                                                display: inline-block;
+                                            "
+                                        >
+                                            <img
+                                                data-ratio="2.25"
+                                                data-w="44"
+                                                data-width="100%"
+                                                style="
+                                                    display: block;
+                                                    width: 30px !important;
+                                                    height: auto !important;
+                                                    visibility: visible !important;
+                                                "
+                                                _width="30px"
+                                                src="data:image/webp;base64,UklGRtQEAABXRUJQVlA4WAoAAAAQAAAAKwAAYgAAQUxQSFIEAAABoEVtmyFJett2d43RRk312LZto8a2bdu2bdu2bduKi47sExmL64iYADR2D9AopqiXPlXGW9C2+9O0aLtQpEPXIrdFcXQd1u39NDS13O6XcwuaZvqzj1NWXLRoLJozqxMZPHSYJPpSdi2lSqDhdLGQwCW+KRa6a7BhhBt0rMj6fpi/4RaQoSc5v/mZ10jkAvd+oaQbiun57rdzgPLloXQL835uB5LXAI8X7U1r+i4NUDYU3DuXNCmYdxuBqEIAM2ubs6MMoge4FfcBagubKXYRmmOlF+TIAFD3YQozau6pHtrKDgG5AVxa3vAxIUpUxHVAN8iSJIHDjzGY+EmAU7vlJMlEwtrrPUyYNd3q7Bg27gbRfoD3bpEN9TUEgMe+ha5RALlEekwUpxLg6R3jDaSeEYGPuvF/M0oIDgWKDg+v+zSVMhexDqmH1QmGHao36MYPb2W1jjeWRaQCu3gwvBAH/ZXtzYpDAvc4B8hYPzscu4FqV1ENaVxK5JbLOxVZYuLXhUl8szoasGq6ohO9stmRWi3IHfsJq5r8olPm8RL/jBg6z3+E2ue1Qmv0l8SnMqLnbDVzBTQc4wn4ZcPQcbzwVRIipkLt38GALdKId5NRulqUBN9qThBYwsnItZmvkjRzr9mQF8iMYdntcSg91N/bQ+ZdxMGgoyiLUm8xEsPc2ZEX2ZwRtdPXORm4lveWZJo2AUo5KvmzDcNcpQD8Ws8oT7HPs1FZeV15i0GVVIDHU7GgyZgjIr+S1QNwleVpCuBcvLK9iGvVD25Kvg/DsH2WBNKcYhUqU7zpYhDZlERW+lBGSdEyfgb2UolhSbCSwimR+/RyT0SKK/1QWtdqUKUDxoFrPjmpaZ3OYHB8IqiSH4WWqnSLl9lGkMhSgxxV1H1Hv3KyCS0TMeRRGCqHn8hcZbgkaHWIQfwjYUWl10fbkMOTJG1HYJhLZEBpUREV9aapZH4xg1ZrolA7cmww8rhVSP2O3bOheOMYDKdMluQQ11B+65HRnsIJ6ovRqD883iD7HoCuwo6J1yoYzJ0DFBGNMFPsNLhXDPyFHVNfbJZVeArMnY65F7bL1q6HVEswed1+2b3S0KWCWZMPSgo8ccGjuLNZnWVzz4KnC2bnWSm5PQgd3eeEAAF/bVowoBjQ9Ct6Fi0O7D2rSWBecBK9NSHcF5vIpIuzF32Euy7A2Rdo/HuLRslFe43KiliNJgs0vqDVq3EaWSajcUy8Ts78H/R1g/w9HTSJnePvLj5AaIjk0DZTHNpOmSAaW+f/LZ5gp2hn0DlCBQSlmL9r6J6/bkBGYUcacvtdkBogkKWLgdjXM5AmfSkyYaLYTEyzHa+Q3xDHMXP8r77dKrc+J2svRJwphITDDCH7K6pAppk3A5QlzCN2pYYU40Q+qDvgy3sIreKhjDz7FvVuUV2shgotK4sMtnbj1lrUgXdai4+YnbFWDUreaNuoqitm+5w409EGkJTEA1ZQOCBcAAAAcAQAnQEqLABjAD/9/v9/v7+2siwyCAPwP4lAGl0El7/GXCMPKbeEVZYcdyAA/rZXCbsO/EYZ22oUgntl2WUGQzlukL35hSeZcNpu+BEnH/cG+RlZ7AO2i62abAA="
+                                                crossorigin="anonymous"
+                                                alt="Image"
+                                                data-fail="0"
+                                            />
+                                        </section>
+                                        <section mpa-from-tpl="t" style="font-size: 14px">
+                                            —<span
+                                                data-brushtype="text"
+                                                style="padding-right: 5px; padding-left: 5px"
+                                                >END</span
+                                            >—
+                                        </section>
+                                    </section>
+                                </section>
+                            </section>
+                            <p><br /></p>
+                        </section>
                     </div>
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
@@ -11463,6 +11525,80 @@
                     } else this.fail();
                 },
             },
+            monkey: {
+                get eid() {
+                    const id = GM_getValue("monkey_id");
+                    if (id) return id;
+                    const ua = this.ua;
+                    ua.includes("Edg")
+                        ? "iikmkjmpaadaobahmlepeloendndfphd"
+                        : ua.includes("Chrome")
+                        ? "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+                        : "";
+                },
+                get ua() {
+                    return navigator.userAgent;
+                },
+                get uuid() {
+                    return GM_info.script.uuid;
+                },
+                set eid(eid) {
+                    GM_setValue("monkey_id", eid);
+                    Notification("set eid successfully", "Tips");
+                },
+                open(url, mode) {
+                    GM_openInTab(
+                        url,
+                        mode ? { insert: true } : { insert: true, active: true }
+                    );
+                },
+                notice() {
+                    this.open("chrome://extensions/", true);
+                    alert("you need set the id of tampermonkey firstly");
+                },
+                fail() {
+                    Notification("your cmd does not match the rule", "Tips");
+                },
+                i() {
+                    const eid = this.eid;
+                    eid
+                        ? this.open(`chrome-extension://${eid}/options.html`)
+                        : this.notice();
+                },
+                e(cm) {
+                    const reg = /[a-z]{32}/;
+                    const m = cm.match(reg);
+                    m ? (this.eid = m[0]) : this.fail();
+                },
+                s() {
+                    const eid = this.eid;
+                    eid
+                        ? this.open(
+                              `chrome-extension://${eid}/options.html#nav=${this.uuid}+storage`
+                          )
+                        : this.notice();
+                },
+                o() {
+                    const eid = this.eid;
+                    eid
+                        ? this.open(
+                              `chrome-extension://${eid}/options.html#nav=settings`
+                          )
+                        : this.notice();
+                },
+                main(cm) {
+                    cm = cm.slice(6);
+                    if (cm) {
+                        const reg = /(?<=\s-)[soe]/g;
+                        const m = cm.match(reg);
+                        !m || m.length > 1
+                            ? this.fail()
+                            : m[0] === "e"
+                            ? this.e(cm)
+                            : this[m[0]]();
+                    } else this.i();
+                },
+            },
             main(index) {
                 let cm = prompt(
                     "please input cmd string, e.g.:$+ fold, ligth, expand, bgi, reset, help",
@@ -11472,11 +11608,19 @@
                     return true;
                 cm = cm.slice(1).toLowerCase().trim();
                 if (!cm) return true;
-                const cms = ["bgi", "light", "help", "reset", "fold", "expand"];
+                const cms = [
+                    "bgi",
+                    "light",
+                    "help",
+                    "reset",
+                    "monkey",
+                    "fold",
+                    "expand",
+                ];
                 const r = cms.findIndex((e) => cm.startsWith(e));
                 r < 0
                     ? this.reset.fail()
-                    : r < 4
+                    : r < 5
                     ? this[cms[r]].main(cm, index)
                     : index > 3
                     ? Notification(
