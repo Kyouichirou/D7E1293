@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.2
+// @version      3.5.0.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -66,6 +66,8 @@
             "https://img.meituan.net/csc/5409e56911b74b0fa3e8e0e3fc40c62587055.png",
         search_help:
             "https://img.meituan.net/csc/29bae0a159923ec0c3f196326b6e3a2816319.png",
+        Overview:
+            "https://img.meituan.net/csc/083a417e5e990b04248baf5912a24ca2333972.png",
     };
     const blackKey = [
         "\u5171\u9752\u56e2",
@@ -2209,57 +2211,57 @@
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-                        <section
-                            class="end_article"
-                            data-role="outer"
-                            mpa-from-tpl="t"
-                            style="margin-top: 25px"
-                        >
                             <section
+                                class="end_article"
+                                data-role="outer"
                                 mpa-from-tpl="t"
-                                style="border-width: 0px; border-style: none; border-color: initial"
+                                style="margin-top: 25px"
                             >
-                                <section mpa-from-tpl="t" style="color: rgb(51, 141, 175)">
-                                    <section mpa-from-tpl="t" style="text-align: center">
-                                        <section
-                                            mpa-from-tpl="t"
-                                            style="
-                                                margin-right: auto;
-                                                margin-left: auto;
-                                                width: 30px;
-                                                display: inline-block;
-                                            "
-                                        >
-                                            <img
-                                                data-ratio="2.25"
-                                                data-w="44"
-                                                data-width="100%"
+                                <section
+                                    mpa-from-tpl="t"
+                                    style="border-width: 0px; border-style: none; border-color: initial"
+                                >
+                                    <section mpa-from-tpl="t" style="color: rgb(51, 141, 175)">
+                                        <section mpa-from-tpl="t" style="text-align: center">
+                                            <section
+                                                mpa-from-tpl="t"
                                                 style="
-                                                    display: block;
-                                                    width: 30px !important;
-                                                    height: auto !important;
-                                                    visibility: visible !important;
+                                                    margin-right: auto;
+                                                    margin-left: auto;
+                                                    width: 30px;
+                                                    display: inline-block;
                                                 "
-                                                _width="30px"
-                                                src="data:image/webp;base64,UklGRtQEAABXRUJQVlA4WAoAAAAQAAAAKwAAYgAAQUxQSFIEAAABoEVtmyFJett2d43RRk312LZto8a2bdu2bdu2bduKi47sExmL64iYADR2D9AopqiXPlXGW9C2+9O0aLtQpEPXIrdFcXQd1u39NDS13O6XcwuaZvqzj1NWXLRoLJozqxMZPHSYJPpSdi2lSqDhdLGQwCW+KRa6a7BhhBt0rMj6fpi/4RaQoSc5v/mZ10jkAvd+oaQbiun57rdzgPLloXQL835uB5LXAI8X7U1r+i4NUDYU3DuXNCmYdxuBqEIAM2ubs6MMoge4FfcBagubKXYRmmOlF+TIAFD3YQozau6pHtrKDgG5AVxa3vAxIUpUxHVAN8iSJIHDjzGY+EmAU7vlJMlEwtrrPUyYNd3q7Bg27gbRfoD3bpEN9TUEgMe+ha5RALlEekwUpxLg6R3jDaSeEYGPuvF/M0oIDgWKDg+v+zSVMhexDqmH1QmGHao36MYPb2W1jjeWRaQCu3gwvBAH/ZXtzYpDAvc4B8hYPzscu4FqV1ENaVxK5JbLOxVZYuLXhUl8szoasGq6ohO9stmRWi3IHfsJq5r8olPm8RL/jBg6z3+E2ue1Qmv0l8SnMqLnbDVzBTQc4wn4ZcPQcbzwVRIipkLt38GALdKId5NRulqUBN9qThBYwsnItZmvkjRzr9mQF8iMYdntcSg91N/bQ+ZdxMGgoyiLUm8xEsPc2ZEX2ZwRtdPXORm4lveWZJo2AUo5KvmzDcNcpQD8Ws8oT7HPs1FZeV15i0GVVIDHU7GgyZgjIr+S1QNwleVpCuBcvLK9iGvVD25Kvg/DsH2WBNKcYhUqU7zpYhDZlERW+lBGSdEyfgb2UolhSbCSwimR+/RyT0SKK/1QWtdqUKUDxoFrPjmpaZ3OYHB8IqiSH4WWqnSLl9lGkMhSgxxV1H1Hv3KyCS0TMeRRGCqHn8hcZbgkaHWIQfwjYUWl10fbkMOTJG1HYJhLZEBpUREV9aapZH4xg1ZrolA7cmww8rhVSP2O3bOheOMYDKdMluQQ11B+65HRnsIJ6ovRqD883iD7HoCuwo6J1yoYzJ0DFBGNMFPsNLhXDPyFHVNfbJZVeArMnY65F7bL1q6HVEswed1+2b3S0KWCWZMPSgo8ccGjuLNZnWVzz4KnC2bnWSm5PQgd3eeEAAF/bVowoBjQ9Ct6Fi0O7D2rSWBecBK9NSHcF5vIpIuzF32Euy7A2Rdo/HuLRslFe43KiliNJgs0vqDVq3EaWSajcUy8Ts78H/R1g/w9HTSJnePvLj5AaIjk0DZTHNpOmSAaW+f/LZ5gp2hn0DlCBQSlmL9r6J6/bkBGYUcacvtdkBogkKWLgdjXM5AmfSkyYaLYTEyzHa+Q3xDHMXP8r77dKrc+J2svRJwphITDDCH7K6pAppk3A5QlzCN2pYYU40Q+qDvgy3sIreKhjDz7FvVuUV2shgotK4sMtnbj1lrUgXdai4+YnbFWDUreaNuoqitm+5w409EGkJTEA1ZQOCBcAAAAcAQAnQEqLABjAD/9/v9/v7+2siwyCAPwP4lAGl0El7/GXCMPKbeEVZYcdyAA/rZXCbsO/EYZ22oUgntl2WUGQzlukL35hSeZcNpu+BEnH/cG+RlZ7AO2i62abAA="
-                                                crossorigin="anonymous"
-                                                alt="Image"
-                                                data-fail="0"
-                                            />
-                                        </section>
-                                        <section mpa-from-tpl="t" style="font-size: 14px">
-                                            —<span
-                                                data-brushtype="text"
-                                                style="padding-right: 5px; padding-left: 5px"
-                                                >END</span
-                                            >—
+                                            >
+                                                <img
+                                                    data-ratio="2.25"
+                                                    data-w="44"
+                                                    data-width="100%"
+                                                    style="
+                                                        display: block;
+                                                        width: 30px !important;
+                                                        height: auto !important;
+                                                        visibility: visible !important;
+                                                    "
+                                                    _width="30px"
+                                                    src="data:image/webp;base64,UklGRtQEAABXRUJQVlA4WAoAAAAQAAAAKwAAYgAAQUxQSFIEAAABoEVtmyFJett2d43RRk312LZto8a2bdu2bdu2bduKi47sExmL64iYADR2D9AopqiXPlXGW9C2+9O0aLtQpEPXIrdFcXQd1u39NDS13O6XcwuaZvqzj1NWXLRoLJozqxMZPHSYJPpSdi2lSqDhdLGQwCW+KRa6a7BhhBt0rMj6fpi/4RaQoSc5v/mZ10jkAvd+oaQbiun57rdzgPLloXQL835uB5LXAI8X7U1r+i4NUDYU3DuXNCmYdxuBqEIAM2ubs6MMoge4FfcBagubKXYRmmOlF+TIAFD3YQozau6pHtrKDgG5AVxa3vAxIUpUxHVAN8iSJIHDjzGY+EmAU7vlJMlEwtrrPUyYNd3q7Bg27gbRfoD3bpEN9TUEgMe+ha5RALlEekwUpxLg6R3jDaSeEYGPuvF/M0oIDgWKDg+v+zSVMhexDqmH1QmGHao36MYPb2W1jjeWRaQCu3gwvBAH/ZXtzYpDAvc4B8hYPzscu4FqV1ENaVxK5JbLOxVZYuLXhUl8szoasGq6ohO9stmRWi3IHfsJq5r8olPm8RL/jBg6z3+E2ue1Qmv0l8SnMqLnbDVzBTQc4wn4ZcPQcbzwVRIipkLt38GALdKId5NRulqUBN9qThBYwsnItZmvkjRzr9mQF8iMYdntcSg91N/bQ+ZdxMGgoyiLUm8xEsPc2ZEX2ZwRtdPXORm4lveWZJo2AUo5KvmzDcNcpQD8Ws8oT7HPs1FZeV15i0GVVIDHU7GgyZgjIr+S1QNwleVpCuBcvLK9iGvVD25Kvg/DsH2WBNKcYhUqU7zpYhDZlERW+lBGSdEyfgb2UolhSbCSwimR+/RyT0SKK/1QWtdqUKUDxoFrPjmpaZ3OYHB8IqiSH4WWqnSLl9lGkMhSgxxV1H1Hv3KyCS0TMeRRGCqHn8hcZbgkaHWIQfwjYUWl10fbkMOTJG1HYJhLZEBpUREV9aapZH4xg1ZrolA7cmww8rhVSP2O3bOheOMYDKdMluQQ11B+65HRnsIJ6ovRqD883iD7HoCuwo6J1yoYzJ0DFBGNMFPsNLhXDPyFHVNfbJZVeArMnY65F7bL1q6HVEswed1+2b3S0KWCWZMPSgo8ccGjuLNZnWVzz4KnC2bnWSm5PQgd3eeEAAF/bVowoBjQ9Ct6Fi0O7D2rSWBecBK9NSHcF5vIpIuzF32Euy7A2Rdo/HuLRslFe43KiliNJgs0vqDVq3EaWSajcUy8Ts78H/R1g/w9HTSJnePvLj5AaIjk0DZTHNpOmSAaW+f/LZ5gp2hn0DlCBQSlmL9r6J6/bkBGYUcacvtdkBogkKWLgdjXM5AmfSkyYaLYTEyzHa+Q3xDHMXP8r77dKrc+J2svRJwphITDDCH7K6pAppk3A5QlzCN2pYYU40Q+qDvgy3sIreKhjDz7FvVuUV2shgotK4sMtnbj1lrUgXdai4+YnbFWDUreaNuoqitm+5w409EGkJTEA1ZQOCBcAAAAcAQAnQEqLABjAD/9/v9/v7+2siwyCAPwP4lAGl0El7/GXCMPKbeEVZYcdyAA/rZXCbsO/EYZ22oUgntl2WUGQzlukL35hSeZcNpu+BEnH/cG+RlZ7AO2i62abAA="
+                                                    crossorigin="anonymous"
+                                                    alt="Image"
+                                                    data-fail="0"
+                                                />
+                                            </section>
+                                            <section mpa-from-tpl="t" style="font-size: 14px">
+                                                —<span
+                                                    data-brushtype="text"
+                                                    style="padding-right: 5px; padding-left: 5px"
+                                                    >END</span
+                                                >—
+                                            </section>
                                         </section>
                                     </section>
                                 </section>
+                                <p><br /></p>
                             </section>
-                            <p><br /></p>
-                        </section>
+                        </div>
                     </div>
                 </div>`;
                 document.body.insertAdjacentHTML("beforeend", html);
@@ -5163,6 +5165,17 @@
                             : target.style.opacity !== opacity) &&
                         (target.style.opacity = opacity);
                 },
+                share_weibo() {
+                    const url = `https%3A%2F%2Fservice.weibo.com%2Fshare%2Fshare.php%3Furl%3D${
+                        Assist_info_URL.greasyfork
+                    }%26title%3D%E4%B9%9F%E8%AE%B8%E8%BF%99%E6%98%AF%E9%92%88%E5%AF%B9%E7%9F%A5%E4%B9%8E%E6%9C%80%E6%A3%92%E7%9A%84GM%E6%B2%B9%E7%8C%B4%E8%84%9A%E6%9C%AC...%26summery%3Dundefined%26pic%3D${
+                        Assist_info_URL.Overview
+                    }%23_loginLayer_${Date.now()}`;
+                    GM_openInTab(decodeURIComponent(url), {
+                        insert: true,
+                        active: true,
+                    });
+                },
                 creatPopup() {
                     this.opacityChange(0);
                     const mt = -5;
@@ -5188,6 +5201,13 @@
                                     class="shorts_cut"
                                     style="font-size: 12px; font-weight: normal; float: right"
                                 >
+                                    <i
+                                        title="Share with your friends. Share to Weibo"
+                                        style="
+                                            margin-right: 10px;
+                                            content: url(data:image/webp;base64,UklGRpQCAABXRUJQVlA4WAoAAAAQAAAAHwAAHwAAQUxQSEMBAAABkEPbtqk95/f/V7Zt23Zl2zaS1lZl26pS2bYr2/Y+Y+Q56COCgdu2jaiO2/cP+i+zXHX64v4ZERp0AWD82uukmvO+3RuPfgUehyrQ9wk1IZnsF//iBzZyXBc+YX4SIWLSP7XMmLrBa6VMZnwBGNgp0gDwDQ/aiB8uYv5XGSInRGxXrHmJc3r+QK9I9htIbCbD1IEpgx7k9RGJOnexQlD4haXtXPaGmflLCh3hOjrF23/L/AKAla6vp1vIojtYS+T9itVYQwUT9Sx/YowMz0KVRiIiw9MP3Gmc1bUpnohIV5/MXkPdAuy1Fv2rH2oxzhsLDmmANsEH1tAqAWtZFgmeaVEuWKfBHSNB8DdW27cUEn9K7fKtkkgyvqnyJJtkijml7Psya5JNN3/PZ5YJD+Z6knKmBZO2nbh48cL+FQORevQ/RQBWUDggKgEAABAIAJ0BKiAAIAA+/WipUCsmI6K3+qgBYB+JbACxJUFQHfiEFfHwGtsBz7HoA/8d83ERurTFFC3XZ2heLuM8uASQPJxgagYfSgAA/v2cFsCNurXRc76P3X8TWo+3Y/VxyyWC6vvnBd8IvPf6RtM/8uS/R1yLg/YXbeGP9/pJeHLqqU7JoNtefw+pVV97nOvsWQJyUnS6nhPSsAJa1sZCngcrLW25R+z6rRjIPo44BNoN0ortQPag126JEaPfYnYBbOX189JyQGTTDrvlXpC6ORWp/9If1o/tepDtm0Ny7XIxyeW7kJPb/5QPomjRA/ZkCh9LmA/qnF0ZaQT9FyXh/bcczDvYLv7sf9OvhZFybe+VPu5BxB1hzqUXJZrQP3ModfJenTfZMJeAAAA=);
+                                        "
+                                    ></i>
                                     <a
                                         href=${Assist_info_URL.shortcuts}
                                         target="_blank"
@@ -5246,8 +5266,11 @@
                         this.tips.innerText = `${time}s, this Tips will be automatically closed or you can just click`;
                         time === 0 && this.remove();
                     }, 1000);
-                    this.support.onclick = () =>
-                        setTimeout(() => this.remove(), 120);
+                    this.support.onclick = (e) =>
+                        e.target.localName === "i"
+                            ? this.share_weibo()
+                            : e.target.localName !== "a" &&
+                              setTimeout(() => this.remove(), 120);
                 },
                 remove() {
                     clearInterval(this.interval);
@@ -5747,19 +5770,22 @@
                     <div class="white_noise" style="position: absolute; margin-left: -35%; opacity:0.6;">
                     <button
                         style="
-                            display: inline-block;
+                            background-image: url(https://img.meituan.net/csc/e360823b460fab14d02bbb9b56fb55825756.png);
+                            display: inline-flex;
                             font-size: 12px;
                             text-align: center;
                             cursor: pointer;
                             border: 0.5px solid lightgray;
                             border-radius: 3px;
                             height: 25px;
-                            width: 64px;
+                            width: 52px;
                             margin-right: 10px;
+                            background-repeat: no-repeat;
+                            background-position: center;
+                            background-size: contain;
                         "
                         title="change style of white noise"
                     >
-                        Change
                     </button>
                     <audio
                         class="rain_sound_1 allaudio"
@@ -11901,21 +11927,31 @@
                                 );
                             }
                             break;
-                        } else if (
-                            (cn = p.className) &&
-                            (cn ===
-                                "RichText ztext CopyrightRichText-richText" ||
-                                cn === "ContentItem AnswerItem")
-                        ) {
+                        } else if ((cn = p.className) && cn) {
                             if (this.qaReader.readerMode) return;
-                            e.preventDefault();
-                            index === 9
-                                ? this.right_click_F_E.zhuanlan_E_F(p)
-                                : this.right_click_F_E.fold_item(
-                                      p,
-                                      this.commander.fold.main()
-                                  );
-                            break;
+                            if (
+                                cn ===
+                                    "RichText ztext CopyrightRichText-richText" ||
+                                cn === "ContentItem AnswerItem"
+                            ) {
+                                e.preventDefault();
+                                index === 9
+                                    ? this.right_click_F_E.zhuanlan_E_F(p)
+                                    : this.right_click_F_E.fold_item(
+                                          p,
+                                          this.commander.fold.main()
+                                      );
+                                break;
+                            } else if (
+                                cn.endsWith(
+                                    "Button--withIcon Button--withLabel"
+                                )
+                            ) {
+                                e.preventDefault();
+                                break;
+                                if (index < 2) {
+                                }
+                            }
                         } else if (i > 6) break;
                         i++;
                     }
