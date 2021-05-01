@@ -65,7 +65,6 @@ const content = {
             for (const c of cs) c.nodeType === 3 && (text += c.textContent);
             text += "\n";
         }
-        this.childNode = null;
         return text;
     },
 };
