@@ -65,6 +65,7 @@ Tampermonkey版本: 4.x +
 - [Q&A](#qa)
   - [一. 数据存储](#一-数据存储)
   - [二. 阅读器相关](#二-阅读器相关)
+  - [三. 异常](#三-异常)
 - [关于代码](#关于代码)
 
 ## 一. 快捷键
@@ -215,7 +216,7 @@ Tampermonkey版本: 4.x +
 
 ## 三. 命令行
 
-![图示](https://img.meituan.net/csc/5409e56911b74b0fa3e8e0e3fc40c62587055.png )
+![图示](https://p0.meituan.net/dpgroup/5884da6d074499a56ebc99287fa92c5598229.png )
 
 目前支持的命令有:
 
@@ -223,11 +224,11 @@ Tampermonkey版本: 4.x +
 
    如: 设置背景壁纸为必应每日壁纸
 
-  ![图示](https://img.meituan.net/csc/2dcf4e34b0d65ab329fb470900253b0e1072591.png)
+![图示](https://img.meituan.net/csc/2dcf4e34b0d65ab329fb470900253b0e1072591.png)
 
-  ![图示](https://img.meituan.net/csc/959bd8ed1b752e222581dc42b3feb54f1170477.png)
+![图示](https://img.meituan.net/csc/959bd8ed1b752e222581dc42b3feb54f1170477.png)
 
-  ![图示](https://img.meituan.net/csc/7b55294048790bfdb34ea87eed46d4401373678.png)
+![图示](https://img.meituan.net/csc/7b55294048790bfdb34ea87eed46d4401373678.png)
 
 ​	当然你也能自定义壁纸或者直接使用阅读器的壁纸
 
@@ -247,7 +248,15 @@ Tampermonkey版本: 4.x +
 
 5. help, 打开相应的帮主页面
 
-![命令行](https://img.meituan.net/csc/5409e56911b74b0fa3e8e0e3fc40c62587055.png)
+   如快捷键, 命令行, 用户手册等页面
+
+6. monkey ,设置Tampermonkey
+
+   ![ID](https://p0.meituan.net/dpgroup/486b622aac9810f123ada2ad8857fcbc22314.png)
+
+   由于需要使用到Tampermonkey的ID, 如果用户不设置, 将会自动检测浏览器的UA来判断, 仅支持Edge和Chrome, 如果你浏览器有伪装UA的扩展或脚本, 检测可能将会出问题; 同时由于microsoftedge和chrome store的扩展通用, 所以使用该命令前先设置好Tampermonkey的ID
+
+   *$monkey -e iikmkjmpaadaobahmlepeloendndfphd*
 
 *注意事项: 假如在使用脚本的过程中出现异常, 可以尝试清除Tampermonkey等存储的数据*
 
@@ -566,10 +575,11 @@ F12, 即可查看到包含脚本信息, 数据存储情况, 过滤内容提示(�
 ## 二. 阅读器相关
 
 1. 由于知乎的答案是采用懒加载模式,(即你滚动到特定的页面时, 才加载数据), 而在阅读模式下, 采用的为模拟滚动的方式触发数据的加载, 可能有时无法有效加载数据, 可以尝试退出阅读器, 进行手动滚动加载
-
 2. 页面潜在崩溃, 在阅读模式下采用模拟滚动来加载后续的数据, 短期内可能由于滚动过快, 过于频繁, 触发大量数据加载, 导致页面可能出现崩溃(亦或者知乎页面的反爬保护)
-
 3. 得益于代码的优化, 以上两种情况在3.4.7.x以上版本暂未出现过, 并不保证是否依然存在类似问题.
+
+## 三. 异常
+如果你之前安装过旧版本的[zhihu optimizer](https://greasyfork.org/zh-CN/scripts/420005-zhihu-optimizer), 特别是3.5.0.0之前的版本的, 可能部分数据存储异常, 导致部分功能异常, 可以尝试使用$reset 命令(*使用方法, 参考命令行部分*)重置一下数据(*注意将会清除部分数据*)
 
 # 关于代码
 
