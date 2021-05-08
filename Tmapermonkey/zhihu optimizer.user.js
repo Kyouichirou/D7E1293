@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.3
+// @version      3.5.0.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -7615,9 +7615,9 @@
                 }, 0);
             },
             id: null,
-            add(common, inpustyle, search, topicAndquestion, bgi) {
+            add(common, inpustyle, search, topicAndquestion, ad, bgi) {
                 GM_addStyle(
-                    common + inpustyle + search + topicAndquestion + bgi
+                    common + inpustyle + search + topicAndquestion + ad + bgi
                 );
                 (this.is_simple_search = GM_getValue("simplesearch")) &&
                     (this.id = GM_addStyle(this.search_simple).id);
@@ -7673,8 +7673,6 @@
                     min-width: 1000px !important;
                 }
                 .RichContent.RichContent--unescapable{width: 100% !important;}
-                .RichText-MCNLinkCardContainer,
-                div.Question-sideColumn,.Kanshan-container{display: none !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
                     line-height: 30px !important;
@@ -7683,11 +7681,6 @@
                     border: 6px dashed rgba(133,144,166,0.2) !important;
                     border-radius: 6px !important;
                 }
-                a[href*="u.jd.com"],
-                .Pc-word,
-                .MCNLinkCard,
-                span.LinkCard-content.LinkCard-ecommerceLoadingCard,
-                .RichText-MCNLinkCardContainer{display: none !important;}
                 .Comments{padding: 12px !important; margin: 60px !important;}`;
             const inpustyle = `
                 input::-webkit-input-placeholder {
@@ -7739,23 +7732,36 @@
                     border: 1px solid #B9D5FF;
                     box-shadow: 1px 1px 2px 0 rgba(0, 0, 0, 0.10);
                 }`;
+            const ad = `
+                a[href*="u.jd.com"],
+                .Pc-word,
+                .MCNLinkCard,
+                .RichText-MCNLinkCardContainer,
+                div.Question-sideColumn,.Kanshan-container,
+                span.LinkCard-content.LinkCard-ecommerceLoadingCard,
+                .RichText-MCNLinkCardContainer{display: none !important;}`;
             index === 3
                 ? this.searchPage.add(
                       common,
                       inpustyle,
                       search,
                       topicAndquestion,
+                      ad,
                       this.body_image()
                   )
                 : GM_addStyle(
                       common +
                           (index < 2
-                              ? contentstyle + inpustyle + this.body_image()
+                              ? contentstyle +
+                                inpustyle +
+                                this.body_image() +
+                                ad
                               : index === 2
                               ? inpustyle +
                                 topicAndquestion +
                                 topic +
-                                this.body_image()
+                                this.body_image() +
+                                ad
                               : inpustyle)
                   );
         },
