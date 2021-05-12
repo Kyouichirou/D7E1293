@@ -1,6 +1,7 @@
 /*
 99藏书网内容重排
 直接请求获取的内容是乱序的, 需要经过重排修正
+不同的类型的数据, 其排序算法不一样, 此算法仅针对推理小说部分可用
 */
 const base64 = {
     map: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
