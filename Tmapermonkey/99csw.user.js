@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         99_lib
-// @namespace    https://github.com/Kyouichirou
-// @version      1.0
-// @description  for edge browser; get content from 99csw, text to speak, autohotkey control the progress
+// @namespace    http://tampermonkey.net/
+// @version      1.2
+// @description  try to take over the world!
 // @author       HLA
 // @match        file:///C:/Users/Lian/Documents/Tampermonkey/99_LIb.html
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
 // @connect      www.99csw.com
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (() => {
@@ -134,9 +135,12 @@
         },
         load(dom, chs, start) {
             const code = base64.decode(this.get_code(dom)).split(/[A-Z]+%/);
+            console.log(code);
+            debugger;
             let j = 0,
                 arr = [];
             code.forEach((e, i) => {
+                e = parseInt(e);
                 if (e < 3) {
                     arr[e] = chs[i + start];
                     j++;
@@ -153,7 +157,7 @@
             for (const c of chs) {
                 const lname = c.localName;
                 if (lname === "h2") k = i + 1;
-                else if (lname === "div") break;
+                else if (lname === "div" && c.className !== 'chapter') break;
                 i++;
             }
             return k;
@@ -163,14 +167,21 @@
             return this.get_text(this.load(dom, chs, this.get_start(chs)));
         },
         get_text(arr) {
-            let text = "";
-            for (const node of arr) {
-                if (node.nodeType !== 1) continue;
-                const cs = node.childNodes;
-                for (const c of cs) c.nodeType === 3 && (text += c.textContent);
-                text += "\n";
-            }
-            return text;
+            return arr
+                .map((node) => {
+                    if (node.nodeType === 1) {
+                        const cs = node.childNodes;
+                        let text = "";
+                        for (const c of cs)
+                            c.nodeType === 3
+                                ? (text += c.textContent)
+                                : ["strong", "small"].includes(c.localName) &&
+                                  (text += c.innerText);
+                        return text ? text + "\n" : "";
+                    }
+                    return "";
+                })
+                .join("");
         },
     };
     const escapeHTML = (s) => {
@@ -207,10 +218,8 @@
     };
     const liTag = (info) => {
         const html = `
-            <li>
-                <span class="list num" style="font-weight: ${info.style};">${
-            info.id
-        }</span>
+            <li style="font-weight: ${info.style};">
+                <span class="list num">${info.id}</span>
                 <a
                     href=${"http://www.99csw.com" + info.href}
                     target="_self"
@@ -235,7 +244,28 @@
             !mode && list[i].scrollIntoView();
         }
     };
-    const change = (href, title, i, mode) => {
+    const get_Text = (url) => {
+        xmlHTTPRequest(url).then(
+            (response) => {
+                const dom = new DOMParser().parseFromString(
+                    response,
+                    "text/html"
+                );
+                const text = content.init(dom);
+                if (text) {
+                    const pre = document.getElementsByTagName("pre")[0];
+                    pre.innerText = text;
+                    setTimeout(
+                        () => pre.focus(),
+                        setTimeout(() => scroll.toTop(), 50),
+                        50
+                    );
+                } else alert("get content fail");
+            },
+            (err) => alert(err)
+        );
+    };
+    const change = (href, title, i, mode, sm) => {
         if (Editable_doc.mode) {
             alert("please close editable mode");
             return;
@@ -243,7 +273,7 @@
         get_Text(href);
         document.title = "99藏书 - " + bName + " - " + title;
         if (mode < 3) GM_setValue("mIndex", i);
-        if (mode !== 2) cancel_li_bold(null, i);
+        if (mode !== 2) cancel_li_bold(null, i, sm);
     };
     const event = (node, i) => {
         setTimeout(() => {
@@ -271,7 +301,7 @@
         const node = document.getElementById("column_lists");
         const header = node.getElementsByClassName("header current column")[0];
         const a = header.firstElementChild;
-        a.innerText = bName = book.title + "- 章节";
+        a.innerText = (bName = book.title) + "- 章节";
         a.href = book.href;
         let art = node.getElementsByClassName("article_lists")[0];
         art.innerHTML = arr
@@ -282,24 +312,6 @@
             })
             .join("");
         event(art, index);
-    };
-    const get_Text = (url) => {
-        xmlHTTPRequest(url).then(
-            (response) => {
-                const dom = new DOMParser().parseFromString(
-                    response,
-                    "text/html"
-                );
-                const text = content.init(dom);
-                text
-                    ? ((document.getElementsByTagName(
-                          "pre"
-                      )[0].innerText = text),
-                      setTimeout(() => scroll.toTop(), 50))
-                    : alert("get content fail");
-            },
-            (err) => alert(err)
-        );
     };
     const new_book = () => {
         let pro = prompt("please input menus url");
@@ -460,7 +472,7 @@
             nav.children[1].onclick = () => next(false);
             nav.children[2].onclick = () => next(true);
             nav = null;
-            document.addEventListener(
+            unsafeWindow.addEventListener(
                 "keydown",
                 (e) => {
                     if (e.ctrlKey && e.code === " KeyA") {
@@ -477,6 +489,12 @@
                     }
                 },
                 true
+            );
+            unsafeWindow.addEventListener(
+                "visibilitychange",
+                () =>
+                    !document.hidden &&
+                    document.getElementsByTagName("pre")[0].focus()
             );
         }, 50);
     })();
