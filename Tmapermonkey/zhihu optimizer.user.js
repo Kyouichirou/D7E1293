@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.4
+// @version      3.5.0.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -10411,6 +10411,7 @@
                     "strong",
                     "u",
                     "sup",
+                    'br'
                 ];
                 if (localName && tags.includes(localName)) {
                     this.arr.push(node.outerHTML);
