@@ -5,6 +5,17 @@ import re
 import os
 import time
 
+"""
+@author: HLA
+@description:
+获取99藏书的内容
+改站点采用的反爬措施为:
+1.乱序
+2.动态代码生成
+3.滚动加载数据
+4.混杂内容
+@name: csw99_download
+"""
 
 class CSW:
     def __init__(self, url):
