@@ -7,6 +7,7 @@
 Option Explicit
 Private Const FADF_AUTO As Long = &H1
 Private Const FADF_FIXEDSIZE As Long = &H10
+Private Const Max_Char = 65535
 
 Private Type aSAFEARRAY1D
     cDims As Integer
