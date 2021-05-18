@@ -6,15 +6,15 @@ import os
 import time
 
 """
+@name: csw99_download
 @author: HLA
 @description:
 获取99藏书的内容
 该站点采用的反爬措施为:
 1.乱序
 2.动态代码生成
-3.滚动加载数据
+3.滚动加载数据(阻止通过浏览器获取数据)
 4.混杂内容
-@name: csw99_download
 """
 
 class CSW:
@@ -23,6 +23,9 @@ class CSW:
         self.__get_menus(url)
 
     def __get_menus(self, url):
+        """
+        get menus of book
+        """
         dom = self.__get_dom(url)
         if not dom:
             return None
@@ -35,10 +38,11 @@ class CSW:
             menus_list.append(m.text)
         menus_list.append('目录' + "\n\n")
         self.__write_file('\n'.join(menus_list))
+        prefix = 'http://www.99csw.com/'
         for m in mlist:
             a = m.find('a')
             if a and 'href' in a.attrs:
-                self.__get_content('http://www.99csw.com/' + a.attrs['href'], a.text)
+                self.__get_content(prefix + a.attrs['href'], a.text)
         self.session.close()
         self.file.close()
 
@@ -55,19 +59,28 @@ class CSW:
         self.file.write(content)
 
     def __get_dom(self, url):
+        """
+        requets html file
+        :param url: string
+        :return: object
+        """
         headers = {
             "User-Agent": fUA().random,
             "Host": "www.99csw.com",
             "Accept-Encoding": "gzip, deflate",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
         }
-        response = self.session.get(url, headers=headers)
-        if response.status_code != 200:
-            print('failed to get html')
+        try:
+            response = self.session.get(url, headers=headers, timeout=(8, 8))
+            if response.status_code != 200:
+                print('failed to get html')
+                return None
+            html = response.content.decode("utf-8")
+            dom = btDom(html, "html.parser")
+            return dom
+        except requests.exceptions.Timeout:
+            print('time out error')
             return None
-        html = response.content.decode("utf-8")
-        dom = btDom(html, "html.parser")
-        return dom
 
     def __get_content(self, url, chapter):
         dom = self.__get_dom(url)
@@ -177,5 +190,5 @@ class CSW:
 if __name__ == '__main__':
     start = time.perf_counter()
     print('download start')
-    csw = CSW('http://www.99csw.com/book/9479/index.htm')
+    csw = CSW('http://www.99csw.com/book/10538/index.htm')
     print(f'running time: {time.perf_counter() - start} seconds')
