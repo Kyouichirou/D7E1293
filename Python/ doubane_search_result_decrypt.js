@@ -1,12 +1,18 @@
 {
-    var i = 16;
-    var Q = 4096;
-    var p = {
-        start: 2,
-        end: 7,
-    };
+    /*
+    @name: doubane_search_result_decrypt
+    @description:
+    豆瓣搜索结果整合在html文件中, 但是经过加密
+    位于'window.__DATA__ ='
+    modify from: https://github.com/SergioJune/Spider-Crack-JS/blob/master/douban/main.js
+    修改内容:
+    1. 修正大量的错误
+    2. 删减冗余代码
+    3. 删减/修改部分代码, 简化部分代码
+    4. 代码规范
+    */
     const e_playload = (r) => r;
-    var K = {};
+    const K = {};
     K.read = function (t, e, r, n, o) {
         var i,
             a,
@@ -72,7 +78,7 @@
     const encry2arr_from = (t, e, r) => from_a(null, t, e, r);
     function hash(e) {
         return (
-            "string" == typeof e && (e = encry2arr_from(e)),
+            "string" === typeof e && (e = encry2arr_from(e)),
             to_string.call((0, o_default)(e, 41405), 16).replace(/^0+/, "")
         );
     }
@@ -177,9 +183,7 @@
         );
     }
     var t = {
-        getState: function (e) {
-            return a(e);
-        },
+        getState: (e) => a(e),
         dispatch: function o() {
             return p;
         },
@@ -198,7 +202,7 @@
                     arguments.length > 1 && void 0 !== arguments[1]
                         ? arguments[1]
                         : "hjasbdn2ih823rgwudsde7e2dhsdhas";
-                "string" == typeof r &&
+                "string" === typeof r &&
                     (r = [].map.call(r, function (t) {
                         return t.charCodeAt(0);
                     }));
@@ -224,19 +228,12 @@
                 return a;
             },
         },
-        getRealUID: function (t) {
-            if (t >= p.start) {
-                var e = p.end - p.start;
-                if (t < p.end) return t + e;
-                if (t < p.end + e) return t - e;
-            }
-            return t;
-        },
+        getRealUID: (t) => (t > 1 ? t < 7 ? 5 : t < 12 ? -5: 0 : 0) + t,
         getType: function o(t) {
             return Object.prototype.toString.call(t).slice(8, -1);
         },
     };
-    const from_a = (t, e, r) => ("string" == typeof e ? f(t, e, r) : p(t, e));
+    const from_a = (t, e, r) => ("string" === typeof e ? f(t, e, r) : p(t, e));
     function f(t, e, r) {
         // 3  5  18  22  37  52  54  58  62  64
         var n = 0 | y(e, r);
@@ -451,7 +448,7 @@
     function write(k, t, e, r, n) {
         // 23  37  63
         if (void 0 === e) (n = "utf8"), (r = k.length), (e = 0);
-        else if (void 0 === r && "string" == typeof e)
+        else if (void 0 === r && "string" === typeof e)
             (n = e), (r = k.length), (e = 0);
         else {
             if (!isFinite(e))
@@ -562,14 +559,14 @@
     function a(e) {
         // 70  92  94
         return (
-            "string" == typeof e && (e = t.from(e)),
+            "string" === typeof e && (e = t.from(e)),
             (0, h.default)(e, 41405).toString(16).replace(/^0+/, "")
         );
     }
 
     function i_update(t, e, r) {
-        if ("number" == typeof t) {
-            if ("string" == typeof e)
+        if ("number" === typeof t) {
+            if ("string" === typeof e)
                 throw new Error(
                     "If encoding is specified then the first argument must be a string"
                 );
@@ -580,14 +577,12 @@
     function update(kkk, t) {
         // 88
         var r,
-            o = "string" == typeof t;
+            o = "string" === typeof t;
         o && ((t = null), (o = !1), (r = !0)),
             "undefined" != typeof ArrayBuffer &&
                 t instanceof ArrayBuffer &&
                 ((r = !0), (t = new Uint8Array(t)));
-        var i = 0,
-            c = t.length,
-            f = i + c;
+        let c = t.length;
         if (0 == c) return kkk;
         if (
             ((kkk.total_len += c),
@@ -621,7 +616,7 @@
         var t,
             e,
             r = kkk.memory,
-            n = "string" == typeof r,
+            n = "string" === typeof r,
             o = 0,
             i = kkk.memsize,
             h = new i_i();
@@ -734,11 +729,11 @@
     }
     function o_default() {
         // 71  87  89  91
-        return 2 == arguments.length
+        return 2 === arguments.length
             ? digest(update(new o_default(arguments[1]), arguments[0]))
             : this instanceof o_default
             ? void i_this.call(this, arguments[0])
-            : new o(arguments[0]);
+            : null;
     }
 
     function i_this(t) {
@@ -788,7 +783,7 @@
     function i_i(t, e, r, n) {
         return this instanceof i_i
             ? ((this.remainder = null),
-              "string" == typeof t
+              "string" === typeof t
                   ? i_u.call(this, t, e)
                   : void 0 === e
                   ? s_this.call(this, t)
@@ -886,7 +881,7 @@
     }
     function rotl(t) {
         if (0 == (t %= 64)) return this;
-        if (t >= 32) {
+        if (t > 31) {
             var e = this._a00;
             if (
                 ((this._a00 = this._a32),
@@ -957,7 +952,7 @@
             arguments.length > 1 && void 0 !== arguments[1]
                 ? arguments[1]
                 : "hjasbdn2ih823rgwudsde7e2dhsdhas";
-        "string" == typeof r &&
+        "string" === typeof r &&
             (r = [].map.call(r, function (t) {
                 return t.charCodeAt(0);
             }));
@@ -1202,11 +1197,11 @@
         return r;
     }
     function a_g_Bt(t, e, r, n) {
-        if ("number" == typeof e)
+        if ("number" === typeof e)
             throw new TypeError('"value" argument must not be a number');
         return "undefined" != typeof ArrayBuffer && e instanceof ArrayBuffer
             ? h(t, e, r, n)
-            : "string" == typeof e
+            : "string" === typeof e
             ? f(t, e, r)
             : p_a(t, e);
     }
@@ -1277,15 +1272,15 @@
                         break;
                     case 2:
                         (u = t[o + 1]),
-                            128 == (192 & u) &&
+                            128 === (192 & u) &&
                                 (l = ((31 & i) << 6) | (63 & u)) > 127 &&
                                 (a = l);
                         break;
                     case 3:
                         (u = t[o + 1]),
                             (c = t[o + 2]),
-                            128 == (192 & u) &&
-                                128 == (192 & c) &&
+                            128 === (192 & u) &&
+                                128 === (192 & c) &&
                                 (l =
                                     ((15 & i) << 12) |
                                     ((63 & u) << 6) |
@@ -1297,9 +1292,9 @@
                         (u = t[o + 1]),
                             (c = t[o + 2]),
                             (f = t[o + 3]),
-                            128 == (192 & u) &&
-                                128 == (192 & c) &&
-                                128 == (192 & f) &&
+                            128 === (192 & u) &&
+                                128 === (192 & c) &&
+                                128 === (192 & f) &&
                                 (l =
                                     ((15 & i) << 18) |
                                     ((63 & u) << 12) |
@@ -1321,10 +1316,10 @@
         return P_T(n);
     }
     function P_T(t) {
-        var e = t.length;
-        if (e <= Q) return String.fromCharCode.apply(String, t);
+        const e = t.length;
+        if (e < 4097) return String.fromCharCode.apply(String, t);
         for (var r = "", n = 0; n < e; )
-            r += String.fromCharCode.apply(String, a_slice(t, n, (n += Q)));
+            r += String.fromCharCode.apply(String, a_slice(t, n, (n += 4096)));
         return r;
     }
     function a_h_Bt(t, e, r) {
@@ -1411,15 +1406,15 @@
             };
         };
     }
-    function decrypt(r) {
-        let a = encry2arr_from(r, "base64"), // 0
-            s = Math.max(Math.floor((a.length - 2 * i) / 3), 0), // 40
-            u = a_slice(a, s, s + i); // 41
-        a = concat([a_slice(a, 0, s), a_slice(a, s + i)]); // 43  45  47
+    //interface
+    function decrypt(data) {
+        let a = encry2arr_from(data, "base64"), // 0
+            s = Math.max(Math.floor((a.length - 32) / 3), 0), // 40
+            u = a_slice(a, s, s + 16); // 41
+        a = concat([a_slice(a, 0, s), a_slice(a, s + 16)]); // 43  45  47
         let c_data = hash(concat([u, encry2arr_from("")])); // 49  67  69
         let l = {};
         l[c_data] = a;
         return n_n(((l = {}), (l[c_data] = a), l));
     }
-    console.log(decrypt(r));
 }
