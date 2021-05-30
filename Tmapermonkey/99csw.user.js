@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         99_lib
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.4
 // @description  try to take over the world!
 // @author       HLA
 // @match        file:///C:/Users/Lian/Documents/Tampermonkey/99_LIb.html
@@ -108,6 +108,79 @@
         range.selectNodeContents(node);
         selection.addRange(range);
     };
+    const importData = {
+        isRunning: false,
+        create() {
+            const html = `
+            <div
+                id="read_local_text"
+                style="
+                    background: lightgray;
+                    width: 360px;
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    height: 360px;
+                    border: 1px solid #ccc !important;
+                    box-shadow: 1px 1px 4px #888888;
+                "
+            >
+                <h2 style="text-align: center; margin: 5px">IndexedDB Data Import</h2>
+                <hr />
+                <input
+                    type="file"
+                    class="read-local-txt-input"
+                    id="readTxt"
+                    accept=".txt"
+                    multiple=""
+                    style="margin-top: 35%; margin-left: 25%"
+                />
+            </div>`;
+            document.body.insertAdjacentHTML("beforeend", html);
+            this.event();
+        },
+        remove() {
+            this.node && (this.node.remove(), (this.node = null));
+        },
+        node: null,
+        read_file(file) {
+            return new Promise((resolve) => {
+                const r = new FileReader();
+                //default encode is UTF-8;
+                r.readAsText(file, "UTF-8"); //ansi/GBK
+                r.onload = (e) => {
+                    const result = e.target.result;
+                    if (!result) {
+                        resolve(file.name);
+                        return;
+                    }
+                    document.getElementsByTagName("pre")[0].innerText = result;
+                    document.title = file.name;
+                    resolve(true);
+                };
+                r.onerror = (e) => {
+                    console.log(e);
+                    resolve(file.name);
+                };
+            });
+        },
+        loadFile(e) {
+            this.isRunning = true;
+            this.read_file(e.target.files[0]).then(
+                () => ((this.isRunning = false), this.remove())
+            );
+        },
+        event() {
+            this.node = document.getElementById("read_local_text");
+            let i = this.node.getElementsByTagName("input")[0];
+            i.onchange = (e) => e.target.files.length > 0 && this.loadFile(e);
+            i = null;
+        },
+        main() {
+            !this.isRunning && (this.node ? this.remove() : this.create());
+        },
+    };
     const base64 = {
         map: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
         decode(meta) {
@@ -126,7 +199,11 @@
                     }[c.length] + c;
             }
             const m = d.match(/[0-1]{8}/g);
-            return m.map((e) => String.fromCharCode(parseInt(e, 2))).join("");
+            //reduct, c, 初始值, 如果不设定将使用数组中的第一个值
+            return m.reduce(
+                (c, e) => (c += String.fromCharCode(parseInt(e, 2))),
+                ""
+            );
         },
     };
     const content = {
@@ -135,8 +212,6 @@
         },
         load(dom, chs, start) {
             const code = base64.decode(this.get_code(dom)).split(/[A-Z]+%/);
-            console.log(code);
-            debugger;
             let j = 0,
                 arr = [];
             code.forEach((e, i) => {
@@ -157,7 +232,7 @@
             for (const c of chs) {
                 const lname = c.localName;
                 if (lname === "h2") k = i + 1;
-                else if (lname === "div" && c.className !== 'chapter') break;
+                else if (lname === "div" && c.className !== "chapter") break;
                 i++;
             }
             return k;
@@ -175,8 +250,18 @@
                         for (const c of cs)
                             c.nodeType === 3
                                 ? (text += c.textContent)
-                                : ["strong", "small"].includes(c.localName) &&
-                                  (text += c.innerText);
+                                : ["strong", "small", "h3", "a"].includes(
+                                      c.localName
+                                  )
+                                ? (text += c.innerText)
+                                : c.className === "notetext" &&
+                                  (text +=
+                                      "[备注: " +
+                                      c.dataset["note"].replace(
+                                          /(<a.+?>|<\/a>)/g,
+                                          ""
+                                      ) +
+                                      "]");
                         return text ? text + "\n" : "";
                     }
                     return "";
@@ -251,8 +336,13 @@
                     response,
                     "text/html"
                 );
-                const text = content.init(dom);
+                let text = content.init(dom);
                 if (text) {
+                    const unstr = "𠸄咭唎𠲽𧷏𠱊𠸍𡎴";
+                    const restr = "英吉利佛玉仕笑贡";
+                    [...unstr].forEach(
+                        (e, i) => (text = text.replace(e, restr[i]))
+                    );
                     const pre = document.getElementsByTagName("pre")[0];
                     pre.innerText = text;
                     setTimeout(
@@ -486,6 +576,8 @@
                         else if (code === "KeyE") Editable_doc.edit();
                         else if (code === "ArrowLeft") next(false);
                         else if (code === "ArrowRight") next(true);
+                        else if (code === "KeyI")
+                            e.stopImmediatePropagation(), importData.main();
                     }
                 },
                 true
