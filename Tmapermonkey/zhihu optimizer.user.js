@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.6
+// @version      3.5.0.7
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -4490,6 +4490,7 @@
                     65: "AboutMe",
                     68: "Douban",
                     71: "Google",
+                    73: 'Install',
                     72: "Github",
                     77: "MDN",
                     66: "BiliBili",
@@ -4581,6 +4582,9 @@
                     },
                     BiliBili() {
                         this.Search("search.bilibili.com/all?keyword=");
+                    },
+                    Install(){
+                        this.Search('pypi.org/search/?q=');
                     },
                     Python() {
                         this.Search(
