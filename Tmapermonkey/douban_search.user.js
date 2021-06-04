@@ -22,7 +22,7 @@
     修改内容:
     1. 修正大量的错误
     2. 删减冗余代码
-    3. 删减/修改大部分代码, 简化代码
+    3. 删减/修改大部分代码, 简化部分代码
     4. 代码规范(部分改成Es6+)
     5. 使之最终可在"use strict"模式下运行
     */
@@ -533,7 +533,7 @@
         return a;
     }
     function concat(t, e) {
-        if (0 === t.length) return i.alloc(0);
+        if (0 === t.length) return null;
         var r;
         if (undefined === e)
             for (e = 0, r = 0; r < t.length; ++r) e += t[r].length;
