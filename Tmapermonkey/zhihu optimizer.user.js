@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.7
+// @version      3.5.0.8
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -7629,7 +7629,7 @@
             const common = `
                 .ModalExp-content{display: none !important;}
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
-                body{text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
+                body{background-attachment: fixed;text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
             const showfold = `
                 .fold_element{
                     max-height: 24px;
