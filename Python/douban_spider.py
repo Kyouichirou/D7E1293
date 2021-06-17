@@ -7,15 +7,23 @@ import pandas as pd
 import time, mysql.connector as cnn
 from random_ua import rdua
 from urllib.parse import quote
+from enum import Enum
 
 """
 @name: douban_spider
 @author: HLA
 @description:
 爬取豆瓣标签页所有的标签下的书籍列表
+146个tag, 大概10-14万条数据
 将获取到的数据放置到Excel, MySQL等
 将标签使用有道翻译后作为MySQL表名, 或文件名
 """
+
+
+class WriteType(Enum):
+    Excel = 0
+    MySQL = 1
+    CSV = 2
 
 
 class Youdao:
@@ -94,7 +102,7 @@ class Database:
         self.__cursor = self.__sql.cursor()
         self.__create_db(dbname)
 
-    def create_table(self, tbname):
+    def create_table(self, tbname, tag):
         try:
             cmd = (
                 f'create table if not exists `{tbname}`('
@@ -106,7 +114,7 @@ class Database:
                 'rnums mediumint(9),'
                 'img varchar(255),'
                 'abstract varchar(255)'
-                ')'
+                f') comment="{tag}"'
             )
             self.__cursor.execute(cmd)
             return True
@@ -163,8 +171,8 @@ class Database:
 
 
 class Douban:
-    def __init__(self, url, stype='S', wtype='Excel'):
-        if wtype != 'Excel':
+    def __init__(self, url, stype='S', wtype=WriteType.MySQL.value):
+        if wtype == 1:
             self.__db = Database("MySQL@#2021", 'douban')
         self.__stype = stype
         self.__wtype = wtype
@@ -222,6 +230,7 @@ class Douban:
                                 self.__retry.append((tag, tbname))
                                 self.__session = requests.session()
                 while self.__retry and self.__retry_time > 0:
+                    print(f'start retrying {self.__retry_time}')
                     for index, ele in enumerate(self.__retry):
                         rs = self.__get_list(ele[0], ele[1])
                         if rs:
@@ -270,14 +279,14 @@ class Douban:
                 time.sleep(random.uniform(0.35, 2.5))
                 f = False
         if arr:
-            if self.__wtype == 'Excel':
+            if self.__wtype == 0:
                 eapp = Excel()
                 eapp.to_excel(arr, tbname, 'douban')
-            if self.__wtype == 'CSV':
+            if self.__wtype == 2:
                 eapp = Excel()
                 eapp.to_cvs(arr, tbname)
             else:
-                if self.__db.create_table(tbname):
+                if self.__db.create_table(tbname, tag):
                     tup = []
                     for dic in arr:
                         tup.append(tuple(dic.values()))
@@ -422,5 +431,5 @@ class Douban:
 if __name__ == '__main__':
     # start = time.perf_counter()
     print('download start')
-    Douban('https://book.douban.com/tag/?view=type', wtype='db')
+    Douban('https://book.douban.com/tag/?view=type', wtype=WriteType.MySQL.value)
     # print(f'running time: {time.perf_counter() - start} seconds')
