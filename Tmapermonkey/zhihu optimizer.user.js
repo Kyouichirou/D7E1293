@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.8
+// @version      3.5.0.9
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -1332,7 +1332,7 @@
     };
     const zhihu = {
         /*
-        these original functions of zhihu webpage will be failed in reader mode, so need to be rebuilt 
+        these original functions of zhihu webpage will be failed in reader mode, so need to be rebuilt
         rebuild:
         1. gif player;
         2. video player;
@@ -7773,7 +7773,7 @@
         inputBox: {
             box: null,
             controlEventListener() {
-                const windowEventListener = window.addEventListener;
+                const windowEventListener = unsafeWindow.addEventListener;
                 const eventTargetEventListener =
                     EventTarget.prototype.addEventListener;
                 function addEventListener(type, listener, useCapture) {
@@ -11754,7 +11754,7 @@
         },
         QASkeyBoardEvent(index) {
             /*
-            when in autoloaded reader mode, block keyevent if the autoloaded is progressing; 
+            when in autoloaded reader mode, block keyevent if the autoloaded is progressing;
             */
             document.addEventListener(
                 "keydown",
