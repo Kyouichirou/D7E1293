@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         Amazon_Assistan
+// @name         Amazon_Assistant beta
 // @namespace    https://github.com/Kyouichirou
 // @version      1.0
 // @description  make thing better and simpler
 // @author       HLA
-// @updateURL
+// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/Amazon_Assistant.user.js
 // @match        https://www.amazon.com/*
 // @match        http*://fanyi.youdao.com/*
 // @connect      www.amazon.com
@@ -730,7 +730,7 @@
                     const img = dom.getElementById('imgTagWrapperId');
                     if (img) {
                         const tmp = img.getElementsByTagName('img');
-                        if (tmp.length === 0) dic.img = tmp[0].src;
+                        if (tmp.length > 0) dic.img = tmp[0].src;
                     }
                     return dic;
                 }
@@ -743,7 +743,7 @@
                 const dom = html2Dom(r);
                 const dic = this.get_item_detail(dom, url, keyword || "N/A");
                 dic ? this.storage.push(dic) : console.log("获取商品详情失败: " + url);
-                await wait_time(random_range(25, 100));
+                await wait_time(random_range(25, 150));
             } catch (e) {
                 console.log(e);
             }
@@ -756,6 +756,7 @@
         */
         container_initial() {
             if (this.storage) return;
+            if (!confirm('开始抓取数据?')) return;
             this.reg = /(?<=dp\/)\w+(?=\/)/;
             this.nreg = /\d+([\.,]\d+)?/g;
             this.kreg = /[a-z]{2,}/gi;
@@ -763,11 +764,13 @@
             this.title_content = [];
             this.review_content = [];
             this.description_content = [];
+            this.create_popup();
         },
         async destroy_container(wbname, shname) {
             this.statistic();
             await this.title_translate();
             this.write_toExcel(wbname, shname);
+            if (this.storage && this.storage.length > 0) console.log('抓取数据完成'); else console.log('抓取数据失败');
             this.reg = null;
             this.nreg = null;
             this.kreg = null;
@@ -775,6 +778,7 @@
             this.title_content = null;
             this.review_content = null;
             this.description_content = null;
+            this.remove_popup();
             Notification("执行完成", '提示');
         },
         word_Segment(arr, name) {
@@ -857,24 +861,21 @@
                 return;
             }
             const reg = /(?<=&page=)\d+(?=&)/;
-            const ms = href.match(reg);
             let href = this.current_url;
+            const ms = href.match(this.reg);
             const keyword = this.currnt_keyword;
             let index = href.indexOf("&qid");
-            if (ms) {
-                const cstart = parseInt(ms[0]);
-                if (start === cstart) {
-                    await this.search_single_page(keyword);
-                    start++;
-                }
+            if ((ms && (parseInt(ms[0]) === start)) || (!ms && start === 1)) {
+                await this.search_single_page(keyword);
+                start++;
             }
             if (0 > index) index = href.indexOf("&ref");
             if (index > 0) href = href.slice(0, index);
             end++;
             for (start; start < end; start++) {
-                href = `${href}&page=${start}`;
+                const tmp = `${href}&page=${start}`;
                 try {
-                    const r = xmlHTTPRequest(href);
+                    const r = await xmlHTTPRequest(tmp);
                     const dom = html2Dom(r);
                     await this.search_get_list(dom, keyword);
                 } catch (e) {
@@ -1049,7 +1050,80 @@
                 }
             }
         },
-        popup() { },
+        create_popup() {
+            const html = `
+            <div
+                id="settingLayerMask"
+                style="
+                    display: flex;
+                    justify-content: center;
+                    align-items: stretch;
+                    opacity: 1;
+                "
+            >
+                <style>
+                    #settingLayerMask {
+                        display: none;
+                        justify-content: center;
+                        align-items: center;
+                        position: fixed;
+                        top: 0;
+                        right: 0;
+                        bottom: 0;
+                        left: 0;
+                        background-color: rgba(0, 0, 0, 0.5);
+                        z-index: 200000000;
+                        overflow: auto;
+                        font-family: arial, sans-serif;
+                        min-height: 100%;
+                        font-size: 16px;
+                        transition: 0.5s;
+                        opacity: 0;
+                        user-select: none;
+                        -moz-user-select: none;
+                        padding-bottom: 80px;
+                        box-sizing: border-box;
+                    }
+                </style>
+                <div class="autoscroll-tips">
+                    <style>
+                        .autoscroll-tips {
+                            position: fixed;
+                            top: 0;
+                            right: 0;
+                            bottom: 0;
+                            left: 0;
+                            z-index: 10000;
+                            overflow: hidden;
+                            -webkit-transition: background-color 0.2s ease-in-out;
+                            transition: background-color 0.2s ease-in-out;
+                        }
+                        .autoscroll-tips_content {
+                            position: fixed;
+                            top: 45%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            background: lightgray;
+                            width: 300px;
+                            height: 120px;
+                            border: 1px solid #b9d5ff;
+                        }
+                    </style>
+                    <div class="autoscroll-tips_content">
+                        <div class="autotips_content" style="margin: 35px 5px 5px 5px">
+                            <h2 style="text-align: center">数据抓取中, 稍等片刻</h2>
+                            <p style="margin: 10px 1px 1px 30px">F12快捷键查看进度</p>
+                            <p></p>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML("beforeend", html);
+        },
+        remove_popup() {
+            let p = document.getElementById('settingLayerMask');
+            if (p) { p.remove(); p = null }
+        },
         start() {
             const href = this.current_url;
             //best selllers webpage
