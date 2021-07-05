@@ -355,9 +355,11 @@
                     (r) => {
                         try {
                             const j = JSON.parse(r);
-                            if (j["errorCode"] !== 0) {
+                            const ec = j["errorCode"];
+                            if (ec !== 0) {
                                 reject(null);
-                                console.log("error:" + j["errorCode"]);
+                                ec === 40 ? console.log('no translation about ' + keyword) : console.log("error: " + j["errorCode"]);
+                                return;
                             }
                             const a = j["smartResult"];
                             const es = a && a["entries"];
@@ -527,12 +529,14 @@
             const token = await this.get_token(keyword);
             if (token) {
                 const data = await this.get_data(token, keyword);
-                if (data)
+                if (data) {
                     data2Excel.json_toExcel(
                         data,
                         `google_trends_${keyword}_${Date.now()}`,
                         "data"
                     );
+                    Notification('获取数据成功', '提示');
+                } else Notification('获取数据失败. 请检查代理设置是否可用', '警告', 3500);
             }
         },
     };
@@ -541,7 +545,6 @@
             try {
                 const r = await xmlHTTPRequest(url);
                 const dom = html2Dom(r);
-                download("text", r);
                 const table = dom.getElementsByClassName("table-wrapper");
                 if (table.length > 0) {
                     const datas = table[0].getElementsByClassName("listdata");
@@ -568,23 +571,29 @@
                         dic.url = link.href;
                         arr.push(dic);
                     }
-                    if (arr.length > 0)
+                    if (arr.length > 0) {
                         data2Excel.json_toExcel(
                             arr,
                             "hotword_" + (keyword || "Amazon热搜词Top500") + "_" + Date.now(),
                             "hotwords"
                         );
-                    else console.log("无相关热词检索数据");
+                        Notification('获取数据成功', '提示');
+                    }
+                    else {
+                        Notification((keyword ? keyword + '无相关热词检索数据' : '获取Top热搜失败'), '提示');
+                        console.log("无相关热词检索数据");
+                    }
                 } else console.log("无相关热词检索数据");
             } catch (e) {
+                Notification('获取数据失败, 请稍后再试', '警告', 3500);
                 console.log(e);
             }
         },
-        async main(keyword) {
+        async main(keyword, mode = true) {
             const url = keyword
                 ? `https://www.amz123.com/usatopkeywords-1-1-${keyword.toLowerCase()}.htm`
                 : "https://www.amz123.com/usatopkeywords";
-            this.get_data(url, keyword);
+            await this.get_data(url, keyword, mode);
         },
     };
     const Amazon = {
@@ -770,7 +779,10 @@
             this.statistic();
             await this.title_translate();
             this.write_toExcel(wbname, shname);
-            if (this.storage && this.storage.length > 0) console.log('抓取数据完成'); else console.log('抓取数据失败');
+            if (this.storage && this.storage.length > 0) {
+                console.log('抓取数据完成');
+                Notification('获取数据成功', '提示');
+            } else console.log('抓取数据失败');
             this.reg = null;
             this.nreg = null;
             this.kreg = null;
@@ -779,7 +791,6 @@
             this.review_content = null;
             this.description_content = null;
             this.remove_popup();
-            Notification("执行完成", '提示');
         },
         word_Segment(arr, name) {
             if (!arr || arr.length === 0) return;
@@ -806,17 +817,19 @@
                 const di = {};
                 di.word = inf[0];
                 di.count = inf[1];
+                const status = Youdao.is_anti;
                 try {
-                    Youdao.is_anti
+                    status
                         ? (di.translation = await Youdao.other(inf[0]))
                         : (di.translation = await Youdao.main(inf[0]));
                 } catch (e) {
                     di.translate = "N/A";
                     console.log(e);
                 }
-                await wait_time(random_range(50, 350));
+                await wait_time(statuts ? random_range(50, 350) : random_range(250, 350));
                 arr.push(di);
             }
+
             data2Excel.json_toExcel(arr, "title_" + Date.now(), "data");
         },
         statistic() {
@@ -1124,11 +1137,19 @@
             let p = document.getElementById('settingLayerMask');
             if (p) { p.remove(); p = null }
         },
+        async top_500() {
+            this.create_popup();
+            await amz123.main();
+            this.remove_popup();
+        },
         start() {
             const href = this.current_url;
             //best selllers webpage
-            if (
-                !href.includes("gp/bestsellers/") &&
+            if (href.includes("gp/bestsellers/")) {
+                createButton('Top500', '获取当前Amazon热搜Top500');
+                setTimeout(() => document.getElementById("assist-button-container").addEventListener('click', () => this.top_500()), 100);
+            }
+            else if (
                 (href.includes("bestsellers") || href.includes("Best-Sellers"))
             ) {
                 const button =
