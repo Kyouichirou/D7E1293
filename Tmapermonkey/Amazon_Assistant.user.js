@@ -826,7 +826,7 @@
                     di.translate = "N/A";
                     console.log(e);
                 }
-                await wait_time(statuts ? random_range(50, 350) : random_range(250, 350));
+                await wait_time(status ? random_range(50, 350) : random_range(250, 350));
                 arr.push(di);
             }
 
@@ -913,10 +913,13 @@
                         url: "N/A",
                         pic: "N/A",
                     };
-                    const title = item.getElementsByClassName(
-                        "p13n-sc-truncate-desktop-type2"
-                    );
-                    if (title.length > 0) dic.title = title[0].innerText.trim();
+                    const elelists = ['p13n-sc-truncate', "p13n-sc-truncate-desktop-type2", 'p13n-sc-truncated'];
+                    let title = null;
+                    for (const en of elelists) {
+                        title = item.getElementsByClassName(en);
+                        if (title.length > 0) break;
+                    }
+                    if (title.length > 0) dic.title = title[0].innerText.trim(); else console.log('title classname has changed');
                     const price = item.getElementsByClassName("p13n-sc-price");
                     if (price.length > 0) dic.price = price[0].innerText;
                     const url = item.getElementsByClassName("a-link-normal");
