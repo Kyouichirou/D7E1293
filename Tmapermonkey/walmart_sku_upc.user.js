@@ -4,6 +4,7 @@
 // @version      1.0
 // @description  get product's upc with sku from specific api
 // @author       HLA
+// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/walmart_sku_upc.user.js
 // @match        https://www.walmart.com/ip/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_notification
