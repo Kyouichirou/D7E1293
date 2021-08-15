@@ -1,20 +1,21 @@
 // ==UserScript==
 // @name         WalMart_SKU_UPC
 // @namespace    https://github.com/Kyouichirou
-// @version      1.0
+// @version      1.2
 // @description  get product's upc with sku from specific api
 // @author       HLA
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/walmart_sku_upc.user.js
 // @match        https://www.walmart.com/ip/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_notification
+// @grant        window.onurlchange
 // @connect      www.walmart.com
 // @icon         https://www.walmart.com/favicon.ico
 // @noframes
 // ==/UserScript==
 
 (function () {
-    'use strict';
+    "use strict";
     const Notification = (
         content = "",
         title = "",
@@ -63,7 +64,7 @@
     const walmart = {
         get_json() {
             //direct get upc from webpage, pay attention: some products do not have upc id;
-            const item = document.getElementById('item');
+            const item = document.getElementById("item");
             if (item) {
                 const js = item.innerText;
                 if (js) {
@@ -124,17 +125,19 @@
                     </table>
                 </div>
             </div>`;
-            document.documentElement.insertAdjacentHTML('beforeend', html);
+            document.documentElement.insertAdjacentHTML("beforeend", html);
             setTimeout(() => {
-                this.node = document.getElementById('sku_upc').getElementsByClassName('content_table')[0];
-                this.node.addEventListener('click', (e) => {
+                this.node = document
+                    .getElementById("sku_upc")
+                    .getElementsByClassName("content_table")[0];
+                this.node.addEventListener("click", (e) => {
                     const t = e.target;
                     const c = t.innerText;
                     if (c) {
                         navigator.clipboard.writeText(c);
-                        Notification('内容已复制到剪切板', '提示');
+                        Notification("内容已复制到剪切板", "提示");
                     }
-                })
+                });
             }, 100);
         },
         node: null,
@@ -145,79 +148,104 @@
             chs[2].children[1].innerText = info.pid;
         },
         get_api_json(sku) {
-            const API = "https://www.walmart.com/terra-firma/fetch?rgs=BUY_BOX_PRODUCT_IDML";
+            const API =
+                "https://www.walmart.com/terra-firma/fetch?rgs=BUY_BOX_PRODUCT_IDML";
             const data = `{"itemId": "${sku}"}`;
             xmlHTTPRequest(API, 10000, data).then(
                 (r) => {
                     const j = JSON.parse(r);
                     const item = j["payload"]["buyBox"]["products"][0];
                     const info = {
-                        sku: 'N/A',
-                        upc: 'N/A',
-                        pid: 'N/A'
+                        sku: "N/A",
+                        upc: "N/A",
+                        pid: "N/A",
                     };
                     info.sku = sku;
-                    const upc = item['upc'];
+                    const upc = item["upc"];
                     if (!upc) console.log(item);
-                    info.upc = upc || '此商品缺失UPC';
-                    info.pid = item['productId'];
+                    info.upc = upc || "此商品缺失UPC";
+                    info.pid = item["productId"];
                     this.node ? this.change(info) : this.inject(info);
                 },
                 (e) => {
                     console.log(`fail to get detail of ${sku}`);
                 }
-            )
+            );
         },
         event() {
-            const flex = document.getElementsByClassName('variants__list contents__list');
-            if (flex.length > 0) {
-                const config = { childList: true, subtree: true, attributes: true };
-                let time_id = null;
-                const observer = new MutationObserver(() => {
-                    if (time_id) clearTimeout(time_id);
-                    time_id = setTimeout(() => {
-                        let sku = this.get_sku();
-                        if (sku !== this.current_sku) {
-                            this.current_sku = sku;
-                            this.get_api_json(sku);
-                        }
-                    }, 500);
+            if (window.onurlchange === null) {
+                console.log("window urlchange has successfully started");
+                window.addEventListener("urlchange", (e) => {
+                    const sku = this.get_sku(e.url);
+                    sku
+                        ? this.get_api_json(sku)
+                        : console.log("warning: failed to get sku from url");
                 });
-                observer.observe(flex[0], config);
-            } else console.log('failed to create monitor');
+            } else {
+                console.log(
+                    "this browser does not support the function of window urlonchange"
+                );
+                const flex = document.getElementsByClassName(
+                    "variants__list contents__list"
+                );
+                if (flex.length > 0) {
+                    const config = {
+                        childList: true,
+                        subtree: true,
+                        attributes: true,
+                    };
+                    let time_id = null;
+                    const observer = new MutationObserver(() => {
+                        if (time_id) clearTimeout(time_id);
+                        time_id = setTimeout(() => {
+                            let sku = this.get_sku();
+                            if (sku !== this.current_sku) {
+                                this.current_sku = sku;
+                                this.get_api_json(sku);
+                            }
+                        }, 500);
+                    });
+                    observer.observe(flex[0], config);
+                } else console.log("failed to create monitor");
+            }
         },
         get_info(json) {
             try {
                 const info = {
-                    sku: 'N/A',
+                    sku: "N/A",
                     upc: null,
-                    pid: 'N/A'
+                    pid: "N/A",
                 };
-                const product = json['item']['product']['buyBox']['products'][0];
+                const product =
+                    json["item"]["product"]["buyBox"]["products"][0];
                 if (product) {
-                    info.sku = product['usItemId'];
-                    info.pid = product['productId'];
-                    info.upc = product['upc'];
+                    info.sku = product["usItemId"];
+                    info.pid = product["productId"];
+                    info.upc = product["upc"];
                 }
-                info.upc ? this.node ? this.change(info) : this.inject(info) : this.get_api_json(this.current_sku);
+                info.upc
+                    ? this.node
+                        ? this.change(info)
+                        : this.inject(info)
+                    : this.get_api_json(this.current_sku);
             } catch (e) {
                 this.get_api_json(this.current_sku);
-                console.log(e)
+                console.log(e);
             }
         },
         reg: null,
         current_sku: null,
-        get_sku() {
-            const ms = location.href.match(this.reg);
+        get_sku(url) {
+            const ms = (url || location.href).match(this.reg);
             return ms ? ms[0] : null;
         },
         initial() {
             this.reg = /\d+/;
             this.current_sku = this.get_sku();
             const json = this.get_json();
-            json ? this.get_info(json) : console.log('no upc detail');
+            json ? this.get_info(json) : console.log("no upc detail");
             this.event();
-        }
+        },
     };
     walmart.initial();
 })();
