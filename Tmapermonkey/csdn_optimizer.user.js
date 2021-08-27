@@ -2,6 +2,7 @@
 // @name         csdn_optimizer
 // @namespace    https://github.com/Kyouichirou
 // @version      1.0
+// @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/csdn_optimizer.user.js
 // @description  make csdn better
 // @author       HLA
 // @include      /https:\/\/(\w+\.)?\w+\.csdn\.net.*/
