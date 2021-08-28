@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         csdn_optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      1.0
+// @version      1.1
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/csdn_optimizer.user.js
 // @description  make csdn better
 // @author       HLA
@@ -439,32 +439,32 @@
                 "recommend-box insert-baidu-box"
             );
             const rubbish = [
-                "华为",
-                "CSDN资讯",
+                "\u534e\u4e3a",
+                "CSDN\u8d44\u8baf",
                 "CSDNnew",
-                "大学生",
-                "应届生",
-                "毕业生",
-                "私活",
-                "月薪",
-                "年薪",
-                "跳槽",
-                "工资",
-                "事业",
-                "工程师",
-                "薪资",
-                "兼职",
-                "粉丝",
-                "找工作",
-                "简历",
-                "面试",
-                "同事",
-                "众包",
+                "\u5927\u5b66\u751f",
+                "\u5e94\u5c4a\u751f",
+                "\u6bd5\u4e1a\u751f",
+                "\u79c1\u6d3b",
+                "\u6708\u85aa",
+                "\u5e74\u85aa",
+                "\u8df3\u69fd",
+                "\u5de5\u8d44",
+                "\u4e8b\u4e1a",
+                "\u5de5\u7a0b\u5e08",
+                "\u85aa\u8d44",
+                "\u517c\u804c",
+                "\u7c89\u4e1d",
+                "\u627e\u5de5\u4f5c",
+                "\u7b80\u5386",
+                "\u9762\u8bd5",
+                "\u540c\u4e8b",
+                "\u4f17\u5305",
                 "HR",
-                "薪水",
-                "外包",
-                "离职",
-                "达内",
+                "\u85aa\u6c34",
+                "\u5916\u5305",
+                "\u79bb\u804c",
+                "\u8fbe\u5185",
             ];
             if (b.length > 0) {
                 const items = b[0].getElementsByClassName(
