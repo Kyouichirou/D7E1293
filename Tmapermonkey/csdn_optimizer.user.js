@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         csdn_optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      1.1
+// @version      1.2
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/csdn_optimizer.user.js
 // @description  make csdn better
 // @author       HLA
@@ -54,6 +54,8 @@
                     overflow: auto !important;
                     max-height: none !important;
                 }
+                #content_views pre code,
+                #content_views pre{user-select: unset !important;}
                 #content_views span {background-color: transparent !important;}
                 .toolbar-advert,
                 div.hide-article-box,
