@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.0.12
+// @version      3.5.1.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -6591,9 +6591,16 @@
                     const targetElements = this.getTagetElements(index);
                     index !== 0 && this.firstRun(targetElements);
                     index !== 3 && this.Topic_questionButton(targetElements);
-                    unsafeWindow.addEventListener("urlchange", () =>
-                        this.backwardORforward(targetElements)
-                    );
+                    const w =
+                        window.onurlchange === null
+                            ? window
+                            : unsafeWindow.onurlchange === null
+                            ? unsafeWindow
+                            : null;
+                    w &&
+                        w.addEventListener("urlchange", () =>
+                            this.backwardORforward(targetElements)
+                        );
                     this.connectColumn();
                     !this.isMonitor &&
                         this.clickMonitor(
@@ -7771,35 +7778,10 @@
         disable blank search hot word;
         disable show hot seach result;
         clear placeholder
+        导致Promise出现错误
         */
         inputBox: {
             box: null,
-            controlEventListener() {
-                const windowEventListener = unsafeWindow.addEventListener;
-                const eventTargetEventListener =
-                    EventTarget.prototype.addEventListener;
-                function addEventListener(type, listener, useCapture) {
-                    //take care w or W
-                    const NewEventListener =
-                        this instanceof Window
-                            ? windowEventListener
-                            : eventTargetEventListener;
-                    //block original keyboard event to prevent blank search(ads)
-                    if (
-                        type.startsWith("key") &&
-                        !listener.toString().includes("(fuckzhihu)")
-                    )
-                        return;
-                    Reflect.apply(NewEventListener, this, [
-                        type,
-                        listener,
-                        useCapture,
-                    ]);
-                    //this => who lauch this function, eg, window, document, htmlelement...
-                }
-                window.addEventListener =
-                    EventTarget.prototype.addEventListener = addEventListener;
-            },
             monitor(index, visibleChange) {
                 this.box = document.getElementsByTagName("input")[0];
                 this.box.placeholder = "";
@@ -12036,7 +12018,6 @@
         },
         pageOfQA(index, href) {
             //inject as soon as possible; maybe, need to concern about some conflict between eventlisteners and MutationObserver
-            this.inputBox.controlEventListener();
             index < 2 && this.anti_setInterval();
             this.addStyle(index);
             this.clearStorage();
