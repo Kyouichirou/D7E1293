@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         csdn_optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      1.2
+// @version      1.4
 // @updateURL    https://github.com/Kyouichirou/D7E1293/raw/Kyouichirou-patch-1/Tmapermonkey/csdn_optimizer.user.js
 // @description  make csdn better
 // @author       HLA
@@ -82,6 +82,7 @@
                     ${mode ? this.article : ""}
                     .login-box,
                     .login-mark,
+                    .passport-login-container,
                     .csdn-side-toolbar,
                     .toolbar-search-hot {
                         display: none !important;
@@ -545,7 +546,7 @@
                         user[0].insertAdjacentHTML("beforeend", button);
                         setTimeout(
                             () =>
-                                (user[0].lastChild.onclick = (e) =>
+                                (user[0].lastElementChild.onclick = (e) =>
                                     this.click_event(e.target)),
                             250
                         );
@@ -565,13 +566,14 @@
                     postion[0].insertAdjacentHTML("afterbegin", button);
                     setTimeout(
                         () =>
-                            (postion[0].firstChild.onclick = (e) =>
+                            (postion[0].firstElementChild.onclick = (e) =>
                                 this.click_event(e.target)),
                         350
                     );
                 }
             },
             click_event(target) {
+                debugger;
                 let blackLists = GM_getValue("block");
                 if (target.innerText === "Block") {
                     if (blackLists) {
