@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.1.0
+// @version      3.5.2.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -174,6 +174,9 @@
         const select = window.getSelection();
         return select ? select.toString().trim() : null;
     };
+    //clear zero-width character
+    const clear_zero_width = (text) =>
+        text.trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
     const escapeBlank = (target) => {
         const type = typeof target;
         if (type === "object") {
@@ -4355,7 +4358,16 @@
         },
         getData() {
             blackName = GM_getValue("blackname");
-            (!blackName || !Array.isArray(blackName)) && (blackName = []);
+            if (blackName && Array.isArray(blackName)) {
+                if (blackName.length > 0) {
+                    const bn = GM_getValue("clear_blackname");
+                    if (!bn) {
+                        blackName = blackName.map((e) => clear_zero_width(e));
+                        GM_setValue('blackname', blackName);
+                        GM_setValue("clear_blackname", true);
+                    }
+                }
+            } else blackName = [];
             blackTopicAndQuestion = GM_getValue("blacktopicAndquestion");
             (!blackTopicAndQuestion || !Array.isArray(blackTopicAndQuestion)) &&
                 (blackTopicAndQuestion = []);
@@ -6191,10 +6203,12 @@
                 }
                 const i = user.length - 1;
                 const name = user[i > 1 ? 1 : i].innerText;
-                const result = blackName.includes(name);
+                if (!name) return false;
+                const nwname = clear_zero_width(name);
+                const result = blackName.includes(nwname);
                 if (result) {
                     colorful_Console.main(
-                        { title: "Blocked User", content: name },
+                        { title: "Blocked User", content: nwname },
                         colorful_Console.colors.warning
                     );
                     this.hidden_item(item, targetElements);
@@ -6204,7 +6218,9 @@
             search_check(item, targetElements) {
                 const content = this.get_content_element(item, targetElements);
                 if (!content) return false;
-                const user = content.firstElementChild.innerText;
+                let user = content.firstElementChild.innerText;
+                if (!user) return false;
+                user = clear_zero_width(user);
                 if (blackName.includes(user)) {
                     colorful_Console.main(
                         { title: "Blocked User", content: user },
@@ -10654,7 +10670,12 @@
                     console.log("get usename id fail");
                     return;
                 }
-                this.username = `${profile[0].innerText}`;
+                const user = profile[0].innerText;
+                if (!user) {
+                    console.log("failed to get the user name");
+                    return;
+                }
+                this.username = clear_zero_width(user);
                 this.username &&
                     this.injectButton(
                         blackName.includes(this.username) ? "unBlock" : "Block"
