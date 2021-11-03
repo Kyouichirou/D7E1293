@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.2.0
+// @version      3.5.3.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -301,6 +301,91 @@
             </div>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
+    };
+    /*
+    unfinished project
+    directly block some ad information url requests
+    loaded_article, control the quantity of loaded articles
+    salt_article, zhihu's paid_content
+    */
+    unsafeWindow.XMLHttpRequest = class extends unsafeWindow.XMLHttpRequest {
+        open(...args) {
+            if (args.length > 1 && args[1].includes('/logs/batch')) {
+                args[1] = '';
+            }
+            return super.open(...args);
+        }
+    };
+    const fetch_intercept = {
+        intercept() {
+            const fetch = unsafeWindow.fetch;
+            unsafeWindow.fetch = (...args) =>
+                (async (args) => {
+                    const url = args[0];
+                    const ad_list = [
+                        "/commercial",
+                        "include=ad_type",
+                        "/read_count_statistics",
+                        "/events/r",
+                        "/top_search",
+                        "/preset_words",
+                        "/scan_info",
+                        "/logs/batch",
+                        "/paid_content",
+                        "/market/rhea/questions",
+                    ];
+                    const article_api = "/api/v4/questions/";
+                    url.includes(article_api) && (this.loaded_articles += 1);
+                    return ad_list.some((e) => url.includes(e))
+                        ? {
+                              status: 204,
+                              headers: {
+                                  get() {
+                                      return "0";
+                                  },
+                              },
+                        text() {
+                            return new Promise((resolve, reject) => resolve('fuck zhihu'));
+                        }
+                    }
+                        : await fetch(...args);
+                })(args);
+        },
+        // response, response.clone().json(), copy the response to new obj, the response can only be read once
+        // check if the answer is paid content(salt)
+        check_salt(response) {
+            response
+                .then((result) => this.check_content(result))
+                .catch(() => console.log("error, no content"));
+        },
+        check_content(result) {
+            for (const a in result) {
+                const obj = result[a];
+                const name = Object.prototype.toString.call(obj);
+                if (name === "[object Array]") {
+                    if (a === "data") {
+                        for (const e of obj) {
+                            if (e.type === "knowledge_result") {
+                                const item = e["answer_obj"];
+                                if (item) {
+                                    const id = item["id"];
+                                    id &&
+                                        !this.salt_articles.includes(id) &&
+                                        this.salt_articles.append(id);
+                                }
+                            }
+                        }
+                        return;
+                    }
+                } else if (name === "[object Object]") this.check_content(obj);
+            }
+        },
+        loaded_articles: 0,
+        salt_articles: null,
+        initial(index = 0) {
+            index > 0 && (this.salt_articles = []);
+            this.intercept();
+        },
     };
     /*
     convert image to base64 code
@@ -4363,7 +4448,7 @@
                     const bn = GM_getValue("clear_blackname");
                     if (!bn) {
                         blackName = blackName.map((e) => clear_zero_width(e));
-                        GM_setValue('blackname', blackName);
+                        GM_setValue("blackname", blackName);
                         GM_setValue("clear_blackname", true);
                     }
                 }
@@ -5312,7 +5397,8 @@
                             display: block;
                         "
                     ></div>`;
-                document.documentElement.insertAdjacentHTML("afterbegin", html);
+                const cnode = document.documentElement;
+                cnode && cnode.insertAdjacentHTML("afterbegin", html);
             },
             menu(e) {
                 const target = document.getElementById("screen_shade_cover");
@@ -5987,8 +6073,10 @@
         },
         //the original js(int.js) of zhihu, which will cause stuck autoscroll
         anti_setInterval() {
+            console.log('a');
             unsafeWindow.setInterval = new Proxy(unsafeWindow.setInterval, {
                 apply: (target, thisArg, args) => {
+                    console.log(args);
                     const f = args[0];
                     let fn = "";
                     f && (fn = f.name);
@@ -6240,6 +6328,13 @@
                 const hot_list = ["TimeBox-MainContent", "MinorHotSpot"];
                 return hot_list.some(
                     (e) => item.getElementsByClassName(e).length > 0
+                );
+            },
+            check_salt(item) {
+                return (
+                    item.getElementsByClassName(
+                        "KfeCollection-OrdinaryLabel-content"
+                    ) > 0
                 );
             },
             check(item, targetElements) {
@@ -12124,8 +12219,9 @@
         },
         start() {
             let href = location.href;
-            const excludes = ["/write", "/api/"];
+            const excludes = ["/write", "/api/", "/api"];
             if (excludes.some((e) => href.includes(e))) return;
+            fetch_intercept.initial();
             const search = location.search;
             search &&
                 search.length > 2 &&
