@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.0
+// @version      3.5.3.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
 // @run-at       document-start
+// @match        https://*.zhihu.com/*
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -33,21 +34,11 @@
 // @connect      img.meituan.net
 // @connect      www.cnblogs.com
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
-// @match        https://*.zhihu.com/*
 // @compatible   chrome 80+
 // @license      MIT
 // @noframes
-// @note         more spam users of zhihu, https://zhuanlan.zhihu.com/p/127021293, it is recommended to block all of these users.
-/* !*******************zhihu*******************************!
-                www.zhihu.com/api/v4/creator/read_count_statistics*
-                www.zhihu.com/api/v4/me?include=ad_type*
-                www.zhihu.com/api/v4/search/top_search
-                www.zhihu.com/zbst/events/r
-                www.zhihu.com/api/v4/me/switches?include=is_creator
-                www.zhihu.com/api/v4/commercial/ecommerce
-                www.zhihu.com/api/v4/search/preset_words
-                !*******************zhihu*******************************!*/
-//note          add these rules to ublock or adblock => ensure the input box clear
+// @note         cent browser(https://www.centbrowser.com/) is recommended, and edeg browser is not recommended, too bloated and jumbled
+// @note         just test on chrome 80+
 // ==/UserScript==
 
 (() => {
@@ -310,9 +301,9 @@
     */
     unsafeWindow.XMLHttpRequest = class extends unsafeWindow.XMLHttpRequest {
         open(...args) {
-            if (args.length > 1 && args[1].includes('/logs/batch')) {
-                args[1] = '';
-            }
+            // keep the js of init.js from accessing continuously the url: zhihu-web-analytics.zhihu.com
+            if (args.length > 1 && args[1].includes("/logs/batch"))
+                (args[1] = "http://127.0.0.1"), (args[2] = true);
             return super.open(...args);
         }
     };
@@ -338,16 +329,17 @@
                     url.includes(article_api) && (this.loaded_articles += 1);
                     return ad_list.some((e) => url.includes(e))
                         ? {
+                              // keep the js of init.js from accessing continuously the object
                               status: 204,
                               headers: {
                                   get() {
-                                      return "0";
+                                      return null;
                                   },
                               },
-                        text() {
-                            return new Promise((resolve, reject) => resolve('fuck zhihu'));
-                        }
-                    }
+                              text() {
+                                  throw new SyntaxError("some error");
+                              },
+                          }
                         : await fetch(...args);
                 })(args);
         },
@@ -6073,10 +6065,8 @@
         },
         //the original js(int.js) of zhihu, which will cause stuck autoscroll
         anti_setInterval() {
-            console.log('a');
             unsafeWindow.setInterval = new Proxy(unsafeWindow.setInterval, {
                 apply: (target, thisArg, args) => {
-                    console.log(args);
                     const f = args[0];
                     let fn = "";
                     f && (fn = f.name);
@@ -8082,7 +8072,6 @@
                         );
                         this.Column.readerMode = true;
                     } else GM_addStyle(article);
-                    this.anti_setInterval();
                     this.Column.isZhuanlan = true;
                 } else {
                     document.title = "IGNORANCE IS STRENGTH";
@@ -12134,7 +12123,6 @@
         },
         pageOfQA(index, href) {
             //inject as soon as possible; maybe, need to concern about some conflict between eventlisteners and MutationObserver
-            index < 2 && this.anti_setInterval();
             this.addStyle(index);
             this.clearStorage();
             window.onload = () => {
@@ -12222,6 +12210,7 @@
             const excludes = ["/write", "/api/", "/api"];
             if (excludes.some((e) => href.includes(e))) return;
             fetch_intercept.initial();
+            this.anti_setInterval();
             const search = location.search;
             search &&
                 search.length > 2 &&
