@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.1
+// @version      3.5.3.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -363,7 +363,7 @@
                                     const id = item["id"];
                                     id &&
                                         !this.salt_articles.includes(id) &&
-                                        this.salt_articles.append(id);
+                                        this.salt_articles.push(id);
                                 }
                             }
                         }
@@ -478,7 +478,7 @@
             const api = `https://www.zhihu.com/api/v4/${name}/${id}?${args}`;
             xmlHTTPRequest(api).then(
                 (json) => {
-                    typeof json === "string" && (json = JSON(json));
+                    typeof json === "string" && (json = JSON.parse(json));
                     node.insertAdjacentHTML(
                         "afterbegin",
                         this.item_Raw(json, this.item_index, info)
@@ -3526,6 +3526,7 @@
                 n.children[1].onclick = () => this.Previous(f);
                 n.children[2].onclick = () => this.Next(f);
                 this.loadLazy(f);
+                this.answer_card_module.initial(f);
                 this.imgClick.event(f, n, this.autoScroll);
                 this.getVideo_element(f);
                 setTimeout(() => this.time_module.main(), 300);
@@ -3901,6 +3902,7 @@
                         : this.check_article_collected(this.Toolbar, this.aid);
                     this.change_pocket_status();
                     this.loadLazy(f);
+                    this.answer_card_module.initial(f);
                     this.getVideo_element(f);
                     setTimeout(() => {
                         f.scrollTo(0, 0);
@@ -3991,7 +3993,7 @@
                     ? change_Title("IGNORANCE IS STRENGTH")
                     : this.ctrl_click.call(zhihu, false);
             },
-            //load lazy pic
+            // load lazy pic
             loadLazy(node) {
                 const imgs = node.getElementsByTagName("img");
                 for (const img of imgs) {
@@ -4001,6 +4003,78 @@
                         img.src.startsWith("data:image/svg+xml") &&
                         (img.src = img.dataset.actualsrc);
                 }
+            },
+            // load the answer card information
+            answer_card_module: {
+                card_raw(info, href) {
+                    const html = `
+                        <div class="RichText-LinkCardContainer">
+                            <a
+                                target="_blank"
+                                href="${href}"
+                                data-draft-node="block"
+                                data-draft-type="link-card"
+                                data-text="${info.title}"
+                                class="LinkCard new css-1wr1m8"
+                                data-za-detail-view-id="172"
+                                ><span class="LinkCard-contents"
+                                    ><span class="LinkCard-title two-line"
+                                        >${info.title}</span
+                                    ><span class="LinkCard-desc"
+                                        >${info.voteup_count} 赞同 · ${info.comment_count} 评论<span class="LinkCard-tag">回答</span></span
+                                    ></span
+                                ></a
+                            >
+                        </div>`;
+                    return html;
+                },
+                load_card_info(curls, cnodes) {
+                    const api = `https://www.zhihu.com/api/v4/link_card_infos?urls=${curls.join(
+                        ","
+                    )}`;
+                    xmlHTTPRequest(api).then(
+                        (json) => {
+                            if (typeof result === "string")
+                                json = JSON.parse(json);
+                            cnodes.forEach((c) => {
+                                const info = json[c.url];
+                                if (info)
+                                    c.node.outerHTML = this.card_raw(
+                                        info,
+                                        c.url
+                                    );
+                            });
+                        },
+                        () => console.log("failed to load answer card info")
+                    );
+                },
+                get_card_answer(node) {
+                    const cards = node.getElementsByClassName(
+                        "RichText-LinkCardContainer"
+                    );
+                    if (cards.length === 0) return;
+                    const curls = [];
+                    const cnodes = [];
+                    for (const card of cards) {
+                        if (
+                            card.getElementsByClassName(
+                                "LinkCard-title loading"
+                            ).length === 0
+                        )
+                            continue;
+                        const a = card.getElementsByTagName("a");
+                        if (a.length > 0) {
+                            const href = a[0].href;
+                            href &&
+                                (cnodes.push({ url: href, node: card }),
+                                curls.push(href));
+                        }
+                    }
+                    curls.length > 0 && this.load_card_info(curls, cnodes);
+                },
+                initial(node) {
+                    this.get_card_answer(node);
+                },
             },
             /**
              * @param {boolean} mode
@@ -4208,7 +4282,6 @@
                         }
                     }
                 }
-                debugger;
                 if (
                     this.allAnswser_loaded ||
                     (!this.nextNode &&
@@ -6627,7 +6700,6 @@
                     "removearticleA",
                     (name, oldValue, newValue, remote) => {
                         if (remote) {
-                            debugger;
                             dataBaseInstance.dele(false, newValue[0]);
                             GM_setValue("removearticleA", "");
                         }
