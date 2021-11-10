@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.2
+// @version      3.5.3.3
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -298,6 +298,7 @@
     directly block some ad information url requests
     loaded_article, control the quantity of loaded articles
     salt_article, zhihu's paid_content
+    class, extends, super, class Inheritance, subclass
     */
     unsafeWindow.XMLHttpRequest = class extends unsafeWindow.XMLHttpRequest {
         open(...args) {
@@ -6074,20 +6075,21 @@
             this.rightMouse_OpenQ(9);
         },
         antiRedirect() {
-            //only those links can be capture, which has the attribute of classname with ' external'
+            // only those links can be capture, which has the attribute of classname with ' external' ?
+            // some problems in video tag
             const links = Object.getOwnPropertyDescriptors(
                 HTMLAnchorElement.prototype
             ).href;
             Object.defineProperty(HTMLAnchorElement.prototype, "href", {
                 ...links,
                 get() {
-                    let href = decodeURIComponent(links.get.call(this));
-                    href = href.split("link.zhihu.com/?target=");
-                    if (href.length > 1) {
-                        this.href = href[1];
-                        return href[1];
+                    const href = decodeURIComponent(links.get.call(this));
+                    const tmp = href.split("link.zhihu.com/?target=");
+                    if (tmp.length > 1) {
+                        this.href = tmp[1];
+                        return tmp[1];
                     }
-                    return href[0];
+                    return href;
                 },
             });
         },
@@ -7858,6 +7860,7 @@
                     text-align: right;
                 }`;
             const search = `
+                .SearchResult-Card{opacity: 0.95 !important;}
                 .SearchMain{width: 930px !important;}
                 .SearchSideBar,
                 .Card.TopSearch{display: none !important;}
