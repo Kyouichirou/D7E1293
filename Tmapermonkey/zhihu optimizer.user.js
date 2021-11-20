@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.3
+// @version      3.5.3.4
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -4049,6 +4049,60 @@
                         () => console.log("failed to load answer card info")
                     );
                 },
+                external_raw(info, href) {
+                    const url = href.includes("link.zhihu.com/?target=")
+                        ? href.split("link.zhihu.com/?target=")[1]
+                        : href;
+                    const html = `
+                        <div class="RichText-LinkCardContainer">
+                            <a
+                                target="_blank"
+                                href="${url}"
+                                data-draft-node="block"
+                                data-draft-type="link-card"
+                                data-text="${info.text}"
+                                class="LinkCard new css-1wr1m8"
+                                data-image="${info.image}"
+                                data-image-width="1920"
+                                data-image-height="1080"
+                                data-za-detail-view-id="${info.zaDetailViewId}"
+                                ><span class="LinkCard-contents"
+                                    ><span class="LinkCard-title two-line"
+                                        >${info.text}</span
+                                    ><span class="LinkCard-desc"
+                                        ><span style="display: inline-flex; align-items: center"
+                                            >&ZeroWidthSpace;<svg
+                                                class="Zi Zi--InsertLink"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                                width="14"
+                                                height="14"
+                                            >
+                                                <path
+                                                    d="M13.414 4.222a4.5 4.5 0 1 1 6.364 6.364l-3.005 3.005a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 0-.707l3.005-3.005a2.5 2.5 0 1 0-3.536-3.536l-3.005 3.005a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 0-.707l3.005-3.005zm-6.187 6.187a.5.5 0 0 1 .638-.058l.07.058.706.707a.5.5 0 0 1 .058.638l-.058.07-3.005 3.004a2.5 2.5 0 0 0 3.405 3.658l.13-.122 3.006-3.005a.5.5 0 0 1 .638-.058l.069.058.707.707a.5.5 0 0 1 .058.638l-.058.069-3.005 3.005a4.5 4.5 0 0 1-6.524-6.196l.16-.168 3.005-3.005zm8.132-3.182a.25.25 0 0 1 .353 0l1.061 1.06a.25.25 0 0 1 0 .354l-8.132 8.132a.25.25 0 0 1-.353 0l-1.061-1.06a.25.25 0 0 1 0-.354l8.132-8.132z"
+                                                ></path></svg></span
+                                        >${url}</span
+                                    ></span
+                                ><span class="LinkCard-image" style="height: 60px"
+                                    ><img
+                                        src="${info.image}"
+                                        alt="" /></span
+                            ></a>
+                        </div>`;
+                    return html;
+                },
+                check_data(a, node, href) {
+                    // some card have contained the information
+                    const info = a[0].dataset;
+                    if (info.image) {
+                        node.outerHTML = this.external_raw(
+                            info,
+                            decodeURIComponent(href)
+                        );
+                        return true;
+                    }
+                    return false;
+                },
                 get_card_answer(node) {
                     const cards = node.getElementsByClassName(
                         "RichText-LinkCardContainer"
@@ -4066,9 +4120,10 @@
                         const a = card.getElementsByTagName("a");
                         if (a.length > 0) {
                             const href = a[0].href;
-                            href &&
-                                (cnodes.push({ url: href, node: card }),
-                                curls.push(href));
+                            if (!href || this.check_data(a, card, href))
+                                continue;
+                            cnodes.push({ url: href, node: card });
+                            curls.push(href);
                         }
                     }
                     curls.length > 0 && this.load_card_info(curls, cnodes);
@@ -7844,6 +7899,7 @@
                     max-width: 1000px !important;
                     min-width: 1000px !important;
                 }
+                .Post-RichTextContainer .Catalog.isCatalogV2{display: none !important;}
                 .RichContent.RichContent--unescapable{width: 100% !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
