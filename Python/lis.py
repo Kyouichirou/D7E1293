@@ -24,11 +24,14 @@ def get_lis(nums, indexs, index, n):
             r = []
             k = index + 1
             for j in range(i, n):
-                if k - indexs[j] == 1:
+                m = indexs[j]
+                if k - m == 1:
                     r.append(nums[j])
                 else:
                     continue
-                k = indexs[j]
+                if m == 1:
+                    break
+                k = m
             results.append(r)
     return results
 
@@ -36,8 +39,7 @@ def get_lis(nums, indexs, index, n):
 @time_clock
 def lis(nums):
     n = len(nums)
-    indexs = [1] * n
-    index = 1
+    indexs, index = [1] * n, 1
     for i in reversed(range(n)):
         for j in range(i + 1, n):
             if nums[j] > nums[i]:
@@ -49,4 +51,4 @@ def lis(nums):
     return (index, get_lis(nums, indexs, index, n)) if index > 1 else (1, [[e] for e in nums])
 
 
-pprint.pprint(lis([random.randint(1, 10000) for _ in range(150)]))
+pprint.pprint(lis([random.randint(1, 10000) for _ in range(10)]))
