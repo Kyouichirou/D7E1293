@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.4
+// @version      3.5.3.5
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -6561,6 +6561,7 @@
                 if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
                 this.colorIndicator.stat = GM_getValue("highlight");
+                if (!node) return;
                 node.onclick = (e) => {
                     //when open reader mode, if create click event of document, no node
                     if (this.isReader) return;
@@ -10553,6 +10554,7 @@
                 return `<colorspan class="color-node" style="color: ${color} !important;">${text}</colorspan>`;
             },
             setcolorGrad(tlength) {
+                // according the length of string to set the color's gap
                 this.grad =
                     tlength > 500
                         ? 1
@@ -10568,6 +10570,7 @@
             },
             num: 0,
             textDetach(text) {
+                // detach the text to single charactor
                 this.setcolorGrad(text.length);
                 const reg = /((\d+[\.-\/]\d+([\.-\/]\d+)?)|\d{2,}|[a-z]{2,})/gi;
                 let result = null;
@@ -10601,7 +10604,7 @@
             },
             nodeCount: 0,
             getItem(node) {
-                //those tags will be ignored
+                // those tags will be ignored
                 const localName = node.localName;
                 const tags = [
                     "a",
@@ -10630,7 +10633,7 @@
                     const text = node.nodeValue;
                     text && this.textDetach(text);
                 } else {
-                    //this is a trick, no traversal of textnode, maybe some nodes will lost content, take care
+                    // this is a trick, no traversal of textnode, maybe some nodes will lost content, take care
                     for (const item of node.childNodes) this.getItem(item);
                     this.arr.length > 0 &&
                         node.childNodes.length - this.nodeCount <
