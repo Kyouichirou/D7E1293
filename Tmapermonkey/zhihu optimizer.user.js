@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.5
+// @version      3.5.3.6
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -8622,6 +8622,35 @@
                     });
                 }
             },
+            // load all lazy images in 'print' mode
+            load_all_lazy_img() {
+                const content = document.getElementsByClassName(
+                    "RichText ztext Post-RichText"
+                );
+                if (content.length === 0) return;
+                const imgs = content[0].querySelectorAll("img.lazy");
+                for (const img of imgs) {
+                    const src = img.src;
+                    if (
+                        src &&
+                        src.startsWith(
+                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'"
+                        )
+                    ) {
+                        const org =
+                            img.dataset["original"] || img.dataset["actualsrc"];
+                        if (org) {
+                            const i = org.lastIndexOf("_");
+                            img.src =
+                                i < 0
+                                    ? org
+                                    : org.slice(0, i + 1) +
+                                      "720w" +
+                                      org.slice(org.lastIndexOf("."));
+                        }
+                    }
+                }
+            },
             titleAlign() {
                 if (this.modePrint && !this.titleChange) return;
                 const title = document.getElementsByClassName("Post-Title");
@@ -8635,7 +8664,9 @@
                 this.titleChange = !this.titleChange;
             },
             modePrint: false,
+            time_print_id: null,
             pagePrint(status) {
+                // wait the the load of lazy img
                 Notification(
                     `${this.modePrint ? "exit" : "enter"} print mode`,
                     "Print",
@@ -8644,7 +8675,14 @@
                 !this.readerMode && this.clearPage(this.modePrint ? 1 : 2);
                 this.tocMenu.main(this.modePrint);
                 this.titleAlign();
-                !this.modePrint && window.print();
+                if (!this.modePrint) {
+                    this.load_all_lazy_img();
+                    this.time_print_id && clearTimeout(this.time_print_id);
+                    this.time_print_id = setTimeout(() => {
+                        this.time_print_id = null;
+                        window.print();
+                    }, 350);
+                }
                 this.modePrint = !this.modePrint;
                 this.modePrint ? status.create("Print Mode") : status.remove();
             },
@@ -10779,9 +10817,12 @@
                     console.log("get content fail");
                     return;
                 }
+                holder = holder[0];
+                // text is too much or too little
+                const t_length = holder.innerText.length;
+                if (t_length < 120 || t_length > 12000) return;
                 this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
                 !this.blue && (this.index = 255);
-                holder = holder[0];
                 const tags = ["p", "ul", "li", "ol", "blockquote"];
                 const textNode = [];
                 let i = -1;
