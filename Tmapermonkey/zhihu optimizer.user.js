@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.6
+// @version      3.5.3.7
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -33,6 +33,7 @@
 // @connect      cn.bing.com
 // @connect      img.meituan.net
 // @connect      www.cnblogs.com
+// @require      https://cdn.bootcdn.net/ajax/libs/xlsx/0.17.0/xlsx.core.min.js
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @compatible   chrome 80+
 // @license      MIT
@@ -1188,6 +1189,123 @@
                 );
             });
         },
+    };
+    const data2Excel = {
+        s2ab(s) {
+            const buf = new ArrayBuffer(s.length);
+            const view = new Uint8Array(buf);
+            for (let i = 0; i !== s.length; ++i)
+                view[i] = s.charCodeAt(i) & 0xff;
+            return buf;
+        },
+        sheet2blob(sheet, sheetName) {
+            sheetName = sheetName || "sheet1";
+            const workbook = {
+                SheetNames: [sheetName],
+                Sheets: {},
+            };
+            workbook.Sheets[sheetName] = sheet;
+            const wopts = {
+                bookType: "xlsx",
+                bookSST: false,
+                type: "binary",
+            };
+            const wbout = XLSX.write(workbook, wopts);
+            const blob = new Blob([this.s2ab(wbout)], {
+                type: "application/octet-stream",
+            });
+            // string to ArrayBuffer
+            return blob;
+        },
+        openDownloadDialog(url, saveName) {
+            if (typeof url == "object" && url instanceof Blob)
+                url = URL.createObjectURL(url);
+            let aLink = document.createElement("a");
+            aLink.href = url;
+            aLink.download = saveName || "";
+            let event;
+            if (window.MouseEvent) event = new MouseEvent("click");
+            else {
+                event = document.createEvent("MouseEvents");
+                event.initMouseEvent(
+                    "click",
+                    true,
+                    false,
+                    window,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    false,
+                    false,
+                    false,
+                    0,
+                    null
+                );
+            }
+            aLink.dispatchEvent(event);
+            URL.revokeObjectURL(url);
+        },
+        json_toExcel(data, wbname, shname) {
+            const sheet = XLSX.utils.json_to_sheet(data);
+            this.openDownloadDialog(
+                this.sheet2blob(sheet, shname),
+                `${wbname}.xlsx`
+            );
+        },
+        // dic => sheet, if set the header, the columns' name should been put the first place.
+        dic_toExcel(data, wbname, shname = "data") {
+            const sheet = XLSX.utils.aoa_to_sheet(Object.entries(data));
+            this.openDownloadDialog(
+                this.sheet2blob(sheet, shname),
+                `${wbname}.xlsx`
+            );
+        },
+    };
+    const control_pannel = {
+        collect() {
+            console.log("wait a few seconds, data is retrieving...");
+            dataBaseInstance.getAll(["collection"]).then((results) => {
+                const result = results[0];
+                if (!result) {
+                    console.log("no data");
+                    return;
+                }
+                if (result.status === "fulfilled") {
+                    const data = result.value.data;
+                    for (const e of data) {
+                        const tags = e.tags;
+                        if (tags && Array.isArray(tags))
+                            e.tags = tags.join(";");
+                    }
+                    data2Excel.json_toExcel(data, "collection_" + Date.now());
+                    console.log(
+                        "successfully retrieved all collected articles"
+                    );
+                } else console.log("failed to retrieve data");
+            });
+        },
+    };
+    const control_pannel_init = () => {
+        unsafeWindow.optimizer = {
+            collect: null,
+        };
+        let time_id = null;
+        Object.defineProperty(unsafeWindow.optimizer, "collect", {
+            enumerable: true,
+            configurable: true,
+            get() {
+                return "input: 'optimier.collect = true;' || download all collected articles as excel file";
+            },
+            set(value) {
+                if (value === true) {
+                    time_id && clearTimeout(time_id);
+                    time_id = setTimeout(() => control_pannel.collect(), 300);
+                }
+            },
+        });
     };
     const MangeData = {
         importData: {
@@ -8165,6 +8283,11 @@
                 .Sticky.RichContent-actions.is-fixed.is-bottom{position: inherit !important}
                 .Comments-container,
                 .Post-RichTextContainer{width: 900px !important;}
+                .highlight{
+                    box-shadow: rgb(170, 170, 170) 0px 0px 4px 0px;
+                    box-sizing: border-box !important;
+                    overflow-wrap: break-word !important;
+                }
                 ${
                     mode === 0 && GM_getValue("topnopicture")
                         ? ".TitleImage,"
@@ -8223,6 +8346,7 @@
                         unsafeWindow.addEventListener("visibilitychange", () =>
                             this.visibleChange(document.hidden)
                         );
+                        control_pannel_init();
                     } else this.column_homePage(this.Column.main(1));
                     setTimeout(() => this.show_Total.main(true), 30000);
                     this.key_ctrl_sync(true);
