@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.7
+// @version      3.5.3.8
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -6184,6 +6184,15 @@
             }, 50);
         },
         column_homePage(mode) {
+            // 这个css被从页面移除掉了
+            const css = `
+            <link
+                rel="stylesheet"
+                type="text/css"
+                href="https://static.zhihu.com/heifetz/main.shared_a7b367b7bf06fb0fc5585fec26d0675bd42be57e_CSS.216a26f4.9e02bee3c14871521874.css"
+                crossorigin="anonymous"
+            />`;
+            document.head.insertAdjacentHTML('beforeend', css);
             const ch = document.getElementsByClassName("ColumnHome")[0];
             let chs = ch.children;
             let i = chs.length;
@@ -6495,20 +6504,22 @@
                     node || this.get_content_element(item, targetElements);
                 if (!content) return false;
                 const text = content.innerText;
-                return blackKey.some((e) => {
-                    if (text.includes(e)) {
-                        colorful_Console.main(
-                            {
-                                title: "content block:",
-                                content: "rubbish word " + e,
-                            },
-                            colorful_Console.colors.warning
-                        );
-                        this.hidden_item(item, targetElements);
-                        return true;
-                    }
-                    return false;
-                });
+                return text.length > 1500
+                    ? false
+                    : blackKey.some((e) => {
+                          if (text.includes(e)) {
+                              colorful_Console.main(
+                                  {
+                                      title: "content block:",
+                                      content: "rubbish word " + e,
+                                  },
+                                  colorful_Console.colors.warning
+                              );
+                              this.hidden_item(item, targetElements);
+                              return true;
+                          }
+                          return false;
+                      });
             },
             hidden_item(item, targetElements) {
                 (item.className === "ContentItem AnswerItem"
@@ -6675,6 +6686,21 @@
                 }
                 return null;
             },
+            search_clear(target) {
+                if (
+                    target.localName === "a" &&
+                    target.search.includes("&hybrid_search")
+                ) {
+                    const href = target.href.split("&search_source");
+                    href.length > 1 &&
+                        GM_openInTab(href[0] + "&type=content", {
+                            insert: true,
+                            active: true,
+                        });
+                    return true;
+                }
+                return false;
+            },
             clickMonitor(node, targetElements) {
                 if (this.isMonitor) return;
                 const tags = ["blockquote", "p", "br", "li"];
@@ -6744,7 +6770,14 @@
                         targetElements
                     );
                     if (!item) {
-                        if (className !== targetElements.expand) return;
+                        if (className !== targetElements.expand) {
+                            if (this.search_clear(target)) {
+                                e.preventDefault();
+                                e.stopImmediatePropagation();
+                                e.stopPropagation();
+                            }
+                            return;
+                        }
                         for (const node of e.path) {
                             const className = node.className;
                             if (
@@ -8018,7 +8051,6 @@
                     max-width: 1000px !important;
                     min-width: 1000px !important;
                 }
-                .Post-RichTextContainer .Catalog.isCatalogV2{display: none !important;}
                 .RichContent.RichContent--unescapable{width: 100% !important;}
                 figure{max-width: 70% !important;}
                 .RichContent-inner{
@@ -8295,6 +8327,7 @@
                 }
                 a[href*="u.jd.com"],
                 .RichText-MCNLinkCardContainer,
+                .Post-RichTextContainer .Catalog.isCatalogV2,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
