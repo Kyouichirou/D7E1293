@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.8
+// @version      3.5.3.9
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -1008,6 +1008,15 @@
     }
     const dataBaseInstance = {
         db: null,
+        auto_tags() {
+            const tags = document.getElementsByClassName("Tag-content");
+            const arr = [];
+            for (const tag of tags) {
+                const text = tag.innerText.trim();
+                text && arr.push(text);
+            }
+            return arr.length > 0 ? arr.join(" ") : null;
+        },
         additem(columnID, node, pid) {
             const info = {};
             info.pid = pid || this.pid;
@@ -1052,7 +1061,7 @@
                 }
             }
             info.ColumnID = columnID || "";
-            const defaultV = "A B";
+            const defaultV = this.auto_tags() || "A B";
             const p = prompt(
                 "please input some tags about this article, like: javascript python; multiple tags use blank space to isolate",
                 defaultV
@@ -6192,7 +6201,7 @@
                 href="https://static.zhihu.com/heifetz/main.shared_a7b367b7bf06fb0fc5585fec26d0675bd42be57e_CSS.216a26f4.9e02bee3c14871521874.css"
                 crossorigin="anonymous"
             />`;
-            document.head.insertAdjacentHTML('beforeend', css);
+            document.head.insertAdjacentHTML("beforeend", css);
             const ch = document.getElementsByClassName("ColumnHome")[0];
             let chs = ch.children;
             let i = chs.length;
@@ -6692,11 +6701,14 @@
                     target.search.includes("&hybrid_search")
                 ) {
                     const href = target.href.split("&search_source");
-                    href.length > 1 &&
-                        GM_openInTab(href[0] + "&type=content", {
+                    if (href.length > 1) {
+                        const a = href[0] + "&type=content";
+                        GM_openInTab(a, {
                             insert: true,
                             active: true,
                         });
+                        target.href = a;
+                    }
                     return true;
                 }
                 return false;
@@ -6708,13 +6720,19 @@
                 if (!node) return;
                 node.onclick = (e) => {
                     //when open reader mode, if create click event of document, no node
+                    const target = e.target;
+                    if (this.search_clear(target)) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                        e.stopPropagation();
+                        return;
+                    }
                     if (this.isReader) return;
                     let limit = true;
                     if (targetElements.index < 2)
                         limit = e.path.some(
                             (a) => a.className === targetElements.header
                         );
-                    const target = e.target;
                     const localName = target.localName;
                     if (limit && tags.includes(localName)) {
                         if (target.style.color || this.foldAnswer.editableMode)
@@ -6770,14 +6788,7 @@
                         targetElements
                     );
                     if (!item) {
-                        if (className !== targetElements.expand) {
-                            if (this.search_clear(target)) {
-                                e.preventDefault();
-                                e.stopImmediatePropagation();
-                                e.stopPropagation();
-                            }
-                            return;
-                        }
+                        if (className !== targetElements.expand) return;
                         for (const node of e.path) {
                             const className = node.className;
                             if (
@@ -8019,7 +8030,7 @@
             const common = `
                 .ModalExp-content{display: none !important;}
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
-                body{background-attachment: fixed;text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
+                body{background-attachment: fixed !important;text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
             const showfold = `
                 .fold_element{
                     max-height: 24px;
