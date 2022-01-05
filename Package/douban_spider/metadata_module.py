@@ -77,10 +77,10 @@ class Subject:
             '托', '读', '释', '解', '社', '序',
             '摄', '绘', '注', '写', '录', '佚',
             '笔', '题', '摘', '辑', '诗', '藏',
-            '章', '等', '审', '写', '创',
+            '章', '等', '审', '写', '创', '校',
             '补', '述', '划', '原', '书', '你',
-            '.', '•', '！', '@', '出', '稿',
-            '请', '私', '丸', '讲', '族'
+            '.', '•', '！', '@', '出', '稿', '太',
+            '请', '私', '丸', '讲', '族', '世'
         )
         self.dynasty = (
             "秦",
@@ -100,11 +100,13 @@ class Subject:
             '辽',
             '满',
             '蒙',
-            '蜀'
+            '蜀',
+            '吴',
+            '金'
         )
         self.check_nation = False
         self.pre_dy = ('前', '后', '西', '东', '北', '南', '晚')
-        self.clist_2 = [
+        self.clist_2 = (
             '北京', '杭州',
             '深圳', '南京',
             '广州', '西安',
@@ -116,7 +118,7 @@ class Subject:
             '十国', '南北',
             '十六', '北朝',
             '高丽'
-        ]
+        )
         self.__nation_abridge_e = (
             'us',
             'ca',
@@ -148,6 +150,10 @@ class Subject:
             '新西兰',
             '新加坡',
             '台湾'
+        )
+        self.__number_limit = (
+            ('pages', 16777215),
+            ('tag_nums', 32767)
         )
         if not os.path.exists(self.pic_folder):
             os.mkdir(self.pic_folder)
@@ -367,6 +373,10 @@ class Subject:
                     b = '古巴'
                 elif b == '匈':
                     b = '匈牙利'
+                elif b == '倭':
+                    b = '日'
+                elif b == '义':
+                    b = '意'
         elif i == 2:
             if f:
                 n = text.lower()
@@ -383,6 +393,8 @@ class Subject:
                     b = '伊朗'
                 elif text == '罗马':
                     b = '意'
+                elif text == '雅典':
+                    b = '希腊'
                 else:
                     if text in self.clist_2:
                         b = '中'
@@ -397,7 +409,7 @@ class Subject:
                         elif c in self.dynasty and (d == '朝' or d == '初' or d == '国' or d == '代'):
                             b = '中'
                         elif d == '国':
-                            b = '中' if d == '民' else c
+                            b = '中' if c == '民' else c
         elif i == 3:
             if '罗马' in text or text == '意大利':
                 b = '意'
@@ -412,21 +424,26 @@ class Subject:
         else:
             if '澳大利亚' == text:
                 b = '澳'
-            elif '德国' in text:
-                b = '德'
-            elif '澳门' in text:
-                b = '澳门'
-            elif '香港' in text:
-                b = '香港'
-            elif text[0] == '古' and '阿拉伯' in text:
+            elif '南斯拉夫' in text:
+                b = '塞尔维亚'
+            elif '古阿拉伯' in text:
                 b = '沙特'
         if b:
             self.check_nation = False
         else:
-            if i > 2 and any(e in text for e in self.clist_2):
-                b = '中'
-            elif i > 2 and '台湾' in text:
-                b = '台湾'
+            if i > 2:
+                if any(e in text for e in self.clist_2):
+                    b = '中'
+                elif '台湾' in text:
+                    b = '台湾'
+                elif '澳门' in text:
+                    b = '澳门'
+                elif '香港' in text:
+                    b = '香港'
+                elif '德国' in text:
+                    b = '德'
+                if b:
+                    self.check_nation = False
             else:
                 if any(e in text for e in self.clist):
                     return ''
@@ -448,14 +465,19 @@ class Subject:
         if author:
             # match, 从字符串开始的位置匹配
             if ms := self.nation_reg.match(author):
-                text = self.nation_c_reg.sub('', ms.group(1))
+                tmp = ms.group(1)
+                if len(author) - len(tmp) == 2:
+                    return
+                text = self.nation_c_reg.sub('', tmp)
                 info['nation'] = self.__nation_handle(text)
             else:
                 # search, 找到匹配的即返回结果
                 if ms := self.nation_reg.search(author):
                     tmp = ms.group(1)
+                    if len(author) - len(tmp) == 2:
+                        return
                     text = self.nation_c_reg.sub('', tmp)
-                    if tmp and len(tmp) < 7:
+                    if tmp and len(tmp) < 8:
                         if self.num_reg.search(text):
                             return
                         self.check_nation = True
@@ -755,6 +777,13 @@ class Subject:
             tag, info['tag_nums'] = tags
         return info, discuss, tag
 
+    def __check_number(self, info):
+        for e in self.__number_limit:
+            name = e[0]
+            if info[name] > e[1]:
+                logger.debug(f'out of range: {name, info[name]}')
+                info[name] = 0
+
     @logger.decorator('extract_data')
     def extract_meta(self, dom, detail, db_id):
         # 提取所有的数据
@@ -825,6 +854,7 @@ class Subject:
         discuss = self.__dy_data(dom, info)
         # 如果作者没有id, 则获取内容的作者简介
         author = self.__get_author(dom) if not info['author_id'] else None
+        self.__check_number(info)
         return info, abstract, tags, discuss, relate, self.check_nation, contents, author
 
 
