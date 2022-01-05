@@ -77,10 +77,11 @@ class Crawler:
         self.cookies = {}
         # time
         self.__time_tuning_a = (
-            (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82, 0.6), (0.81, 0.65), (0.78, 0.7), (0.74, 0.75),
-            (0.71, 0.8))
-        self.__time_tuning_b = ((0.62, 1.15), (0.63, 1.1), (0.66, 1.05), (0.69, 1))
+            (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82, 0.6), (0.78, 0.7), (0.75, 0.75), (0.72, 0.85),
+            (0.7, 0.9))
+        self.__time_tuning_b = ((0.6, 1.15), (0.62, 1.1), (0.64, 1.05), (0.66, 1))
         self.speed_ratio = 1
+        self.is_hand_speed = False
         self.start_time = 0
         self.a_time = 0
         self.b_time = 0
@@ -130,9 +131,9 @@ class Crawler:
             if compare(r_mean, e[0]):
                 self.speed_ratio = e[1]
                 return
-        if self.total > 2000:
-            q = 1 - self.total // 1000 * 0.017
-            if 0.5 < q < 1:
+        if self.total > 1500:
+            q = 1 - self.total // 900 * 0.017
+            if 0.3 < q < 1:
                 self.speed_ratio = q
 
     def __update_parameters(self):
@@ -140,6 +141,7 @@ class Crawler:
         r_mean = self.request_time_mean
         if r_mean > 0.95:
             self.slow_times += 1
+            self.speed_ratio = 0.2
             if self.slow_times > 45 and self.counter > 300:
                 print('network too slow')
                 self.too_slow = True
@@ -151,7 +153,19 @@ class Crawler:
             else:
                 self.logger.info(f'slow {r_mean}')
         else:
-            self.total > 800 and self.__adjust_time(r_mean > 0.71, r_mean)
+            t = self.total
+            if t > 800:
+                if self.is_hand_speed:
+                    if r_mean < 0.55:
+                        if self.speed_ratio < 0.85:
+                            self.speed_ratio = 0.85
+                    elif r_mean > 0.9:
+                        if self.speed_ratio > 0.3:
+                            self.speed_ratio = 0.3
+                    elif t > 1000 and r_mean > 0.72 and self.speed_ratio > 0.8:
+                        self.__adjust_time(True, r_mean)
+                else:
+                    self.__adjust_time(r_mean > 0.7, r_mean)
             if self.slow_times > 0:
                 self.slow_times -= 1
         if self.cookies:
