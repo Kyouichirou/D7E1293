@@ -14,13 +14,15 @@ class Control:
         self.key_press = False
         self.reset_flag = False
         self.exit_flag = False
+        self.is_cancel = False
         self.network_reset = False
         self.is_waiting = False
+        self.__router = None
         self.spider, self.crawler = None, None
 
-    @staticmethod
-    def __reconnect_excute(session):
+    def __reconnect_excute(self, session):
         with router_module.Network(session) as net:
+            self.__router = net
             return net.reconnect()
 
     @property
@@ -38,9 +40,9 @@ class Control:
         om.notification_voice(
             f'warning, your sipder has been found. Now, I need reset the rounter, you can cancel the operation within {wait_time} seconds')
         self.waiting_show(counter)
-        if self.exit_flag:
+        if self.exit_flag or self.is_cancel:
             return False
-        if self.reset_flag is not True and counter == 100:
+        if self.reset_flag is not True and not self.key_press and counter == 100:
             self.reset_flag = True
             print('automatically reconnect the router...')
         self.network_reset = False
@@ -58,6 +60,8 @@ class Control:
                     break
                 print('\b' * (len(s) * 2) + c, end='', flush=True)
                 time.sleep(0.15)
+        if self.is_cancel or self.exit_flag:
+            return
         print(f'\n{"timeout" if i == counter - 1 else "......"}')
         self.key_press = False
         if self.is_waiting:
@@ -81,6 +85,7 @@ class Control:
                 elif k == 78 or k == 110:
                     # no, cancel connect
                     print('\nyou have canceled the reconnection of router')
+                    self.is_cancel = True
                     self.reset_flag = False
                     self.key_press = True
                     break
@@ -92,6 +97,8 @@ class Control:
                     else:
                         if self.is_waiting:
                             self.spider.is_waiting = False
+                        if self.__router:
+                            self.__router.is_concel = True
                         print('your task is being canceled and waiting seconds...')
                         self.exit_flag = True
                         self.spider.is_break = True
@@ -114,10 +121,26 @@ class Control:
                     self.__control_speed(False)
 
     def __control_speed(self, mode: bool):
-        self.spider.speed_ratio += 0.1 if mode else -0.1
-        if self.spider.speed_ratio < 0.1:
-            self.spider.speed_ratio = 0.1
-        print(f'spider speed ratio: {self.spider.speed_ratio}')
+        sp = self.spider.speed_ratio
+        sp += 0.05 if mode else -0.05
+        if sp < 0.1:
+            if not mode:
+                cp = self.crawler.speed_ratio - 0.04
+                if cp > 0.3:
+                    self.crawler.speed_ratio = cp
+                    self.crawler.is_hand_speed = True
+                    print(f'crawler speed ratio: {cp}')
+                else:
+                    print('speed of slow has reached the limit')
+        else:
+            if sp < 1.1:
+                self.spider.speed_ratio = sp
+                print(f'spider speed ratio: {sp}')
+            elif mode:
+                cp = self.crawler.speed_ratio + 0.08
+                self.crawler.speed_ratio = cp
+                self.crawler.is_hand_speed = False
+                print(f'crawler speed ratio: {cp}')
 
     def start_key_event(self):
         th = threading.Thread(target=self.__key_contrl)
