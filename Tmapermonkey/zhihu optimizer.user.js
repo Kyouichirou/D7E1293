@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.3.9
+// @version      3.5.4.0
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -6513,7 +6513,7 @@
                     node || this.get_content_element(item, targetElements);
                 if (!content) return false;
                 const text = content.innerText;
-                return text.length > 1500
+                return text.length > 2500
                     ? false
                     : blackKey.some((e) => {
                           if (text.includes(e)) {
@@ -7136,7 +7136,7 @@
                     headerTitle: "ContentItem-title",
                     contentID: "RichText ztext CopyrightRichText-richText",
                     expand: "RichContent-inner",
-                    inserButtonID: "TopicActions TopicMetaCard-actions",
+                    inserButtonID: "TopicActions",
                     zone: ["/top-answers", "/hot", "newest"],
                     blockValueName: "blacktopicAndquestion",
                     index: index,
@@ -9930,7 +9930,7 @@
                     } else if (p) {
                         if (p.length > 1) return null;
                         const tmp = p[0];
-                        type[tmp[0]] = tmp[2];
+                        type[tmp[0]] = tmp.slice(2);
                     } else if (a) {
                         if (a.length > 1) return null;
                         const tmp = a[0];
@@ -10068,7 +10068,7 @@
                             const tmp = type[f];
                             if (Array.isArray(tmp) || typeof tmp !== "object") {
                                 if (f === "p") {
-                                    dataBaseInstance.check().then(
+                                    dataBaseInstance.check(tmp).then(
                                         (r) => {
                                             const html = [];
                                             if (r) {
@@ -10119,7 +10119,7 @@
                             node,
                             appendNewNode
                         );
-                        if (fs.length === 0) return;
+                        if (!fs || fs.length === 0) return;
                         this.search(
                             table,
                             fs,
@@ -10919,6 +10919,7 @@
                     "with",
                     "yield",
                 ];
+                node.title = "Ctrl + Right mouse button to copy this code";
                 const code = node.getElementsByClassName("language-text");
                 if (code.length === 0 || code[0].childNodes.length > 1) return;
                 let html = code[0].innerHTML;
@@ -10986,54 +10987,61 @@
                     return;
                 }
                 holder = holder[0];
-                // text is too much or too little
+                // text is too long
                 const t_length = holder.innerText.length;
-                if (t_length < 120 || t_length > 12000) return;
-                this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
-                !this.blue && (this.index = 255);
-                const tags = ["p", "ul", "li", "ol", "blockquote"];
-                const textNode = [];
-                let i = -1;
-                let code = false;
-                const tips = "Ctrl + Right mouse button to copy this code";
-                for (const node of holder.childNodes) {
-                    i++;
-                    const type = node.nodeType;
-                    //text node deal with separately
-                    if (type === 3) {
-                        textNode.push(i);
-                        continue;
-                    } else if (!tags.includes(node.tagName.toLowerCase())) {
-                        //the continuity of content is interrupted, reset the color;
-                        this.resetColor();
-                        if (node.className === "highlight") {
-                            this.codeHighlight(node);
-                            node.title = tips;
-                            code = true;
+
+                if (t_length < 9000) {
+                    let code = false;
+                    this.blue = Math.ceil(Math.random() * 100) % 2 === 0;
+                    !this.blue && (this.index = 255);
+                    const tags = ["p", "ul", "li", "ol", "blockquote"];
+                    const textNode = [];
+                    let i = -1;
+                    for (const node of holder.childNodes) {
+                        i++;
+                        const type = node.nodeType;
+                        //text node deal with separately
+                        if (type === 3) {
+                            textNode.push(i);
+                            continue;
+                        } else if (!tags.includes(node.tagName.toLowerCase())) {
+                            //the continuity of content is interrupted, reset the color;
+                            this.resetColor();
+                            if (node.className === "highlight") {
+                                this.codeHighlight(node);
+                                code = true;
+                            }
+                            continue;
                         }
-                        continue;
+                        this.arr = [];
+                        this.nodeCount = 0;
+                        this.getItem(node);
                     }
-                    this.arr = [];
-                    this.nodeCount = 0;
-                    this.getItem(node);
-                }
-                i = textNode.length;
-                if (i > 0) {
-                    for (i; i--; ) {
-                        let node = holder.childNodes[textNode[i]];
-                        const text = node.nodeValue;
-                        if (text) {
-                            this.arr = [];
-                            this.textDetach(text);
-                            const iNode = document.createElement("colorspan");
-                            holder.insertBefore(iNode, node);
-                            iNode.outerHTML = this.arr.join("");
-                            node.remove();
+                    i = textNode.length;
+                    if (i > 0) {
+                        for (i; i--; ) {
+                            let node = holder.childNodes[textNode[i]];
+                            const text = node.nodeValue;
+                            if (text) {
+                                this.arr = [];
+                                this.textDetach(text);
+                                const iNode =
+                                    document.createElement("colorspan");
+                                holder.insertBefore(iNode, node);
+                                iNode.outerHTML = this.arr.join("");
+                                node.remove();
+                            }
                         }
                     }
+                    this.arr = null;
+                    code && this.rightClickCopyCode.main(holder);
+                } else {
+                    const codes = holder.getElementsByClassName("highlight");
+                    if (codes.length > 0) {
+                        for (const node of codes) this.codeHighlight(node);
+                        this.rightClickCopyCode.main(holder);
+                    }
                 }
-                code && this.rightClickCopyCode.main(holder);
-                this.arr = null;
             },
         },
         userPage: {
