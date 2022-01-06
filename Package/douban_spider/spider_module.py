@@ -314,9 +314,9 @@ class Sipder:
             tag_table = []
             for tag in tags:
                 # 当数据的来源是遍历tag时, 可以剔除掉该值, 在tag集中插入数据
-                if tag.startswith('\\', 0, 1):
+                if len(tag) > 1 and tag.startswith('\\'):
                     # 部分标签存在异常字符'\\'
-                    self.logger.debugger(f'abnormal tagname: {tag}')
+                    self.logger.debug(f'abnormal tagname: {tag}')
                     if not self.tag_list:
                         self.tag_list.append(tag)
                     continue
@@ -343,7 +343,7 @@ class Sipder:
         if counter % 20 == 0:
             self.speed_tune += 1
             q = self.speed_ratio
-            f = False
+            f = 0
             if q > 0.1:
                 q -= 0.032
                 self.speed_ratio = q
@@ -353,23 +353,25 @@ class Sipder:
                 if q > 0.72:
                     q -= 0.0045
                     self.crawler.is_hand_speed = True
-                elif q > 0.6:
-                    q -= 0.0012
-                elif q > 0.53:
-                    q -= 0.001
-                elif q > 0.42:
-                    q -= 0.0006
+                elif q > 0.52:
+                    q -= 0.00125
+                elif q > 0.5:
+                    q -= 0.0008
+                elif q > 0.4:
+                    q -= 0.0002
+                    f = 1
                 else:
-                    f = True
-                if not f:
+                    f = 2
+                if f < 2:
                     self.crawler.speed_ratio = q
                     print(f'c speed:        {q}')
             self.b_percent = counter / self.crawler.total < 0.3
             if self.speed_tune % 3 == 0:
                 self.database.commit()
-                if f and self.speed_tune % 9 == 0:
-                    self.speed_ratio = 0.3
-                    self.speed_tune = 0
+                if f:
+                    if self.speed_tune == 6:
+                        self.speed_ratio = 0.3
+                        self.speed_tune = 0
                 else:
                     self.speed_tune = 3
 
@@ -435,6 +437,7 @@ class Sipder:
                 self.database.add_series((series_id, 1, 0, series_id))
         # doulist
         self.__extra_doulist(dom)
+        # adjust speed
         self.__adjust()
         # relate
         if mode:
@@ -612,6 +615,11 @@ class Sipder:
         for tag in tags:
             if tag in self.tag_list:
                 continue
+            if len(tag) > 1 and tag.startswith('\\'):
+                # 部分标签存在异常字符'\\'
+                self.logger.debug(f'abnormal tagname: {tag}')
+                self.tag_list.append(tag)
+                continue
             if self.database.check_tag_404(tag):
                 self.tag_list.append(tag)
                 continue
@@ -679,9 +687,10 @@ class Sipder:
                 else:
                     if self.__is_404:
                         self.crawler.is_404 = False
+                        # 当标签404时
                         if page == 0 and i == 0 and sort == 0:
                             self.database.tag_404(tagname)
-                            break
+                            return
                         mode = i == k
                         self.__update_tag_state(
                             (tagname, page if mode else 0, i + 1, uptimes + 1 if mode else uptimes),
@@ -697,8 +706,9 @@ class Sipder:
                         dom if mode else None)
                     break
                 if self.__is_add_book:
+                    print(f'info: no add book {tagname}')
                     self.__is_add_book = False
-                    time.sleep(random.uniform(0.05, 0.5))
+                    time.sleep(random.uniform(0.1, 0.5))
                 refer = url
             # 中断执行
             if self.is_break:
