@@ -422,6 +422,9 @@ class Subject:
             elif text == '古埃及':
                 b = '埃及'
         else:
+            tmp = ('家', '太')
+            if any(e in text for e in tmp):
+                return ''
             if '澳大利亚' == text:
                 b = '澳'
             elif '南斯拉夫' in text:
