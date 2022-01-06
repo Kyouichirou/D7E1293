@@ -79,7 +79,7 @@ class Crawler:
         self.__time_tuning_a = (
             (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82, 0.6), (0.78, 0.7), (0.75, 0.75), (0.72, 0.85),
             (0.7, 0.9))
-        self.__time_tuning_b = ((0.6, 1.15), (0.62, 1.1), (0.64, 1.05), (0.66, 1))
+        self.__time_tuning_b = ((0.54, 1.15), (0.58, 1.1), (0.6, 1.08), (0.62, 1.05), (0.64, 1.02), (0.66, 1))
         self.speed_ratio = 1
         self.is_hand_speed = False
         self.start_time = 0
@@ -280,13 +280,13 @@ class Crawler:
                     s_time = 1.2
             elif types == 2:
                 self.__c_c += 1
-                if self.__c_c > 5:
+                if self.__c_c > 8:
                     self.too_slow = True
                 else:
                     s_time = 3.5
             elif types == 3:
                 self.__d_c += 1
-                if self.__d_c > 3:
+                if self.__d_c > 5:
                     self.too_error = True
                 else:
                     s_time = 10
