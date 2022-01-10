@@ -154,11 +154,13 @@ class Crawler:
                 self.logger.info(f'slow {r_mean}')
         else:
             t = self.total
-            if t > 800:
+            if t > 900:
                 if self.is_hand_speed:
-                    if r_mean < 0.55:
-                        if self.speed_ratio < 0.85:
-                            self.speed_ratio = 0.85
+                    if r_mean < 0.545:
+                        if r_mean < 0.532 and self.speed_ratio < 0.7:
+                            self.speed_ratio += 0.002
+                        elif self.speed_ratio > 0.72:
+                            self.speed_ratio -= 0.001
                     elif r_mean > 0.9:
                         if self.speed_ratio > 0.3:
                             self.speed_ratio = 0.3
@@ -187,8 +189,10 @@ class Crawler:
             )
             if s_mean < 0.55:
                 k = 6
-                if s_mean < 0.4:
+                if s_mean < 0.35:
                     self.extra_time += 0.205
+                elif s_mean < 0.4:
+                    self.extra_time += 0.162
                 elif s_mean < 0.45:
                     self.extra_time += 0.122
                 elif s_mean < 0.48:
