@@ -79,8 +79,9 @@ class Subject:
             '笔', '题', '摘', '辑', '诗', '藏',
             '章', '等', '审', '写', '创', '校',
             '补', '述', '划', '原', '书', '你',
-            '.', '•', '！', '@', '出', '稿', '太',
-            '请', '私', '丸', '讲', '族', '世'
+            'editor', '•', '！', '@', '出', '稿',
+            '请', '私', '丸', '讲', '族', '世',
+            'eds', '太', '.'
         )
         self.dynasty = (
             "秦",
@@ -102,7 +103,8 @@ class Subject:
             '蒙',
             '蜀',
             '吴',
-            '金'
+            '金',
+            '羌'
         )
         self.check_nation = False
         self.pre_dy = ('前', '后', '西', '东', '北', '南', '晚')
@@ -445,12 +447,13 @@ class Subject:
                     b = '香港'
                 elif '德国' in text:
                     b = '德'
-                if b:
-                    self.check_nation = False
+            if b:
+                self.check_nation = False
             else:
-                if any(e in text for e in self.clist):
+                tmp = text.lower() if f else text
+                if any(e in tmp for e in self.clist):
                     return ''
-                if self.check_nation and f:
+                elif self.check_nation and f:
                     return ''
         if b:
             return b
