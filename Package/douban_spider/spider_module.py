@@ -93,7 +93,6 @@ class Sipder:
         self.is_protect = False
         self.is_waiting = False
         self.__is_404 = False
-        self.__is_add_book = False
         # 限制递归的深度, 值不能设置过大, 以免出现堆栈溢出
         self.iteration = self.iterations = depth if 0 < depth < sys.getrecursionlimit() * 0.12 else 75
         # 记录-缓存
@@ -101,6 +100,7 @@ class Sipder:
         self.speed_tune = 0
         self.__r_list = (23, 7, 17, 11, 2, 19, 37, 5, 13, 41, 29, 1, 31, 37, 3)
         #
+        self.__d_counter = 0
         self.b_percent = False
         self.book_counter = 0
         self.book_list = []
@@ -314,7 +314,7 @@ class Sipder:
             tag_table = []
             for tag in tags:
                 # 当数据的来源是遍历tag时, 可以剔除掉该值, 在tag集中插入数据
-                if len(tag) > 1 and tag.startswith('\\'):
+                if len(tag) > 1 and tag.startswith('\\') and tag.endswith('/'):
                     # 部分标签存在异常字符'\\'
                     self.logger.debug(f'abnormal tagname: {tag}')
                     if not self.tag_list:
@@ -353,16 +353,21 @@ class Sipder:
                 if q > 0.72:
                     q -= 0.0045
                     self.crawler.is_hand_speed = True
+                elif q > 0.65:
+                    q -= 0.0005
+                elif q > 0.6:
+                    q -= 0.0035
                 elif q > 0.52:
                     q -= 0.00125
                 elif q > 0.5:
-                    q -= 0.0008
-                elif q > 0.4:
                     q -= 0.0002
                     f = 1
-                else:
+                elif q > 0.45:
+                    q -= 0.0001
                     f = 2
-                if f < 2:
+                else:
+                    f = 3
+                if f < 3:
                     self.crawler.speed_ratio = q
                     print(f'c speed:        {q}')
             self.b_percent = counter / self.crawler.total < 0.3
@@ -370,7 +375,7 @@ class Sipder:
                 self.database.commit()
                 if f:
                     if self.speed_tune == 6:
-                        self.speed_ratio = 0.3
+                        self.speed_ratio = random.uniform(0.1, 0.6)
                         self.speed_tune = 0
                 else:
                     self.speed_tune = 3
@@ -472,19 +477,6 @@ class Sipder:
             page += 1
             refer = url
 
-    # ----------------------------- work_module
-    def __add_book_from_work(self, same_id, update_times):
-        # 注意该页面的所有数据都是放在一个页面里, 并不是翻页
-        url = f'https://book.douban.com/works/{same_id}'
-        if dom := self.__get_dom(url, host='book.douban.com'):
-            if datas := self.__metadata.work.get_same_book(dom):
-                if self.__douban_id_iteration(datas, url):
-                    self.database.update_work((update_times + 1, same_id))
-        else:
-            if self.__is_404:
-                self.crawler.is_404 = False
-                self.database.work_404(same_id)
-
     def __unfinished_task(self, mode):
         tasks = (
             self.__unfinided_tag_book,
@@ -543,8 +535,21 @@ class Sipder:
     def __update_tag(self, update):
         pass
 
+    # ----------------------------- work_module
+    def __add_book_from_work(self, same_id, update_times):
+        # 注意该页面的所有数据都是放在一个页面里, 并不是翻页
+        url = f'https://book.douban.com/works/{same_id}'
+        if dom := self.__get_dom(url, host='book.douban.com'):
+            if datas := self.__metadata.work.get_same_book(dom):
+                if self.__douban_id_iteration(datas, url):
+                    self.database.update_work((update_times + 1, same_id))
+        else:
+            if self.__is_404:
+                self.crawler.is_404 = False
+                self.database.work_404(same_id)
+
     @break_decrator
-    def __unfinished_work_book(self):
+    def __unfinished_work_book(self, mode=False):
         # 一本书不同版本
         while True:
             data = self.database.get_same_book()
@@ -555,6 +560,8 @@ class Sipder:
                         return
             else:
                 break
+            if mode:
+                break
 
     # --------------------- work_module
 
@@ -564,7 +571,7 @@ class Sipder:
 
     @break_decrator
     def __add_book_from_series(self, series_id, page, update_times):
-        refer = self.crawler.random_refer
+        refer = ''
         while True:
             url = f'https://book.douban.com/series/{series_id}?page={page}'
             dom = self.__get_dom(url, refer=refer, host='book.douban.com')
@@ -595,7 +602,7 @@ class Sipder:
             refer = url
 
     @break_decrator
-    def __unfinished_series_book(self):
+    def __unfinished_series_book(self, mode=False):
         # 正常, 10
         while True:
             datas = self.database.get_series()
@@ -606,6 +613,8 @@ class Sipder:
                         return
             else:
                 break
+            if mode:
+                break
 
     # series_module -----------------------------
 
@@ -615,7 +624,7 @@ class Sipder:
         for tag in tags:
             if tag in self.tag_list:
                 continue
-            if len(tag) > 1 and tag.startswith('\\'):
+            if len(tag) > 1 and tag.startswith('\\') and tag.endswith('/'):
                 # 部分标签存在异常字符'\\'
                 self.logger.debug(f'abnormal tagname: {tag}')
                 self.tag_list.append(tag)
@@ -655,7 +664,6 @@ class Sipder:
         # 标签页下的页面和内容并不完全一致, 部分的页面没有展示的页码, 但是实际上继续访问页面依然存在内容
         refer = ''
         for i, t in enumerate(stype):
-            self.__is_add_book = False
             while True:
                 url = f'{pref}{tag}?start={page * 20}&type={t}'
                 if dom := self.__get_dom(url, refer=refer, host='book.douban.com'):
@@ -670,7 +678,7 @@ class Sipder:
                             tmp_list.append(e)
                         if tbs:
                             self.database.add_tag_book(tbs)
-                        if self.__douban_id_iteration(data, url) and counter < 16:
+                        if self.__douban_id_iteration(data, url, is_tag=True) and counter < 16:
                             # 注意部分的标签的数据差异很大, 不同的排列方式
                             # 切换到下一个排列方式时, 或者页面已经全部访问完
                             mode = i == k
@@ -705,16 +713,13 @@ class Sipder:
                         (tagname, page - 1 if mode else 0, i + 1, uptimes + 1 if mode else uptimes),
                         dom if mode else None)
                     break
-                if self.__is_add_book:
-                    print(f'info: no add book {tagname}')
-                    self.__is_add_book = False
-                    time.sleep(random.uniform(0.1, 0.5))
                 refer = url
             # 中断执行
             if self.is_break:
                 self.__update_tag_state((tagname, page, i, uptimes))
                 return
             page = 0
+        self.__unfinished_doulist_book(mode=True)
 
     @break_decrator
     def __unfinided_tag_book(self):
@@ -799,6 +804,8 @@ class Sipder:
         # 20, 正常
         refer = ''
         tmp_list = []
+        self.dou_list.append(doulist_id)
+        self.__d_counter += 1
         while True:
             url = f'https://www.douban.com/doulist/{doulist_id}/?start={page * 25}&sort=time&playable=0&sub_type='
             if dom := self.__get_dom(url, refer=refer, host='www.douban.com'):
@@ -811,6 +818,7 @@ class Sipder:
                         db_id = int(e[0])
                         if db_id in tmp_list:
                             continue
+                        # 添加到doulistd的时间
                         # 因为需要将字符串日期格式化, 故而在添加数据前先执行数据检测
                         elif self.__check_doulist_book((doulist_id, db_id)):
                             tmp_list.append(db_id)
@@ -844,7 +852,12 @@ class Sipder:
             page += 1
             refer = url
 
-    def __unfinished_doulist_book(self):
+        if self.__d_counter == 200:
+            self.__unfinished_series_book(mode=True)
+            self.__unfinished_work_book(mode=True)
+            self.__d_counter = 0
+
+    def __unfinished_doulist_book(self, mode=False):
         while True:
             if data := self.database.get_doulist():
                 for e in data:
@@ -852,6 +865,8 @@ class Sipder:
                     if self.is_break:
                         return
             else:
+                break
+            if mode:
                 break
 
     # doulist_module-----------------------------------------
@@ -882,10 +897,9 @@ class Sipder:
 
     # check_module --------------------------------------
     @break_decrator
-    def __douban_id_iteration(self, data: set or tuple or list, refer=''):
+    def __douban_id_iteration(self, data: set or tuple or list, refer='', is_tag=False):
         i = len(data)
-        k = 0
-        j = 0
+        j = k = 0
         for db_id in data:
             if self.__check_douban_id(db_id):
                 j += 1
@@ -894,7 +908,8 @@ class Sipder:
             k += 1
             if self.is_break:
                 break
-        self.__is_add_book = j == i
+        if is_tag and j == i and not self.is_break:
+            time.sleep(random.uniform(0.1, 0.5))
         return i == k
 
     # get dom and status_code
