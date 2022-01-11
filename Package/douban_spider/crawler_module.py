@@ -77,7 +77,7 @@ class Crawler:
         self.cookies = {}
         # time
         self.__time_tuning_a = (
-            (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82, 0.6), (0.78, 0.7), (0.75, 0.75), (0.72, 0.85),
+            (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82,   0.6), (0.78, 0.7), (0.75, 0.75), (0.72, 0.85),
             (0.7, 0.9))
         self.__time_tuning_b = ((0.54, 1.15), (0.58, 1.1), (0.6, 1.08), (0.62, 1.05), (0.64, 1.02), (0.66, 1))
         self.speed_ratio = 1
@@ -157,7 +157,7 @@ class Crawler:
             if t > 900:
                 if self.is_hand_speed:
                     if r_mean < 0.545:
-                        if r_mean < 0.532 and self.speed_ratio < 0.7:
+                        if r_mean < 0.535 and self.speed_ratio < 0.72:
                             self.speed_ratio += 0.002
                         elif self.speed_ratio > 0.72:
                             self.speed_ratio -= 0.001
@@ -166,6 +166,7 @@ class Crawler:
                             self.speed_ratio = 0.3
                     elif t > 1000 and r_mean > 0.72 and self.speed_ratio > 0.8:
                         self.__adjust_time(True, r_mean)
+                        self.speed_ratio *= 0.9
                 else:
                     self.__adjust_time(r_mean > 0.7, r_mean)
             if self.slow_times > 0:
@@ -257,10 +258,11 @@ class Crawler:
             f'scraping_{self.total}/{self.top_limit}/{(str((self.total / self.top_limit) * 100) + "00")[0:5] + "%"}:\
             {url[url.find("com") + 4:]}')
 
-    def __handle_404(self):
+    def __handle_404(self, url):
         time.sleep(random.uniform(0.01, 3.5))
         self.counter -= 1
         self.is_404 = True
+        self.logger.debug(f'404: {url}')
 
     def __error_handle(self, url: str, types: int, error):
         print('error: ' + url, error)
@@ -319,7 +321,7 @@ class Crawler:
             if self.__httpx.is_404:
                 print(f'{code} => 404, {url}')
                 self.__httpx.is_404 = False
-                self.__handle_404()
+                self.__handle_404(url)
             else:
                 self.__error_handle(url, 3 if code == 302 else 2, code)
         return None
@@ -387,7 +389,7 @@ class Crawler:
             elif code == 403:
                 self.__error_handle(url, 2, code)
             elif code == 404:
-                self.__handle_404()
+                self.__handle_404(url)
             elif code == 307:
                 self.__error_handle(url, 0, code)
             else:
