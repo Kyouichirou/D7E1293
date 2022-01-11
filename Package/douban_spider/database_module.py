@@ -120,10 +120,10 @@ class DatabaseInstance:
     def get_series(self, update=0, limit=2):
         return self.__db_get.series(update, limit)
 
-    def get_same_book(self, update=0, limit=10):
+    def get_same_book(self, update=0, limit=2):
         return self.__db_get.work(update, limit)
 
-    def get_doulist(self, update=0, limit=2):
+    def get_doulist(self, update=0, limit=50):
         return self.__db_get.doulist(update, limit)
 
     def get_book(self, update=0, limit=100):
