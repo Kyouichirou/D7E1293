@@ -351,7 +351,7 @@ class Sipder:
             else:
                 q = self.crawler.speed_ratio
                 if q > 0.72:
-                    q -= 0.0045
+                    q -= 0.0055
                     self.crawler.is_hand_speed = True
                 elif q > 0.65:
                     q -= 0.0005
@@ -438,8 +438,9 @@ class Sipder:
             # series, 页码从1开始(不是0)
             # if not self.database.check_series(series_id):
             if series_id not in self.series_list:
+                if not self.__check_no_found(series_id, 1):
+                    self.database.add_series((series_id, 1, 0, series_id))
                 self.series_list.append(series_id)
-                self.database.add_series((series_id, 1, 0, series_id))
         # doulist
         self.__extra_doulist(dom)
         # adjust speed
@@ -538,11 +539,14 @@ class Sipder:
     # ----------------------------- work_module
     def __add_book_from_work(self, same_id, update_times):
         # 注意该页面的所有数据都是放在一个页面里, 并不是翻页
+        self.same_list.append(same_id)
         url = f'https://book.douban.com/works/{same_id}'
         if dom := self.__get_dom(url, host='book.douban.com'):
             if datas := self.__metadata.work.get_same_book(dom):
                 if self.__douban_id_iteration(datas, url):
                     self.database.update_work((update_times + 1, same_id))
+            else:
+                self.database.update_work((update_times + 1, same_id))
         else:
             if self.__is_404:
                 self.crawler.is_404 = False
@@ -572,6 +576,7 @@ class Sipder:
     @break_decrator
     def __add_book_from_series(self, series_id, page, update_times):
         refer = ''
+        self.series_list.append(series_id)
         while True:
             url = f'https://book.douban.com/series/{series_id}?page={page}'
             dom = self.__get_dom(url, refer=refer, host='book.douban.com')
@@ -579,7 +584,7 @@ class Sipder:
                 data = self.__metadata.series.get_items(dom)
                 if data:
                     counter = len(data)
-                    if self.__douban_id_iteration(data, url) and counter < 8:
+                    if self.__douban_id_iteration(data, url, is_tag=True, is_doulist=True) and counter < 8:
                         # 获取到最后一页, 并且遍历完数据, 则执行updat_times + 1
                         self.__update_series_state((series_id, page, update_times + 1))
                         break
@@ -742,6 +747,9 @@ class Sipder:
         for e in data:
             if e in self.dou_list:
                 continue
+            elif self.__check_no_found(e, 2):
+                self.dou_list.append(e)
+                continue
             new_data.append((e, 0, 0, e))
             self.dou_list.append(e)
         return new_data
@@ -806,12 +814,13 @@ class Sipder:
         tmp_list = []
         self.dou_list.append(doulist_id)
         self.__d_counter += 1
+        print(f'others: {self.__d_counter}')
         while True:
             url = f'https://www.douban.com/doulist/{doulist_id}/?start={page * 25}&sort=time&playable=0&sub_type='
             if dom := self.__get_dom(url, refer=refer, host='www.douban.com'):
                 if data := self.__metadata.doulist.get_items(dom):
                     counter = len(data)
-                    f = self.__douban_id_iteration([e[0] for e in data], url)
+                    f = self.__douban_id_iteration([e[0] for e in data], url, is_tag=True, is_doulist=True)
                     # doulist_book_table, (doulist_id, douban_id, add_time)
                     dbs = []
                     for e in data:
@@ -848,11 +857,11 @@ class Sipder:
                     break
             if self.is_break:
                 self.__update_doulist_state((doulist_id, page, update_times))
-                break
+                return
             page += 1
             refer = url
-
-        if self.__d_counter == 200:
+        if self.__d_counter == 300:
+            print('start others')
             self.__unfinished_series_book(mode=True)
             self.__unfinished_work_book(mode=True)
             self.__d_counter = 0
@@ -895,9 +904,12 @@ class Sipder:
     def __check_doulist_book(self, data):
         return self.database.check_doulist_book(data)
 
+    def __check_no_found(self, sid: int, itype: int):
+        return self.database.check_series_404(sid) if itype == 1 else self.database.check_doulist_404(sid)
+
     # check_module --------------------------------------
     @break_decrator
-    def __douban_id_iteration(self, data: set or tuple or list, refer='', is_tag=False):
+    def __douban_id_iteration(self, data: set or tuple or list, refer='', is_tag=False, is_doulist=False):
         i = len(data)
         j = k = 0
         for db_id in data:
@@ -909,7 +921,7 @@ class Sipder:
             if self.is_break:
                 break
         if is_tag and j == i and not self.is_break:
-            time.sleep(random.uniform(0.1, 0.5))
+            time.sleep(random.uniform(0.1, 0.3 if is_doulist else 0.5))
         return i == k
 
     # get dom and status_code
