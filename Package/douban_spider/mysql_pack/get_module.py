@@ -29,8 +29,8 @@ class Get(Database):
         return self.__query_data(sql)
 
     # 修改
-    def work(self, limit: int, update: int):
-        sql = f'select same_id, update_times from {self.table_names["work"]} where update_times={update} limit {limit};'
+    def work(self, update: int, limit: int):
+        sql = f'select same_id, update_times from {self.table_names["work"]} where update_times={update} and status_404=0 limit {limit};'
         return self.__query_data(sql)
 
     def series(self, update: int, limit: int):
