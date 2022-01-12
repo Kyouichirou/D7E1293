@@ -100,6 +100,7 @@ class Sipder:
         self.speed_tune = 0
         self.__r_list = (23, 7, 17, 11, 2, 19, 37, 5, 13, 41, 29, 1, 31, 37, 3)
         #
+        self.redirected_url = None
         self.__d_counter = 0
         self.b_percent = False
         self.book_counter = 0
@@ -179,36 +180,36 @@ class Sipder:
                 if not self.__check_douban_id(db_id):
                     self.__book_detail(db_id)
         else:
-            dom = self.__get_dom(url)
-            data = None
-            if '/tag/' in url:
-                data = self.__metadata.tag.get_items(dom)
+            if dom := self.__get_dom(url):
+                data = None
+                if '/tag/' in url:
+                    data = self.__metadata.tag.get_items(dom)
+                    if data:
+                        n_url = decodeurl(url)
+                        if ms := self.tag_reg.search(n_url):
+                            tag = self.__metadata.convertor.convert(ms.group())
+                            self.database.add_tag_book([(tag, int(e)) * 2 for e in data])
+                elif '/series/' in url:
+                    data = self.__metadata.series.get_items(dom)
+                elif '/doulist/' in url:
+                    tmp = self.__metadata.doulist.get_items(dom)
+                    doulist_id = int(self.__metadata.doulist_reg.search(url).group())
+                    dbs = []
+                    data = []
+                    for e in tmp:
+                        db_id = int(e[0])
+                        if self.__check_doulist_book((doulist_id, db_id)):
+                            continue
+                        data.append(e[0])
+                        add_time = self.__metadata.dateformat.date_format(e[1])
+                        dbs.append((doulist_id, db_id, add_time, doulist_id, db_id))
+                    if dbs:
+                        self.database.add_doulist_book(dbs)
                 if data:
-                    n_url = decodeurl(url)
-                    if ms := self.tag_reg.search(n_url):
-                        tag = self.__metadata.convertor.convert(ms.group())
-                        self.database.add_tag_book([(tag, int(e)) * 2 for e in data])
-            elif '/series/' in url:
-                data = self.__metadata.series.get_items(dom)
-            elif '/doulist/' in url:
-                tmp = self.__metadata.doulist.get_items(dom)
-                doulist_id = int(self.__metadata.doulist_reg.search(url).group())
-                dbs = []
-                data = []
-                for e in tmp:
-                    db_id = int(e[0])
-                    if self.__check_doulist_book((doulist_id, db_id)):
-                        continue
-                    data.append(e[0])
-                    add_time = self.__metadata.dateformat.date_format(e[1])
-                    dbs.append((doulist_id, db_id, add_time, doulist_id, db_id))
-                if dbs:
-                    self.database.add_doulist_book(dbs)
-            if data:
-                self.crawler.top_limit += len(data)
-                # 假如没有完全执行完数据的获取, 则重新将错误链接添加回列表
-                if not self.__douban_id_iteration(data, refer=url):
-                    self.crawler.err_list.append(url)
+                    self.crawler.top_limit += len(data)
+                    # 假如没有完全执行完数据的获取, 则重新将错误链接添加回列表
+                    if not self.__douban_id_iteration(data, refer=url):
+                        self.crawler.err_list.append(url)
 
     # ------------------------ book_module_finished
     def __relate_book(self, data, db_id: int, refer: str):
@@ -343,39 +344,16 @@ class Sipder:
         if counter % 20 == 0:
             self.speed_tune += 1
             q = self.speed_ratio
-            f = 0
-            if q > 0.1:
+            if q > 0.2:
                 q -= 0.032
                 self.speed_ratio = q
                 print(f's speed:        {q}')
-            else:
-                q = self.crawler.speed_ratio
-                if q > 0.72:
-                    q -= 0.0055
-                    self.crawler.is_hand_speed = True
-                elif q > 0.65:
-                    q -= 0.0005
-                elif q > 0.6:
-                    q -= 0.0035
-                elif q > 0.52:
-                    q -= 0.00125
-                elif q > 0.5:
-                    q -= 0.0002
-                    f = 1
-                elif q > 0.45:
-                    q -= 0.0001
-                    f = 2
-                else:
-                    f = 3
-                if f < 3:
-                    self.crawler.speed_ratio = q
-                    print(f'c speed:        {q}')
             self.b_percent = counter / self.crawler.total < 0.3
             if self.speed_tune % 3 == 0:
                 self.database.commit()
-                if f:
+                if self.crawler.speed_ratio < 0.5:
                     if self.speed_tune == 6:
-                        self.speed_ratio = random.uniform(0.1, 0.6)
+                        self.speed_ratio = random.uniform(0.2, 0.6)
                         self.speed_tune = 0
                 else:
                     self.speed_tune = 3
@@ -389,6 +367,16 @@ class Sipder:
                 self.database.book_404((int(db_id)))
                 self.crawler.is_404 = False
             return True
+        # 如果发生重定向
+        if self.redirected_url:
+            self.crawler.redirected_url = None
+            ms = self.__metadata.book_reg.search(self.redirected_url)
+            if ms:
+                db_id = ms.group()
+                if self.__check_douban_id(db_id):
+                    return True
+            else:
+                return False
         detail = self.__check_dom(dom, db_id)
         if not detail:
             self.crawler.is_anti = True
@@ -814,7 +802,6 @@ class Sipder:
         tmp_list = []
         self.dou_list.append(doulist_id)
         self.__d_counter += 1
-        print(f'others: {self.__d_counter}')
         while True:
             url = f'https://www.douban.com/doulist/{doulist_id}/?start={page * 25}&sort=time&playable=0&sub_type='
             if dom := self.__get_dom(url, refer=refer, host='www.douban.com'):
@@ -861,7 +848,6 @@ class Sipder:
             page += 1
             refer = url
         if self.__d_counter == 300:
-            print('start others')
             self.__unfinished_series_book(mode=True)
             self.__unfinished_work_book(mode=True)
             self.__d_counter = 0
@@ -929,4 +915,5 @@ class Sipder:
         dom = self.crawler.request(url, refer=refer, host=host)
         self.is_break = self.crawler.is_break
         self.__is_404 = self.crawler.is_404
+        self.redirected_url = self.crawler.redirected_url
         return dom
