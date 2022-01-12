@@ -75,13 +75,10 @@ class Crawler:
         # browser
         self.cookies_flag = False
         self.cookies = {}
+        self.redirected_url = None
         # time
-        self.__time_tuning_a = (
-            (0.91, 0.2), (0.9, 0.4), (0.85, 0.5), (0.83, 0.55), (0.82,   0.6), (0.78, 0.7), (0.75, 0.75), (0.72, 0.85),
-            (0.7, 0.9))
-        self.__time_tuning_b = ((0.54, 1.15), (0.58, 1.1), (0.6, 1.08), (0.62, 1.05), (0.64, 1.02), (0.66, 1))
+        self.__direct_t = False
         self.speed_ratio = 1
-        self.is_hand_speed = False
         self.start_time = 0
         self.a_time = 0
         self.b_time = 0
@@ -89,6 +86,7 @@ class Crawler:
         self.extra_time = 0
         self.gap_time = 0
         # func
+        self.is_hande_speed = False
         self.__session_mean = lambda x: sum(x) / len(x) if x else 0
         self.__round = lambda x: partial(round, x, 4)()
         # class
@@ -124,53 +122,51 @@ class Crawler:
     def __set_header(self):
         self.__random_header = {**self.__brower_fraud.standard_header}
 
-    def __adjust_time(self, mode, r_mean):
-        compare, times = (lambda *x: x[0] > x[1], self.__time_tuning_a) if mode else (
-            lambda *x: x[0] < x[1], self.__time_tuning_b)
-        for e in times:
-            if compare(r_mean, e[0]):
-                self.speed_ratio = e[1]
-                return
-        if self.total > 1500:
-            q = 1 - self.total // 900 * 0.017
-            if 0.3 < q < 1:
-                self.speed_ratio = q
-
     def __update_parameters(self):
         # 更新伪装信息, 调节休眠时间
         r_mean = self.request_time_mean
-        if r_mean > 0.95:
-            self.slow_times += 1
-            self.speed_ratio = 0.2
-            if self.slow_times > 45 and self.counter > 300:
-                print('network too slow')
-                self.too_slow = True
-                # 假如重新链接网络后
-                if self.__retry_flag:
-                    self.__retry_flag = False
+        savg = 0
+        if r_mean > 0:
+            savg = self.__single_avg_time
+            if r_mean > 0.95:
+                self.slow_times += 1
+                self.speed_ratio = 0.2
+                if self.slow_times > 45 and self.counter > 300:
+                    print('network too slow')
+                    self.too_slow = True
+                    # 假如重新链接网络后
+                    if self.__retry_flag:
+                        self.__retry_flag = False
+                    else:
+                        return
                 else:
-                    return
+                    self.logger.info(f'slow {r_mean}')
             else:
-                self.logger.info(f'slow {r_mean}')
-        else:
-            t = self.total
-            if t > 900:
-                if self.is_hand_speed:
-                    if r_mean < 0.545:
-                        if r_mean < 0.535 and self.speed_ratio < 0.72:
-                            self.speed_ratio += 0.002
-                        elif self.speed_ratio > 0.72:
-                            self.speed_ratio -= 0.001
-                    elif r_mean > 0.9:
-                        if self.speed_ratio > 0.3:
-                            self.speed_ratio = 0.3
-                    elif t > 1000 and r_mean > 0.72 and self.speed_ratio > 0.8:
-                        self.__adjust_time(True, r_mean)
-                        self.speed_ratio *= 0.9
-                else:
-                    self.__adjust_time(r_mean > 0.7, r_mean)
-            if self.slow_times > 0:
-                self.slow_times -= 1
+                if self.total > 800:
+                    a = self.speed_ratio
+                    if (a > 0.35 and (not self.__direct_t or self.is_hande_speed)) or (
+                            a > (0.55 if r_mean < 0.55 else 0.5) and self.__direct_t):
+                        q = 0
+                        if savg > 1.7 or r_mean > 0.85:
+                            q = 0.003
+                        elif savg > 1.6 or r_mean > 0.8:
+                            q = 0.0025
+                        elif savg > 1.5 or r_mean > 0.75:
+                            q = 0.002
+                        elif savg > 1.4 or r_mean > 0.7:
+                            q = 0.0015
+                        elif savg > 1.2 or r_mean > 0.65:
+                            q = 0.0012
+                        elif savg > 1.1:
+                            q = 0.0008
+                        if q > 0:
+                            self.speed_ratio = a - q
+                    else:
+                        self.__direct_t = True
+                        self.speed_ratio += 0.0005 if savg < 1.25 and r_mean < 0.72 else 0.0002
+                    print(f"crawler's speed:        {self.speed_ratio}")
+                if self.slow_times > 0:
+                    self.slow_times -= 1
         if self.cookies:
             self.cookies.clear()
         self.cookies_flag = False
@@ -186,7 +182,7 @@ class Crawler:
                 f'avg time of requests:\
                 \ntotal was::               {self.__round(r_mean)}s;\
                 \nsession was::             {self.__round(s_mean)}s;\
-                \nsingle_time::             {self.__single_avg_time}s;'
+                \nsingle_time::             {self.__round(savg)}s;'
             )
             if s_mean < 0.55:
                 k = 6
@@ -211,6 +207,8 @@ class Crawler:
                 elif s_mean < 1.08:
                     k = 1
                     x = 3
+                    if s_mean > 1:
+                        self.extra_time -= 0.05
                 elif s_mean < 1.14:
                     k = 3
                     x = 4
@@ -306,7 +304,7 @@ class Crawler:
             self.__httpx = httpx_backup_module.Spider()
         print(f'{code}: {url}')
         self.total_counter += 1
-        time.sleep(random.uniform(3.5, 25.5))
+        time.sleep(random.uniform(0.5, 5.5))
         text = self.__httpx.get_dom(url, self.__brower_fraud.h_version_ua(self.total))
         if text:
             if self.__check_anti_spider(text):
@@ -316,13 +314,17 @@ class Crawler:
             else:
                 self.__session.close()
                 self.__update_parameters()
+                self.redirected_url = self.__httpx.redirected_url
                 return Btf(text, 'lxml')
         else:
-            if self.__httpx.is_404:
+            if self.__httpx.is_anti:
+                self.__error_handle(url, 4, 'anti spider')
+                self.is_anti = True
+            elif self.__httpx.is_404:
                 print(f'{code} => 404, {url}')
                 self.__httpx.is_404 = False
                 self.__handle_404(url)
-            else:
+            elif not self.__httpx.url_change:
                 self.__error_handle(url, 3 if code == 302 else 2, code)
         return None
 
@@ -375,10 +377,11 @@ class Crawler:
                     if self.gap_time == 0:
                         self.gap_time = random.randint(self.a_time, self.b_time)
                     else:
-                        sp = abs(self.__clock(self.counter)) + self.extra_time
-                        if sp > 0:
-                            sr = self.speed_ratio
-                            time.sleep(sp if sr == 1 else sp * sr)
+                        sp = abs(self.__clock(self.counter))
+                        sr = self.speed_ratio
+                        a = (sp if sr == 1 else sp * sr) + self.extra_time
+                        if a > 0:
+                            time.sleep(a)
                         self.gap_time -= 1
                     self.avg_list.append(k)
                     self.gap_list.append(k)
@@ -410,7 +413,7 @@ class Crawler:
 
     @property
     def __single_avg_time(self):
-        return self.__round((time.time() - self.start_time) / self.total)
+        return (time.time() - self.start_time) / self.total
 
     @staticmethod
     def __check_anti_spider(text: str):
@@ -431,6 +434,8 @@ class Crawler:
         self.__b_c = 0
         self.__c_c = 0
         self.__d_c = 0
+        if self.__httpx:
+            self.__httpx.is_anti = False
 
     @property
     def random_refer(self):
