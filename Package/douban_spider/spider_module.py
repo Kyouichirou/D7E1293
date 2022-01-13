@@ -93,6 +93,7 @@ class Sipder:
         self.is_protect = False
         self.is_waiting = False
         self.__is_404 = False
+        self.__is_interrupted = False
         # 限制递归的深度, 值不能设置过大, 以免出现堆栈溢出
         self.iteration = self.iterations = depth if 0 < depth < sys.getrecursionlimit() * 0.12 else 75
         # 记录-缓存
@@ -351,7 +352,7 @@ class Sipder:
             self.b_percent = counter / self.crawler.total < 0.3
             if self.speed_tune % 3 == 0:
                 self.database.commit()
-                if self.crawler.speed_ratio < 0.5:
+                if self.crawler.speed_ratio < 0.42:
                     if self.speed_tune == 6:
                         self.speed_ratio = random.uniform(0.2, 0.6)
                         self.speed_tune = 0
@@ -369,6 +370,9 @@ class Sipder:
             return True
         # 如果发生重定向
         if self.redirected_url:
+            # 将该id添加到404表
+            self.no_found_list.append(db_id)
+            self.database.book_404((int(db_id)))
             self.crawler.redirected_url = None
             ms = self.__metadata.book_reg.search(self.redirected_url)
             if ms:
@@ -588,7 +592,9 @@ class Sipder:
                         self.database.series_404(series_id)
                         break
                     self.__update_series_state((series_id, page, update_times + 1))
-            if self.is_break:
+            if self.is_break or self.__is_interrupted:
+                if self.__is_interrupted:
+                    self.crawler.is_interrupted = False
                 self.__update_series_state((series_id, page, update_times))
                 return
             page += 1
@@ -697,7 +703,7 @@ class Sipder:
                             (tagname, page if mode else 0, i + 1, uptimes + 1 if mode else uptimes),
                             dom if mode else None)
                         break
-                if self.is_break:
+                if self.is_break or self.__is_interrupted:
                     break
                 page += 1
                 if page == 50:
@@ -708,7 +714,9 @@ class Sipder:
                     break
                 refer = url
             # 中断执行
-            if self.is_break:
+            if self.is_break or self.__is_interrupted:
+                if self.__is_interrupted:
+                    self.crawler.is_interrupted = False
                 self.__update_tag_state((tagname, page, i, uptimes))
                 return
             page = 0
@@ -842,7 +850,9 @@ class Sipder:
                     # 出现404, 即判断为该豆列已经被遍历
                     self.__update_doulist_state((doulist_id, page, update_times + 1), dom)
                     break
-            if self.is_break:
+            if self.is_break or self.__is_interrupted:
+                if self.__is_interrupted:
+                    self.crawler.is_interrupted = False
                 self.__update_doulist_state((doulist_id, page, update_times))
                 return
             page += 1
@@ -910,10 +920,11 @@ class Sipder:
             time.sleep(random.uniform(0.1, 0.3 if is_doulist else 0.5))
         return i == k
 
-    # get dom and status_code
+    # get dom and status
     def __get_dom(self, url: str, host='', refer=''):
         dom = self.crawler.request(url, refer=refer, host=host)
         self.is_break = self.crawler.is_break
         self.__is_404 = self.crawler.is_404
+        self.__is_interrupted = self.crawler.is_interrupted
         self.redirected_url = self.crawler.redirected_url
         return dom
