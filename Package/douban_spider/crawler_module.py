@@ -47,14 +47,14 @@ class Crawler:
         self.slow_times = 0
         self.too_error = False
         self.is_break = False
+        self.is_interrupted = False
         self.is_anti = False
         self.is_404 = False
         self.__retry_flag = False
         # record
         self.avg_list = []
-        self.gap_list = []
+        self.__gap_list = []
         self.err_list = other_module.load_error_file()
-        self.pre_list = ['/tag/', '/subject/', '/doulist/', '/series/']
         # error_types
         self.__a_c = 0
         # 一般错误
@@ -80,11 +80,10 @@ class Crawler:
         self.__direct_t = False
         self.speed_ratio = 1
         self.start_time = 0
-        self.a_time = 0
-        self.b_time = 0
-        self.gap_time = 0
-        self.extra_time = 0
-        self.gap_time = 0
+        self.__a_time = 0
+        self.__b_time = 0
+        self.__gap_time = 0
+        self.__extra_time = 0
         # func
         self.is_hande_speed = False
         self.__session_mean = lambda x: sum(x) / len(x) if x else 0
@@ -122,10 +121,37 @@ class Crawler:
     def __set_header(self):
         self.__random_header = {**self.__brower_fraud.standard_header}
 
+    def __speed_adjust(self, savg, r_mean):
+        if self.total > 800:
+            a = self.speed_ratio
+            if (a > 0.38 and (not self.__direct_t or self.is_hande_speed)) or (
+                    a > (0.65 if r_mean < 0.65 else 0.55) and self.__direct_t):
+                q = 0
+                self.__direct_t = False
+                if savg > 1.7 or r_mean > 0.85:
+                    q = 0.005
+                elif savg > 1.6 or r_mean > 0.8:
+                    q = 0.0025
+                elif savg > 1.5 or r_mean > 0.75:
+                    q = 0.002
+                elif savg > 1.4 or r_mean > 0.7:
+                    q = 0.0015
+                elif savg > 1.2 or r_mean > 0.65:
+                    q = 0.0012
+                elif savg > 1.1:
+                    q = 0.0008
+                if q > 0:
+                    self.speed_ratio = a - q
+            else:
+                self.__direct_t = True
+                self.speed_ratio += 0.008 if savg < 1.32 and r_mean < 0.72 else 0.005
+            print(f"crawler's speed:        {self.speed_ratio}")
+
     def __update_parameters(self):
         # 更新伪装信息, 调节休眠时间
         r_mean = self.request_time_mean
         savg = 0
+        # 调节整体的速度
         if r_mean > 0:
             savg = self.__single_avg_time
             if r_mean > 0.95:
@@ -142,41 +168,20 @@ class Crawler:
                 else:
                     self.logger.info(f'slow {r_mean}')
             else:
-                if self.total > 800:
-                    a = self.speed_ratio
-                    if (a > 0.35 and (not self.__direct_t or self.is_hande_speed)) or (
-                            a > (0.55 if r_mean < 0.55 else 0.5) and self.__direct_t):
-                        q = 0
-                        if savg > 1.7 or r_mean > 0.85:
-                            q = 0.003
-                        elif savg > 1.6 or r_mean > 0.8:
-                            q = 0.0025
-                        elif savg > 1.5 or r_mean > 0.75:
-                            q = 0.002
-                        elif savg > 1.4 or r_mean > 0.7:
-                            q = 0.0015
-                        elif savg > 1.2 or r_mean > 0.65:
-                            q = 0.0012
-                        elif savg > 1.1:
-                            q = 0.0008
-                        if q > 0:
-                            self.speed_ratio = a - q
-                    else:
-                        self.__direct_t = True
-                        self.speed_ratio += 0.0005 if savg < 1.25 and r_mean < 0.72 else 0.0002
-                    print(f"crawler's speed:        {self.speed_ratio}")
+                self.__speed_adjust(savg, r_mean)
                 if self.slow_times > 0:
+                    if self.speed_ratio < 0.25:
+                        self.speed_ratio = 1
                     self.slow_times -= 1
-        if self.cookies:
-            self.cookies.clear()
-        self.cookies_flag = False
-        s_mean = self.__session_mean(self.gap_list)
+        s_mean = self.__session_mean(self.__gap_list)
         if self.__buffer_counter > 0:
-            self.extra_time = 0.105 if self.__buffer_counter > 25 else 0.06
+            # 开始阶段防止速度过快
+            self.__extra_time = 0.105 if self.__buffer_counter > 25 else 0.06
             self.__buffer_counter -= 1
         else:
-            self.extra_time = 0
+            self.__extra_time = 0
         k = x = 0
+        # 调节区间的速度
         if s_mean > 0:
             print(
                 f'avg time of requests:\
@@ -187,20 +192,20 @@ class Crawler:
             if s_mean < 0.55:
                 k = 6
                 if s_mean < 0.35:
-                    self.extra_time += 0.205
+                    self.__extra_time += 0.205
                 elif s_mean < 0.4:
-                    self.extra_time += 0.162
+                    self.__extra_time += 0.162
                 elif s_mean < 0.45:
-                    self.extra_time += 0.122
+                    self.__extra_time += 0.122
                 elif s_mean < 0.48:
-                    self.extra_time += 0.092
+                    self.__extra_time += 0.092
                 else:
-                    self.extra_time += 0.078
+                    self.__extra_time += 0.078
             else:
                 if s_mean < 0.65:
                     k = 5
                     x = 1
-                    self.extra_time += 0.05
+                    self.__extra_time += 0.05
                 elif s_mean < 0.88:
                     k = 2
                     x = 2
@@ -208,53 +213,25 @@ class Crawler:
                     k = 1
                     x = 3
                     if s_mean > 1:
-                        self.extra_time -= 0.05
+                        self.__extra_time -= 0.05
                 elif s_mean < 1.14:
                     k = 3
                     x = 4
-                    self.extra_time = -0.082
+                    self.__extra_time = -0.082
                 else:
-                    self.extra_time = -0.152
+                    self.__extra_time = -0.152
                     x = 5
                     k = 4
-            self.gap_list.clear()
+            self.__gap_list.clear()
         a, b = ((5, 9), (7, 11), (9, 13), (11, 15), (13, 17), (15, 19))[x]
         self.__random_counter = random.randint(a, b)
-        self.a_time, self.b_time = ((8, 16), (1, 5), (2, 10), (1, 3), (2, 4), (2, 6), (0, 11))[k]
+        self.__a_time, self.__b_time = ((8, 16), (1, 5), (2, 10), (1, 3), (2, 4), (2, 6), (0, 11))[k]
+        # cookie对于是否有助于规避反爬还存疑
+        if self.cookies:
+            self.cookies.clear()
+        self.cookies_flag = False
         self.__set_header()
         self.__session = requests.session()
-
-    def add_cookie(self, db_id='', ctime=0, cookies=None):
-        # 随机添加cookie
-        if db_id:
-            if 'viewed' in self.cookies:
-                cps = self.cookies['viewed'].split('_')
-                if len(cps) == 10:
-                    cps.pop()
-                cps.insert(0, db_id)
-                self.cookies['viewed'] = '_'.join(cps)
-            else:
-                self.cookies['viewed'] = db_id
-        elif ctime:
-            if cookies:
-                self.cookies = cookies
-                if not 'ap_v' in self.cookies:
-                    self.cookies['ap_v'] = '0,6.0'
-                p = partial(random.randint, 1)
-                if not '_pk_ses.100001.3ac3' in self.cookies and p(100) % 3 == 0:
-                    self.cookies['_pk_ses.100001.3ac3'] = "*"
-                if not '_pk_ref.100001.3ac3' in self.cookies and p(100) % 2 == 0:
-                    self.cookies['_pk_ref.100001.3ac3'] = quotex(
-                        f'["","",{ctime},"{self.__brower_fraud.random_refer}"]')
-                if not 'douban-fav-remind' in self.cookies and p(100) % 5 == 0:
-                    self.cookies['douban-fav-remind'] = '1'
-                if not 'll' in self.cookies and p(100) % 7 == 0:
-                    self.cookies['ll'] = "118282"
-
-    def __show_info(self, url: str):
-        print(
-            f'scraping_{self.total}/{self.top_limit}/{(str((self.total / self.top_limit) * 100) + "00")[0:5] + "%"}:\
-            {url[url.find("com") + 4:]}')
 
     def __handle_404(self, url):
         time.sleep(random.uniform(0.01, 3.5))
@@ -265,9 +242,7 @@ class Crawler:
     def __error_handle(self, url: str, types: int, error):
         print('error: ' + url, error)
         self.counter -= 1
-        if any(e in url for e in self.pre_list):
-            if not 'doulists?start' in url and url not in self.err_list:
-                self.err_list.append(url)
+        self.__add_error_list(url)
         if types < 4:
             s_time = 0
             if types == 0:
@@ -298,6 +273,8 @@ class Crawler:
                 time.sleep(s_time)
                 self.__session.close()
                 self.__update_parameters()
+            else:
+                self.__set_interrupted(url)
 
     def __httpx_retry(self, url: str, code: int):
         if not self.__httpx:
@@ -319,20 +296,31 @@ class Crawler:
         else:
             if self.__httpx.is_anti:
                 self.__error_handle(url, 4, 'anti spider')
+                self.__set_interrupted(url)
                 self.is_anti = True
             elif self.__httpx.is_404:
                 print(f'{code} => 404, {url}')
                 self.__httpx.is_404 = False
                 self.__handle_404(url)
             elif not self.__httpx.url_change:
-                self.__error_handle(url, 3 if code == 302 else 2, code)
+                self.__error_handle(url, 3 if code == 302 else 1, code)
         return None
+
+    def __add_error_list(self, url):
+        # 只添加和书籍直接相关的链接
+        if '/subject/' in url and not 'doulist' in url and url not in self.err_list:
+            self.err_list.append(url)
+
+    def __set_interrupted(self, url):
+        # 中断以下的数据的获取, 防止后续的数据获取的不完整
+        interrupted_list = ['/series/', '/tag/', '/doulist/']
+        if any(e in url for e in interrupted_list):
+            self.is_interrupted = True
 
     def request(self, url: str, host: str, refer: str):
         self.__check_limit()
         if self.is_break:
-            if '/subject/' in url and not 'doulists' in url and url not in self.err_list:
-                self.err_list.append(url)
+            self.__add_error_list(url)
             return None
         self.total += 1
         self.total_counter += 1
@@ -359,6 +347,8 @@ class Crawler:
                 # 直接将check的结果赋予self.ia_anti, 调试器没有跳转__setattr__
                 # 多次403可能潜在触发反爬
                 # 302, 基本可以表示触发反爬
+                # 301, 多是废弃的id的重定向
+                # 418, 直接表明为爬虫
                 # 部分标签, 没有底部的下一页, 但实际上还是有内容的(不超过49页)
                 # 潜在触发307重定向
                 # 404, 多出现在标签页上, 部分标签的页面被移除, 标签还保留着
@@ -367,6 +357,7 @@ class Crawler:
                 # 豆瓣的服务器经常性的不稳定, 很容易出现不规则的错误
                 if self.__check_anti_spider(text):
                     self.__error_handle(url, 4, 'anti spider')
+                    self.__set_interrupted(url)
                     self.is_anti = True
                     return None
                 else:
@@ -374,17 +365,17 @@ class Crawler:
                     k = ctime - s
                     if self.cookies_flag and not self.cookies:
                         self.add_cookie(ctime=int(ctime), cookies=dfc(r.cookies))
-                    if self.gap_time == 0:
-                        self.gap_time = random.randint(self.a_time, self.b_time)
+                    if self.__gap_time == 0:
+                        self.__gap_time = random.randint(self.__a_time, self.__b_time)
                     else:
                         sp = abs(self.__clock(self.counter))
                         sr = self.speed_ratio
-                        a = (sp if sr == 1 else sp * sr) + self.extra_time
+                        a = (sp if sr == 1 else sp * sr) + self.__extra_time
                         if a > 0:
                             time.sleep(a)
-                        self.gap_time -= 1
+                        self.__gap_time -= 1
                     self.avg_list.append(k)
-                    self.gap_list.append(k)
+                    self.__gap_list.append(k)
                     return Btf(text, 'lxml')
             elif code == 301 or code == 302:
                 # 调用httpx模块重新请求数据
@@ -443,3 +434,35 @@ class Crawler:
 
     def bing_refer(self, d_id):
         return self.__brower_fraud.bing_refer(d_id)
+
+    def add_cookie(self, db_id='', ctime=0, cookies=None):
+        # 随机添加cookie
+        if db_id:
+            if 'viewed' in self.cookies:
+                cps = self.cookies['viewed'].split('_')
+                if len(cps) == 10:
+                    cps.pop()
+                cps.insert(0, db_id)
+                self.cookies['viewed'] = '_'.join(cps)
+            else:
+                self.cookies['viewed'] = db_id
+        elif ctime:
+            if cookies:
+                self.cookies = cookies
+                if not 'ap_v' in self.cookies:
+                    self.cookies['ap_v'] = '0,6.0'
+                p = partial(random.randint, 1)
+                if not '_pk_ses.100001.3ac3' in self.cookies and p(100) % 3 == 0:
+                    self.cookies['_pk_ses.100001.3ac3'] = "*"
+                if not '_pk_ref.100001.3ac3' in self.cookies and p(100) % 2 == 0:
+                    self.cookies['_pk_ref.100001.3ac3'] = quotex(
+                        f'["","",{ctime},"{self.__brower_fraud.random_refer}"]')
+                if not 'douban-fav-remind' in self.cookies and p(100) % 5 == 0:
+                    self.cookies['douban-fav-remind'] = '1'
+                if not 'll' in self.cookies and p(100) % 7 == 0:
+                    self.cookies['ll'] = "118282"
+
+    def __show_info(self, url: str):
+        print(
+            f'scraping_{self.total}/{self.top_limit}/{(str((self.total / self.top_limit) * 100) + "00")[0:5] + "%"}:\
+            {url[url.find("com") + 4:]}')
