@@ -20,7 +20,7 @@ class Get(Database):
 
     def tag(self, update: int, limit: int):
         # 获取未完成的爬取数据的标签
-        sql = f'select tagname, page_num, finished_state, update_times from {self.table_names["tag"]} where update_times = {update} limit {limit};'
+        sql = f'select tagname, page_num, finished_state, update_times from {self.table_names["tag"]} where update_times = {update} and finished_state != 4 limit {limit};'
         return self.__query_data(sql)
 
     def doulist(self, update: int, limit: int):
