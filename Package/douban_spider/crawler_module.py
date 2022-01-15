@@ -50,8 +50,10 @@ class Crawler:
         self.is_interrupted = False
         self.is_anti = False
         self.is_404 = False
+        self.is_500 = False
         self.__retry_flag = False
         # record
+        self.__backup_speed = 0
         self.avg_list = []
         self.__gap_list = []
         self.err_list = other_module.load_error_file()
@@ -123,8 +125,9 @@ class Crawler:
 
     def __speed_adjust(self, savg, r_mean):
         if self.total > 800:
+            # 等待速度进入平稳状态
             a = self.speed_ratio
-            if (a > 0.38 and (not self.__direct_t or self.is_hande_speed)) or (
+            if (a > 0.35 and (not self.__direct_t or self.is_hande_speed)) or (
                     a > (0.65 if r_mean < 0.65 else 0.55) and self.__direct_t):
                 q = 0
                 self.__direct_t = False
@@ -133,7 +136,7 @@ class Crawler:
                 elif savg > 1.6 or r_mean > 0.8:
                     q = 0.0025
                 elif savg > 1.5 or r_mean > 0.75:
-                    q = 0.002
+                    q = 0.0035
                 elif savg > 1.4 or r_mean > 0.7:
                     q = 0.0015
                 elif savg > 1.2 or r_mean > 0.65:
@@ -144,7 +147,7 @@ class Crawler:
                     self.speed_ratio = a - q
             else:
                 self.__direct_t = True
-                self.speed_ratio += 0.008 if savg < 1.32 and r_mean < 0.72 else 0.005
+                self.speed_ratio += 0.008 if savg < 1.32 or r_mean < 0.72 else 0.005
             print(f"crawler's speed:        {self.speed_ratio}")
 
     def __update_parameters(self):
@@ -156,6 +159,9 @@ class Crawler:
             savg = self.__single_avg_time
             if r_mean > 0.95:
                 self.slow_times += 1
+                # 当速度太慢时, 将速度调至0.2
+                if self.__backup_speed == 0:
+                    self.__backup_speed = self.speed_ratio
                 self.speed_ratio = 0.2
                 if self.slow_times > 45 and self.counter > 300:
                     print('network too slow')
@@ -170,8 +176,11 @@ class Crawler:
             else:
                 self.__speed_adjust(savg, r_mean)
                 if self.slow_times > 0:
-                    if self.speed_ratio < 0.25:
-                        self.speed_ratio = 1
+                    q = self.__backup_speed
+                    if q > 0:
+                        # 当速度逐步恢复正常时, 将速度重新恢复原来的状态
+                        self.speed_ratio = q if q < 1 else 1
+                        self.__backup_speed = 0
                     self.slow_times -= 1
         s_mean = self.__session_mean(self.__gap_list)
         if self.__buffer_counter > 0:
@@ -233,48 +242,58 @@ class Crawler:
         self.__set_header()
         self.__session = requests.session()
 
-    def __handle_404(self, url):
-        time.sleep(random.uniform(0.01, 3.5))
-        self.counter -= 1
-        self.is_404 = True
-        self.logger.debug(f'404: {url}')
-
     def __error_handle(self, url: str, types: int, error):
-        print('error: ' + url, error)
         self.counter -= 1
+        # 添加链接到错误列表
         self.__add_error_list(url)
-        if types < 4:
-            s_time = 0
-            if types == 0:
-                self.__a_c += 1
-                if self.__a_c > 25:
-                    self.too_error = True
-                else:
-                    s_time = 0.35
-            elif types == 1:
-                self.__b_c += 1
-                if self.__b_c > 20:
-                    self.too_error = True
-                else:
-                    s_time = 1.2
-            elif types == 2:
-                self.__c_c += 1
-                if self.__c_c > 8:
-                    self.too_slow = True
-                else:
-                    s_time = 3.5
-            elif types == 3:
-                self.__d_c += 1
-                if self.__d_c > 5:
-                    self.too_error = True
-                else:
-                    s_time = 10
-            if s_time:
-                time.sleep(s_time)
+        # 是否要中断后续的操作
+        self.__set_interrupted(url)
+        self.logger.debug(f'error: {url, error}')
+        s_time = 0
+        if types == 0:
+            # 一般的错误
+            self.__a_c += 1
+            if self.__a_c > 55:
+                self.too_error = True
+            else:
+                s_time = 0.35
+        elif types == 1:
+            # 较为严重的错误
+            self.__b_c += 1
+            if self.__b_c > 20:
+                self.too_error = True
+            else:
+                s_time = 1.2
+        elif types == 2:
+            # 严重的错误, 如超时
+            self.__c_c += 1
+            if self.__c_c > 8:
+                self.too_slow = True
+            else:
+                s_time = 3.5
+        elif types == 3:
+            # 基本是处于异常的错误
+            self.__d_c += 1
+            if self.__d_c > 5:
+                self.too_error = True
+            else:
+                s_time = 10
+        elif types == 4:
+            # 404 错误
+            self.is_404 = True
+            s_time = 0.2
+        elif types == 5:
+            # 500 错误
+            self.is_500 = True
+            s_time = 0.2
+        elif types == 6:
+            # 触发反爬
+            self.is_anti = True
+        if s_time:
+            time.sleep(s_time)
+            if types < 4:
                 self.__session.close()
                 self.__update_parameters()
-            else:
-                self.__set_interrupted(url)
 
     def __httpx_retry(self, url: str, code: int):
         if not self.__httpx:
@@ -285,9 +304,7 @@ class Crawler:
         text = self.__httpx.get_dom(url, self.__brower_fraud.h_version_ua(self.total))
         if text:
             if self.__check_anti_spider(text):
-                self.__error_handle(url, 4, 'anti spider')
-                self.is_anti = True
-                return None
+                self.__error_handle(url, 6, 'anti spider')
             else:
                 self.__session.close()
                 self.__update_parameters()
@@ -295,19 +312,18 @@ class Crawler:
                 return Btf(text, 'lxml')
         else:
             if self.__httpx.is_anti:
-                self.__error_handle(url, 4, 'anti spider')
-                self.__set_interrupted(url)
-                self.is_anti = True
+                self.__error_handle(url, 6, 'anti spider')
             elif self.__httpx.is_404:
                 print(f'{code} => 404, {url}')
                 self.__httpx.is_404 = False
-                self.__handle_404(url)
+                self.__error_handle(url, 4, 404)
             elif not self.__httpx.url_change:
-                self.__error_handle(url, 3 if code == 302 else 1, code)
+                # 前后的URL没有发生变化
+                self.__error_handle(url, 1, code)
         return None
 
     def __add_error_list(self, url):
-        # 只添加和书籍直接相关的链接
+        # 只添加和书籍直接相关的链接r,d,s,c
         if '/subject/' in url and not 'doulist' in url and url not in self.err_list:
             self.err_list.append(url)
 
@@ -327,11 +343,8 @@ class Crawler:
         self.__show_info(url)
         s = time.time()
         try:
-            # 注意host和refer的设置
-            if refer:
-                self.__random_header['Referer'] = refer
-            else:
-                self.__random_header['Referer'] = self.__brower_fraud.bing_url(url)
+            # 注意host和refer的设置, host设置不当, 异常错误, refer和反爬高度相关
+            self.__random_header['Referer'] = refer if refer else self.__brower_fraud.bing_url(url)
             if host:
                 self.__random_header['Host'] = host
             r = self.__session.get(url, headers=self.__random_header, timeout=(93, 93), allow_redirects=False,
@@ -356,13 +369,11 @@ class Crawler:
                 # 500错误, 内部错误, 多发生于过载, 也可能是服务器端的主动设置, 以检验是否为爬虫访问的措施
                 # 豆瓣的服务器经常性的不稳定, 很容易出现不规则的错误
                 if self.__check_anti_spider(text):
-                    self.__error_handle(url, 4, 'anti spider')
-                    self.__set_interrupted(url)
-                    self.is_anti = True
-                    return None
+                    self.__error_handle(url, 6, 'anti spider')
                 else:
                     ctime = time.time()
                     k = ctime - s
+                    # 设置cookie, 但是设置cookie貌似对反爬起不到显著的作用, 预留
                     if self.cookies_flag and not self.cookies:
                         self.add_cookie(ctime=int(ctime), cookies=dfc(r.cookies))
                     if self.__gap_time == 0:
@@ -377,24 +388,27 @@ class Crawler:
                     self.avg_list.append(k)
                     self.__gap_list.append(k)
                     return Btf(text, 'lxml')
-            elif code == 301 or code == 302:
+            elif code == 301:
                 # 调用httpx模块重新请求数据
                 return self.__httpx_retry(url, code)
+            elif code == 302:
+                # 注意区分301, 302, 基本可以判定为触发反爬
+                self.__error_handle(url, 3, code)
             elif code == 403:
                 self.__error_handle(url, 2, code)
             elif code == 404:
-                self.__handle_404(url)
+                self.__error_handle(url, 4, code)
             elif code == 307:
                 self.__error_handle(url, 0, code)
+            elif code == 500:
+                self.__error_handle(url, 5, code)
             else:
                 self.__error_handle(url, 1, code)
-            print(f'failed to get dom: {code}, {url}')
         except (rTo, cTo) as error:
             self.__error_handle(url, 2, error)
         except iCR as error:
             self.__error_handle(url, 2, error)
         except Exception as error:
-            self.logger.capture_except(f'unknow error: {url}')
             self.__error_handle(url, 3, error)
         return None
 
