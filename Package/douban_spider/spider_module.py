@@ -93,17 +93,20 @@ class Sipder:
         self.is_protect = False
         self.is_waiting = False
         self.__is_404 = False
+        self.__is_500 = False
         self.__is_interrupted = False
         # 限制递归的深度, 值不能设置过大, 以免出现堆栈溢出
         self.iteration = self.iterations = depth if 0 < depth < sys.getrecursionlimit() * 0.12 else 75
-        # 记录-缓存
-        self.speed_ratio = 1
-        self.speed_tune = 0
+        # 控制doulist的获取
+        # doulist, series, tag都要控制速度, 防止过快
+        self.speed_ratio = 0.8
         self.__r_list = (23, 7, 17, 11, 2, 19, 37, 5, 13, 41, 29, 1, 31, 37, 3)
-        #
-        self.redirected_url = None
         self.__d_counter = 0
         self.b_percent = False
+        self.speed_tune = 0
+        # 是否发生重定向
+        self.redirected_url = None
+        # 记录-缓存
         self.book_counter = 0
         self.book_list = []
         self.tag_list = []
@@ -345,16 +348,17 @@ class Sipder:
         if counter % 20 == 0:
             self.speed_tune += 1
             q = self.speed_ratio
-            if q > 0.2:
+            if q > 0.1:
                 q -= 0.032
                 self.speed_ratio = q
                 print(f's speed:        {q}')
+            # 当超过比例, 则不在去获取doulist, 以加快书籍的获取速度
             self.b_percent = counter / self.crawler.total < 0.3
             if self.speed_tune % 3 == 0:
                 self.database.commit()
                 if self.crawler.speed_ratio < 0.42:
                     if self.speed_tune == 6:
-                        self.speed_ratio = random.uniform(0.2, 0.6)
+                        self.speed_ratio = random.uniform(0.1, 0.6)
                         self.speed_tune = 0
                 else:
                     self.speed_tune = 3
@@ -703,6 +707,11 @@ class Sipder:
                             (tagname, page if mode else 0, i + 1, uptimes + 1 if mode else uptimes),
                             dom if mode else None)
                         break
+                    elif self.__is_500:
+                        self.crawler.is_500 = False
+                        # 将出现500错误的tag临时标记为finished_state = 4
+                        self.__update_tag_state((tagname, page, 4, uptimes))
+                        return
                 if self.is_break or self.__is_interrupted:
                     break
                 page += 1
@@ -769,7 +778,7 @@ class Sipder:
         # 豆列集中的页面
         page = 0
         refer = ''
-        mx = 0.8 * sp if (sp := self.speed_ratio) != 1 else 0.8
+        sr = self.speed_ratio
         while True:
             url = f'{href}?start={page * 20}'
             dom = self.__get_dom(url, refer=refer, host='book.douban.com')
@@ -789,8 +798,7 @@ class Sipder:
             page += 1
             if page % random.choice(self.__r_list) == 0:
                 break
-            elif page % 4 != 0 and mx > 0.1:
-                time.sleep(random.uniform(0.01, mx))
+            time.sleep(random.uniform(0.025, sr))
             refer = url
 
     def __update_doulist_state(self, data, dom=None):
@@ -925,6 +933,7 @@ class Sipder:
         dom = self.crawler.request(url, refer=refer, host=host)
         self.is_break = self.crawler.is_break
         self.__is_404 = self.crawler.is_404
+        self.__is_500 = self.crawler.is_500
         self.__is_interrupted = self.crawler.is_interrupted
         self.redirected_url = self.crawler.redirected_url
         return dom
