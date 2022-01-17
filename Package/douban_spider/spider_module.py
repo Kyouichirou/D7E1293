@@ -348,8 +348,8 @@ class Sipder:
         if counter % 20 == 0:
             self.speed_tune += 1
             q = self.speed_ratio
-            if q > 0.1:
-                q -= 0.032
+            if q > 0.2:
+                q -= 0.022
                 self.speed_ratio = q
                 print(f's speed:        {q}')
             # 当超过比例, 则不在去获取doulist, 以加快书籍的获取速度
@@ -798,7 +798,7 @@ class Sipder:
             page += 1
             if page % random.choice(self.__r_list) == 0:
                 break
-            time.sleep(random.uniform(0.025, sr))
+            time.sleep(random.uniform(0.075, sr))
             refer = url
 
     def __update_doulist_state(self, data, dom=None):
@@ -925,7 +925,7 @@ class Sipder:
             if self.is_break:
                 break
         if is_tag and j == i and not self.is_break:
-            time.sleep(random.uniform(0.1, 0.3 if is_doulist else 0.5))
+            time.sleep(random.uniform(0.25, 0.35 if is_doulist else 0.5))
         return i == k
 
     # get dom and status
