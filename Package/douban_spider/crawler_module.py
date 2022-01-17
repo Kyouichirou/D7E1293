@@ -127,10 +127,12 @@ class Crawler:
         if self.total > 800:
             # 等待速度进入平稳状态
             a = self.speed_ratio
-            if (a > 0.35 and (not self.__direct_t or self.is_hande_speed)) or (
-                    a > (0.65 if r_mean < 0.65 else 0.55) and self.__direct_t):
+            if (a > 0.37 and (not self.__direct_t or self.is_hande_speed)) or (
+                    a > (0.7 if r_mean < 0.65 else 0.6) and self.__direct_t):
                 q = 0
                 self.__direct_t = False
+                if savg > 1.75 or r_mean > 0.9:
+                    q = 0.08
                 if savg > 1.7 or r_mean > 0.85:
                     q = 0.005
                 elif savg > 1.6 or r_mean > 0.8:
@@ -245,7 +247,8 @@ class Crawler:
     def __error_handle(self, url: str, types: int, error):
         self.counter -= 1
         # 添加链接到错误列表
-        self.__add_error_list(url)
+        if types != 4:
+            self.__add_error_list(url)
         # 是否要中断后续的操作
         self.__set_interrupted(url)
         self.logger.debug(f'error: {url, error}')
@@ -281,11 +284,12 @@ class Crawler:
         elif types == 4:
             # 404 错误
             self.is_404 = True
-            s_time = 0.2
+            s_time = 1
         elif types == 5:
             # 500 错误
-            self.is_500 = True
-            s_time = 0.2
+            if '/tag/' in url:
+                self.is_500 = True
+            s_time = 1
         elif types == 6:
             # 触发反爬
             self.is_anti = True
@@ -395,7 +399,7 @@ class Crawler:
                 # 注意区分301, 302, 基本可以判定为触发反爬
                 self.__error_handle(url, 3, code)
             elif code == 403:
-                self.__error_handle(url, 2, code)
+                self.__error_handle(url, 4 if '/doulist/' in url else 2, code)
             elif code == 404:
                 self.__error_handle(url, 4, code)
             elif code == 307:
