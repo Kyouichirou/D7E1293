@@ -17,3 +17,15 @@
 鉴于下载的文件非常大, winhttprequest下载不是很稳定, 下载调用外部工具cURL(**[curl-for-win](https://github.com/curl/curl-for-win)**)来下载.
 
 爬虫的核心是WinHttpRequest
+
+此外还涉及:
+
+md5, vba的md5实现还是相对麻烦的
+
+json, vba在这里已经有点乏力了
+
+encode, 对字符进行编码
+
+....
+
+外部程序的调用和控制(如: 开始, 退出等)
