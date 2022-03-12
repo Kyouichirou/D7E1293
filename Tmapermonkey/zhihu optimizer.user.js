@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.4.0
+// @version      3.5.4.1
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -33,7 +33,7 @@
 // @connect      cn.bing.com
 // @connect      img.meituan.net
 // @connect      www.cnblogs.com
-// @require      https://cdn.bootcdn.net/ajax/libs/xlsx/0.17.0/xlsx.core.min.js
+// @require      https://cdn.staticfile.org/xlsx/0.10.0/xlsx.core.min.js
 // @icon         https://static.zhihu.com/heifetz/favicon.ico
 // @compatible   chrome 80+
 // @license      MIT
