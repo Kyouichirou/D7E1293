@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         zhihu optimizer
 // @namespace    https://github.com/Kyouichirou
-// @version      3.5.4.1
+// @version      3.5.4.2
 // @updateURL    https://greasyfork.org/scripts/420005-zhihu-optimizer/code/zhihu%20optimizer.user.js
 // @description  now, I can say this is the best GM script for zhihu!
 // @author       HLA
@@ -8028,6 +8028,8 @@
         },
         addStyle(index) {
             const common = `
+                .css-1hwwfws,
+                .css-1ynzxqw,
                 .ModalExp-content{display: none !important;}
                 span.RichText.ztext.CopyrightRichText-richText{text-align: justify !important;}
                 body{background-attachment: fixed !important;text-shadow: #a9a9a9 0.025em 0.015em 0.02em;}`;
@@ -8340,6 +8342,7 @@
                 .RichText-MCNLinkCardContainer,
                 .Post-RichTextContainer .Catalog.isCatalogV2,
                 span.LinkCard-content.LinkCard-ecommerceLoadingCard,
+                .css-1ynzxqw,
                 .RichText-MCNLinkCardContainer{display: none !important}`;
             const list = `.Card:nth-of-type(3),.Card:last-child,.css-8txec3{width: 900px !important;}`;
             const home = `
@@ -8357,7 +8360,7 @@
                     position: relative !important;
                     height: -webkit-fill-available !important;
                 }
-                .ColumnHome{display: none;}`;
+                .css-1hwwfws{display: none !important;}`;
             if (mode < 2) {
                 if (mode === 0) {
                     if (document.title.startsWith("该内容暂无法显示")) {
