@@ -1,6 +1,7 @@
 # 作品 & 笔记 & 书籍 & think...
 
 - Python
+- Pandas
 - Jupyter Notebook
 - JavaScript
 - Tampermonkey
