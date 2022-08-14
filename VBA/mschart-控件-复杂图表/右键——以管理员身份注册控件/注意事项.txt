@@ -1,0 +1,9 @@
+@echo 开始注册
+copy MSChrt20.ocx %windir%\system32\
+regsvr32 %windir%\system32\MSChrt20.ocx /s
+@echo 注册成功
+@pause
+
+这是个32位的控件
+
+这个命令注册的是64位的系统位置, 需要手动修改调整为regsvr32 "C:\Windows\SysWOW64\MSChrt20.ocx"(使用前将文件复制到指定的位置)
