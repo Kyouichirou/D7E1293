@@ -6,7 +6,7 @@
 
 @HomePage: [GitHub](https://github.com/Kyouichirou)
 
-@version: 1.0
+@version: 1.0.0.1
 
 @description: Python一些不是很常用的功能和实现方式
 
@@ -18,7 +18,7 @@ suppress, 用于处理异常
 import os
 from contextlib import suppress
 
-with suppress(FileNotFoundError):
+with suppress(FileNotFoundError): 
     os.remove('file')
 # 相当于
 try:
@@ -650,5 +650,103 @@ test()
 
 
 
+## subprocess
 
+```python
+import subprocess
+import json
+from pprint import pprint
 
+file = r'C:\Users\Lian\Downloads\test.MOV'
+exe = r"C:\Users\Lian\portable_software\ffmpeg\bin\ffprobe.exe"
+
+cmd = f'{exe} -show_format -show_streams -of json "{file}"'
+# shell=True, 
+p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+'''
+class subprocess.Popen( args, 
+  bufsize=0, 
+  executable=None,
+  stdin=None,
+  stdout=None, 
+  stderr=None, 
+  preexec_fn=None, 
+  close_fds=False, 
+  shell=False, 
+  cwd=None, 
+  env=None, 
+  universal_newlines=False, 
+  startupinfo=None, 
+  creationflags=0)
+  
+'''
+out, err = p.communicate()
+```
+
+## win32
+
+```python
+# 这两个模块都是源于: pip install pywin32
+import win32api
+import win32con
+
+win32api.MessageBox(0, 'test', 'tips', win32con.MB_OK)
+```
+
+## json
+
+json.dumps()对象转为字符串, 和JavaScript的JSON.stringify()有所差异
+
+```python
+import json
+
+json.dumps([1,2,3])
+# [1, 2, 3], 数字之间是存在空格的
+json.dumps([1,2,3], separators=(',', ':'))
+# [1,2,3]
+```
+
+javascript版本
+
+```javascript
+
+JSON.stringify([1, 2, 3]);
+// [1,2,3], 不存在空格
+```
+
+## 具名元组
+
+```python
+from collections import namedtuple
+# 生成一个City类
+City = namedtuple("City", "name country polulation coordinates")
+# 实例化
+tokyo = City("Tokyo", 'JP', '36.93', ('35.68','139,69'))
+
+print(tokyo)
+# City(name='Tokyo', country='JP', polulation='36.93', coordinates=('35.68', '139,69'))
+
+print(tokyo.name)
+# Tokyo
+
+# 打印字段名
+print(City._fields)
+('name', 'country', 'polulation', 'coordinates')
+
+# 生成新实例
+LatLong = namedtuple('LatLong', 'lat long')
+Xiamen_tuple = ('Xiemen', 'China', '40,54', LatLong(24.26,118.03))
+Xiamen = City._make(Xiamen_tuple)
+
+print(Xiamen)
+# City(name='Xiemen', country='China', polulation='40,54', coordinates=(24.26, 118.03))
+
+# 将具名元组转为OrderDict
+Xiamen_dict = Xiamen._asdict()
+print(Xiamen_dict)
+# OrderedDict([('name', 'Xiemen'), ('country', 'China'), ('polulation', '40,54'), ('coordinates', LatLong(lat=24.26, long=118.03))])
+```
+
+## tkinker
+
+canvas无法直接将其中的内容直接转为图片保存, 有别于JavaScript的canvas是一个图像绘制和处理的中转站, tkinker只能作为图像绘制的画布.
