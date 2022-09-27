@@ -650,6 +650,77 @@ test()
 
 
 
+### [@overload装饰器](https://zhuanlan.zhihu.com/p/489767633)
+
+python函数并不支持[重载](https://www.zhihu.com/question/20053359/answer/14054112)
+
+```python
+首选要明白支持函数重载的目的是什么? 
+
+在静态语言中, 方法重载是希望类可以以统一的方式处理不同类型的数据提供了可能. 多个同名函数同时存在, 具有不同的参数个数/类型, 重载是一个类中多态性的一种表现. 
+
+在Java中实现函数重载: 
+
+class Writer{
+    public static void write(StringIO output, String content){
+        output.write(content);
+        return null;
+    }
+
+   public static void write(File output, String content){
+        output.write(content);
+        return null;
+   }
+}
+
+
+而在动态语言中, 有鸭子类型, 如果走起路来像鸭子, 叫起来也像鸭子, 那么它就是鸭子. 一个对象的特征不是由它的类型决定, 而是通过对象中的方法决定, 所以函数重载在动态语言中就显得没有意义了, 因为函数可以通过鸭子类型来处理不同类型的对象, 鸭子类型也是多态性的一种表现. 
+
+在Python中实现函数重载: 
+
+clsss Writer:
+    @staticmethod
+    def write(output, content):
+        # output对象只要实现了write方法就行
+        output.write(content)
+
+# stringIO类型
+output = StringIO.StringIO()
+Writer.write(output, "helloworld")
+
+# file 类型
+output = open("out.txt", "w")
+Writer.write(output, "helloworld")
+```
+
+> 很多人认为只要在类方法中加上了@overload装饰器就实现了Python中的方法重载, 实际上不是的. 在官方文档中是这样介绍[@overload](https://docs.python.org/3/library/typing.html#typing.overload)装饰器的: 
+>
+> The@overloaddecorator allows describing functions and methods that support multiple different combinations of argument types. A series of@overload-decorated definitions must be followed by exactly one non-@overload-decorated definition (for the same function/method). The@overload-decorated definitions are for the benefit of the type checker only, since they will be overwritten by the non-@overload-decorated definition, while the latter is used at runtime but should be ignored by a type checker. At runtime, calling a@overload-decorated function directly will raiseNotImplementedError.
+> 也就是说, 和typing这module里面其他东西的功能一样, @overload装饰器其实只是一种注解/提示: 该函数允许传入不同的参数类型组合. 最终, 所有加了@overload装饰器的方法都会被一个不加装饰器的方法覆盖掉. 如
+
+```python
+from typing import overload
+
+class Duck:
+
+    @overload
+    def quack(self) -> None: ...
+
+    @overload
+    def quack(self, mark: str) -> None: ...
+
+    # 以上两个方法最终会被这个方法覆盖掉
+    def quack(self, arg=None):
+        if arg:
+            print(f"GaGaGa: {arg}")
+        else:
+            print("GaGaGa!")
+
+d = Duck()
+d.quack()                # Output: GaGaGa!
+d.quack("I am a duck~")  # Output: GaGaGa: I am a duck~
+```
+
 ## subprocess
 
 ```python
@@ -750,3 +821,155 @@ print(Xiamen_dict)
 ## tkinker
 
 canvas无法直接将其中的内容直接转为图片保存, 有别于JavaScript的canvas是一个图像绘制和处理的中转站, tkinker只能作为图像绘制的画布.
+
+## 调度-APScheduler
+
+```python
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+
+class Test:
+    def __init__(self):
+        self._index = 0
+        self._s = BlockingScheduler()
+        self._s.add_job(self.my_job, 'interval', seconds=5, args=('abc',))
+        self._s.start()
+
+    def my_job(self, v):
+        if self._index == 3:
+            # 这里需要将wait=False, 否则会导致错误
+            # raise RuntimeError('cannot schedule new futures after shutdown')
+            self._s.shutdown(wait=False)
+            print('shut')
+        self._index += 1
+        print(v)
+
+
+Test()
+```
+
+## 变量
+
+##### 命名空间
+
+- 内置名称空间
+   存放的是一些内置函数，比如input，print，list，len等。
+- 全局名称空间
+   存放的是当前py文件中（除去函数，类内部的）变量与值的对应关系以及函数名与函数的内存地址的对应关系。
+- 局部（临时）名称空间
+   存放的是函数内部的变量与值的对应关系。
+   当一个函数被调用时，开辟临时名称空间，当函数执行结束后，临时名称空间消失。
+   如果一个函数被调用多次，则每调用一次，都要重新开辟临时名称空间。
+- 加载顺序
+   内置命名空间（程序运行时开始加载...）
+   全局命名空间（程序运行时加载，从上到下...）
+   局部命名空间（程序运行中加载，调用时才加载...）
+- 取值顺序
+   遵循就近原则（LEGB原则）
+   从局部找时，局部名称空间 --> 全局名称空间 --> 内置名称空间
+   从全局找时，全局名称空间 --> 内置名称空间
+
+##### 作用域
+
+两个作用域：全局作用域和局部作用域
+全局作用域：全局命名空间+内置命名空间
+局部作用域：局部命名空间
+局部作用域可以引用全局作用域的变量，但是不能修改全局作用域的变量。
+
+```python
+# 有别
+count = 1
+def func():
+    count += 1
+    print(count)
+
+func()
+
+# 报错信息：local variable 'count' referenced before assignment
+# 解释：局部作用域不能改变全局作用域的变量，当Python解释器读取到局部作用域时，发现你对一个变量进行修改操作，解释器会认为你在局部已经定义过这个局部变量了，解释器就会从局部找这个局部变量，其实并没有定义，所以报错。
+# 同样的原理
+def test():
+    a = 1
+	# 这种情况同样不行
+    def abc():
+        a += 1
+        print(a)
+
+    abc()
+
+
+test()
+```
+
+## 路径
+
+相对路径
+
+![path](https://p1.meituan.net/dpplatform/df024baa929be5dbb0ec736f667406fc21551.gif)
+
+```python
+import os
+
+# 相对路径, 和执行的命令的来源有关
+# 如下图
+print(os.getcwd())
+
+# 文件所在绝对路径
+print(os.path.dirname(__file__))
+
+# print(os.path.abspath(__file__)), 获得当前文件的绝对路径(不是文件夹路径)
+```
+
+![cmd](https://p0.meituan.net/dpplatform/85aee6ae3c8e6a97041c1c31fbcd3ee47464.png)
+
+`os.getcwd()` 和执行的命令来源有关, 假如在代码所在的文件执行, 则打印的是当前文件的路径; 假如代码是以模块导入, 则打印的是导入模块发起的代码所在的文件路径; 假如代码是在控制台执行的(如Powershell/cmd)则会显示控制台执行的路径.
+
+
+
+## 内建函数-属性相关
+
+- hasattr
+- getattr
+- setattr
+- delattr
+
+```python
+class Web:
+    def login(self):
+        print('欢迎来到登录页面')
+
+    def register(self):
+        print('欢迎来到注册页面')
+
+    def save(self):
+        print('欢迎来到存储页面')
+
+
+## 时间类似于JavaScript的方法的执行
+obj = Web()
+if f := getattr(obj, 'login', None):
+    f()
+```
+
+```javascript
+// javascript在某些function上执行是非常灵活的
+{
+    const funcs = {
+        a() {
+            console.log('a')
+        },
+        b(){
+            console.log('b')
+        }
+    }
+    
+    const a = funcs['a'];
+    
+    a && a();
+    
+    const f = funcs['f'];
+    
+    f && f();
+}
+```
+
