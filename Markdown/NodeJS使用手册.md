@@ -9,7 +9,7 @@
 包管理工具
 
 ```bash
--- 正常的安装包方式
+-- 正常的安装包方式, 使用这种方式为主
 npm install <package_name>
 
 -- 全局安装
@@ -79,3 +79,40 @@ npm init -y
 ### 问题原因
 
 [node](https://so.csdn.net/so/search?q=node&spm=1001.2101.3001.7020)早先只支持CommonJS的模块化方案，所以ES6的模块化特性用不了。但是在Node V13.2.0之后开始实验性的支持ESM模块化，不过需要创建package.json文件指明type类型为module。
+
+![imagex](https://p1.meituan.net/dpplatform/c0848976a3d631635aaa81188aab6d8837583.png)
+
+## python中调用nodejs
+
+在爬虫中, 很多加密模块的JavaScript代码改写为python比较麻烦, 通常是将js代码中的加密部分截取出来, 改成成为可以独立运行的js代码, 再执行js代码获取解密结果
+
+执行JavaScript的最佳选择是[PyExecJS](https://pypi.org/project/PyExecJS/), 但是这个库的作者已经放弃维护, 同时作者也建议直接调用node来执行js代码.
+
+另一可选方案是[Js2Py](https://pypi.org/project/Js2Py/), 这个库的运行效率非常低下, 不支持es6+(虽然说支持, 但是连一些非常简单的代码都无法执行).
+
+```python
+from subprocess import check_output
+
+# 简单的测试
+
+def test(code):
+    code += 'process.stdout.write(main(3, 2).toString())'
+    r = check_output('node', input=code, universal_newlines=True, timeout=100)
+    print(r)
+
+
+if __name__ == '__main__':
+    add = r'''
+                function main(x, y) {
+                    return x + y;
+                }
+    '''
+    sub = r'''
+                // ES6+ 箭头函数
+                const main = (x, y) => x - y;
+    '''
+    test(add)
+    test(sub)
+```
+
+或者通过外部浏览器来执行js返回结果, 如selenium.
