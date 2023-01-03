@@ -4,7 +4,7 @@ import time
 import msvcrt
 import random
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .utils.log_module import Logs
@@ -34,14 +34,14 @@ class Spider:
             k = ord(msvcrt.getch())
             # exit, q(Q)
             if k == 113 or k == 27 or k == 81:
-                print('waiting seconds, spider is exiting...')
+                print('[info]: waiting seconds, spider is exiting...')
                 self._exit_flag = True
                 self._close_mission()
                 break
 
     def _control(self):
         # 额外线程 => 控制
-        print('key monitor....')
+        print('[info]: key monitor....')
         th = threading.Thread(target=self._monitor_key_press)
         # 线程守护, 主进程退出,子线程退出
         th.daemon = True
@@ -68,6 +68,7 @@ class Spider:
         self._exit_flag = False
         self.__is_running = False
         self.__group_id = group_id
+        self.__interval_time = 0
         self.__first_time_run = True
         self.__visited_cache_list = []
         self.__running_times = 0
@@ -85,15 +86,17 @@ class Spider:
 
     def __catalog_page(self):
         if self.__is_running:
-            print('current mission is still running...')
+            print('[info]: current mission is still running...')
             return
+        start_now = datetime.now()
         try:
-            print(f'current mission loop is {self.__running_times}; {time.asctime()}')
+            print(f'[{start_now}]: current mission loop is {self.__running_times}')
             refer = ''
             self.__crawler.reset_connect()
             self.__is_running = True
             if self.__first_time_run:
-                pages = [e for e in range(0, 15)]
+                # douban夜间控制页面的访问深度, daylight最大为18页, night夜间8页
+                pages = [e for e in range(0, 8 if start_now.hour > 16 else 18)]
                 random.shuffle(pages)
                 self.__first_time_run = False
             else:
@@ -104,11 +107,12 @@ class Spider:
                     if urls := self.__parser.catalog(self.__parser.html_to_dom(html)):
                         self.__topic_page(urls, url)
                     else:
-                        print('warning: no urls')
+                        _logger.debug('[warning]: no urls')
                         break
                 else:
-                    break
-                if self.__crawler.anti_spider or self._exit_flag:
+                    if self.__crawler.anti_spider:
+                        break
+                if self._exit_flag:
                     break
                 refer = url
         except Exception as error:
@@ -116,10 +120,14 @@ class Spider:
         finally:
             self.__running_times += 1
             if self.__running_times > 30 or self.__crawler.anti_spider or self._exit_flag:
-                print('mission has reached 10th times')
+                print('[info]: mission has reached 10th times')
                 self._close_mission()
             else:
-                print(f'finish the {self.__running_times} times mission, now is waiting next running; {time.asctime()}')
+                interval = timedelta(seconds=self.__interval_time)
+                print(
+                    f'[{time.asctime()}]: finish the {self.__running_times} times mission\n'
+                    f'[{(start_now + interval).strftime("%H:%M:%S")}]: now is waiting next running'
+                )
                 self.__crawler.exit_crawler()
                 self.__is_running = False
 
@@ -160,11 +168,11 @@ class Spider:
                 datas.append(info)
             else:
                 break
-            if self.__crawler.anti_spider or self._exit_flag:
+            if self._exit_flag:
                 break
         if datas:
             if self.__database.insert_data(datas):
-                print('insert data to database successfully')
+                print('[info]: insert data to database successfully')
 
     def __next_comment(self, base_url: str) -> tuple:
         # 评论页面
@@ -190,7 +198,7 @@ class Spider:
         return datas, f
 
     def start(self, interval_time: int):
-        print('spider is starting...')
+        print('[info]: spider is starting...')
         # 任务调度
         self._scheduler = BlockingScheduler(timezone='Asia/Shanghai')
         # 不支持限定运行次数, 就算加上时间的限制start_date, end_date;
@@ -204,6 +212,7 @@ class Spider:
             # 开多一个线程, 同时使用is_running来控制执行
             max_instances=2
         )
+        self.__interval_time = interval_time
         self._control()
         self._scheduler.start()
-        print('spider has been started')
+        print('[info]: spider has been started')
